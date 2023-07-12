@@ -1,0 +1,9 @@
+/classes/
+/classes-test/
+/junit-reports/
+/target/
+/ice4j.jar
+.classpath
+.project
+.settings/
+bin/
