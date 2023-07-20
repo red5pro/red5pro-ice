@@ -8,6 +8,12 @@
     <packaging>jar</packaging>
     <name>red5pro-ice</name>
     <url>https://github.com/red5pro/red5pro-ice</url>
+    <developers>
+        <developer>
+            <id>Paul Gregoire</id>
+            <email>paul@red5pro.com</email>
+        </developer>
+    </developers>
     <scm>
         <url>https://github.com/red5pro/red5pro-ice</url>
         <connection>scm:git:https://github.com/red5pro/red5pro-ice.git</connection>
@@ -26,10 +32,19 @@
         <logback.version>1.2.3</logback.version>
         <junit.version>[4.13.1,)</junit.version>
     </properties>
-    <!--
-red5pro-ext-snapshot
-https://red5pro.jfrog.io/red5pro/ext-snapshot-local
--->
+    <!-- private location for red5pro deploy -->
+    <distributionManagement>
+        <repository>
+            <id>red5pro-ext-release</id>
+            <name>red5pro-releases</name>
+            <url>https://red5pro.jfrog.io/red5pro/ext-release-local</url>
+        </repository>
+        <snapshotRepository>
+            <id>red5pro-ext-snapshot</id>
+            <name>red5pro-snapshots</name>
+            <url>https://red5pro.jfrog.io/red5pro/ext-snapshot-local</url>
+        </snapshotRepository>
+    </distributionManagement>
     <dependencyManagement>
         <dependencies>
             <dependency>
