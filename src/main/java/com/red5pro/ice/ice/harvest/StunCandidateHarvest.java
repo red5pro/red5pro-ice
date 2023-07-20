@@ -481,7 +481,7 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
             // The response SHOULD NOT contain a USERNAME or MESSAGE-INTEGRITY attribute.
             EnumSet<Attribute.Type> excludedResponseAttributeTypes = EnumSet.of(Attribute.Type.USERNAME, Attribute.Type.MESSAGE_INTEGRITY);
             boolean challenge = true;
-            // TODO XXX Paul - possibly where we're failing Edge since it sends a username??
+            // XXX(paul) - possibly where we're failing Edge since it sends a username??
             if (response.containsAnyAttributes(excludedResponseAttributeTypes)) {
                 challenge = false;
             }

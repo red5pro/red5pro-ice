@@ -15,9 +15,9 @@ import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.RequestListener;
 import com.red5pro.ice.stack.StunStack;
 import com.red5pro.ice.stack.TransactionID;
+import com.red5pro.server.util.PortManager;
 
 import junit.framework.TestCase;
-import test.PortUtil;
 
 /**
  * Test how client and server behave, how they recognize/adopt messages and
@@ -82,8 +82,8 @@ public class TransactionSupportTests extends TestCase {
      */
     protected void setUp() throws Exception {
         super.setUp();
-        clientAddress = new TransportAddress("127.0.0.1", PortUtil.getPort(), Transport.UDP);
-        serverAddress = new TransportAddress("127.0.0.1", PortUtil.getPort(), Transport.UDP);
+        clientAddress = new TransportAddress("127.0.0.1", PortManager.findFreeUdpPort(), Transport.UDP);
+        serverAddress = new TransportAddress("127.0.0.1", PortManager.findFreeUdpPort(), Transport.UDP);
 
         stunStack = new StunStack();
 

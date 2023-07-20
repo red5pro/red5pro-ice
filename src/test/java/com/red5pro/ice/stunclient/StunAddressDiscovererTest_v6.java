@@ -1,18 +1,16 @@
 /* See LICENSE.md for license information */
 package com.red5pro.ice.stunclient;
 
-import junit.framework.TestCase;
-
-import com.red5pro.ice.message.MessageFactory;
-import com.red5pro.ice.message.Response;
-import com.red5pro.ice.stack.StunStack;
-
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.message.MessageFactory;
+import com.red5pro.ice.message.Response;
+import com.red5pro.ice.stack.StunStack;
+import com.red5pro.server.util.PortManager;
 
-import test.PortUtil;
+import junit.framework.TestCase;
 
 /**
  * The StunAddressDiscovererTest_XXX set of tests were created to verify stun
@@ -43,10 +41,10 @@ public class StunAddressDiscovererTest_v6 extends TestCase {
 
     protected void setUp() throws Exception {
         super.setUp();
-        discovererAddress = new TransportAddress("::1", PortUtil.getPort(), Transport.UDP);
-        responseServerAddress = new TransportAddress("::1", PortUtil.getPort(), Transport.UDP);
-        mappedClientAddress = new TransportAddress("2001:660:4701:1001:ff::1", PortUtil.getPort(), Transport.UDP);
-        mappedClientAddressPort2 = new TransportAddress("2001:660:4701:1001:ff::1", PortUtil.getPort(), Transport.UDP);
+        discovererAddress = new TransportAddress("::1", PortManager.findFreeUdpPort(), Transport.UDP);
+        responseServerAddress = new TransportAddress("::1", PortManager.findFreeUdpPort(), Transport.UDP);
+        mappedClientAddress = new TransportAddress("2001:660:4701:1001:ff::1", PortManager.findFreeUdpPort(), Transport.UDP);
+        mappedClientAddressPort2 = new TransportAddress("2001:660:4701:1001:ff::1", PortManager.findFreeUdpPort(), Transport.UDP);
 
         StunStack stunStack = new StunStack();
 

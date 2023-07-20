@@ -1,18 +1,16 @@
 /* See LICENSE.md for license information */
 package com.red5pro.ice.stunclient;
 
-import junit.framework.TestCase;
-
-import com.red5pro.ice.message.MessageFactory;
-import com.red5pro.ice.message.Response;
-import com.red5pro.ice.stack.StunStack;
-
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.message.MessageFactory;
+import com.red5pro.ice.message.Response;
+import com.red5pro.ice.stack.StunStack;
+import com.red5pro.server.util.PortManager;
 
-import test.PortUtil;
+import junit.framework.TestCase;
 
 /**
  * Makes basic stun tests for cases where local network addresses and the public
@@ -62,14 +60,14 @@ public class StunAddressDiscovererTest_v4v6 extends TestCase {
     protected void setUp() throws Exception {
         super.setUp();
 
-        discovererAddress_v4 = new TransportAddress("127.0.0.1", PortUtil.getPort(), Transport.UDP);
-        discovererAddress_v6 = new TransportAddress("::1", PortUtil.getPort(), Transport.UDP);
-        responseServerAddress_v6 = new TransportAddress("::1", PortUtil.getPort(), Transport.UDP);
-        responseServerAddress_v4 = new TransportAddress("127.0.0.1", PortUtil.getPort(), Transport.UDP);
-        mappedClientAddress_v6 = new TransportAddress("2001:660:4701:1001:ff::1", PortUtil.getPort(), Transport.UDP);
-        mappedClientAddress_v6_Port2 = new TransportAddress("2001:660:4701:1001:ff::1", PortUtil.getPort(), Transport.UDP);
-        mappedClientAddress_v4 = new TransportAddress("130.79.99.55", PortUtil.getPort(), Transport.UDP);
-        mappedClientAddress_v4_Port2 = new TransportAddress("130.79.99.55", PortUtil.getPort(), Transport.UDP);
+        discovererAddress_v4 = new TransportAddress("127.0.0.1", PortManager.findFreeUdpPort(), Transport.UDP);
+        discovererAddress_v6 = new TransportAddress("::1", PortManager.findFreeUdpPort(), Transport.UDP);
+        responseServerAddress_v6 = new TransportAddress("::1", PortManager.findFreeUdpPort(), Transport.UDP);
+        responseServerAddress_v4 = new TransportAddress("127.0.0.1", PortManager.findFreeUdpPort(), Transport.UDP);
+        mappedClientAddress_v6 = new TransportAddress("2001:660:4701:1001:ff::1", PortManager.findFreeUdpPort(), Transport.UDP);
+        mappedClientAddress_v6_Port2 = new TransportAddress("2001:660:4701:1001:ff::1", PortManager.findFreeUdpPort(), Transport.UDP);
+        mappedClientAddress_v4 = new TransportAddress("130.79.99.55", PortManager.findFreeUdpPort(), Transport.UDP);
+        mappedClientAddress_v4_Port2 = new TransportAddress("130.79.99.55", PortManager.findFreeUdpPort(), Transport.UDP);
 
         StunStack stunStack = new StunStack();
 

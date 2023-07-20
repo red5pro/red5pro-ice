@@ -490,8 +490,7 @@ public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramA
         } finally {
             lock.release();
         }
-        // XXX Paul this is a target for optimization, not allowing it to await "forever" might be smart
-        // Now, we wait until this request is completed.
+        // Waits up to "maxRequestWaitTimeout" seconds for the bind to be completed
         logger.info("Acceptor bindInternal waiting {}s uninterruptibly for request", maxRequestWaitTimeout);
         request.awaitUninterruptibly(maxRequestWaitTimeout, TimeUnit.SECONDS);
         if (request.getException() != null) {
@@ -739,7 +738,7 @@ public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramA
         cancelQueue.add(request);
         //startupAcceptor();
         //wakeup();        
-        // XXX Paul this is a target for optimization, not allowing it to await "forever" might be smart
+         // Waits up to "maxRequestWaitTimeout" seconds for the un-bind to be completed
         logger.info("Acceptor unbind0 waiting {}s uninterruptibly for request", maxRequestWaitTimeout);
         request.awaitUninterruptibly(maxRequestWaitTimeout, TimeUnit.SECONDS);
         if (request.getException() != null) {

@@ -14,9 +14,9 @@ import com.red5pro.ice.message.Response;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.RequestListener;
 import com.red5pro.ice.stack.StunStack;
+import com.red5pro.server.util.PortManager;
 
 import junit.framework.TestCase;
-import test.PortUtil;
 
 /**
  * Test event dispatching for both client and server.
@@ -94,9 +94,9 @@ public class MessageEventDispatchingTest extends TestCase {
     protected void setUp() throws Exception {
         super.setUp();
         logger.info("-------------------------------------------\nSettting up {}", getClass().getName());
-        clientAddress = new TransportAddress(IPAddress, PortUtil.getPort(), Transport.UDP);
-        serverAddress = new TransportAddress(IPAddress, PortUtil.getPort(), Transport.UDP);
-        serverAddress2 = new TransportAddress(IPAddress, PortUtil.getPort(), Transport.UDP);
+        clientAddress = new TransportAddress(IPAddress, PortManager.findFreeUdpPort(), Transport.UDP);
+        serverAddress = new TransportAddress(IPAddress, PortManager.findFreeUdpPort(), Transport.UDP);
+        serverAddress2 = new TransportAddress(IPAddress, PortManager.findFreeUdpPort(), Transport.UDP);
         stunStack = new StunStack();
         // create the wrappers
         clientSock = IceSocketWrapper.build(clientAddress, null);

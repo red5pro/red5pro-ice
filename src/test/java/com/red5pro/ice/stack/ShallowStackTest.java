@@ -42,9 +42,9 @@ import com.red5pro.ice.message.Response;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.socket.IceUdpSocketWrapper;
 import com.red5pro.ice.util.Utils;
+import com.red5pro.server.util.PortManager;
 
 import junit.framework.TestCase;
-import test.PortUtil;
 
 /**
  * All unit stack tests should be provided later. I just don't have the time now.
@@ -107,7 +107,7 @@ public class ShallowStackTest extends TestCase {
         msgFixture = new MsgFixture();
         // XXX Paul: ephemeral port selection using 0 isnt working since the InetSocketAddress used by TransportAddress doesnt show the selected port
         // this causes connector lookups to fail due to port being still set to 0
-        int serverPort = PortUtil.getPort();
+        int serverPort = PortManager.findFreeUdpPort();
         serverAddress = new TransportAddress(IPAddress, serverPort, selectedTransport);
         // create and start listening here
         dgramCollector = new DatagramCollector();
@@ -115,7 +115,7 @@ public class ShallowStackTest extends TestCase {
         // init the stack
         stunStack = new StunStack();
         // access point
-        localAddress = new TransportAddress(IPAddress, PortUtil.getPort(), selectedTransport);
+        localAddress = new TransportAddress(IPAddress, PortManager.findFreeUdpPort(), selectedTransport);
         logger.info("Server: {} Client: {}", serverPort, localAddress.getPort());
         if (selectedTransport == Transport.UDP) {
             localSock = IceSocketWrapper.build(localAddress, null);
