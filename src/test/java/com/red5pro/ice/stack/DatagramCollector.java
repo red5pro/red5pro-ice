@@ -22,7 +22,7 @@ import org.apache.mina.transport.socket.nio.NioDatagramAcceptor;
 import org.apache.mina.transport.socket.nio.NioDatagramConnector;
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
 import org.apache.mina.transport.socket.nio.NioSocketConnector;
-import com.red5pro.ice.ice.nio.IceTransport;
+import com.red5pro.ice.nio.IceTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

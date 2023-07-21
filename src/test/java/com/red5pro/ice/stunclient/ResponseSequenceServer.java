@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.StunMessageEvent;
 import com.red5pro.ice.TransportAddress;
-import com.red5pro.ice.ice.nio.IceUdpTransport;
+import com.red5pro.ice.nio.IceUdpTransport;
 import com.red5pro.ice.message.Response;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.RequestListener;

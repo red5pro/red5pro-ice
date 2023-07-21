@@ -3,8 +3,6 @@ package com.red5pro.ice;
 
 import java.net.*;
 
-import com.red5pro.ice.ice.*;
-
 /**
  * The Address class is used to define destinations to outgoing Stun Packets.
  *

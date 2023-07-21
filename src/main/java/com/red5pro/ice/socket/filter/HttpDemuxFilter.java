@@ -4,7 +4,7 @@ package com.red5pro.ice.socket.filter;
 import java.net.DatagramPacket;
 import java.nio.charset.Charset;
 
-import com.red5pro.ice.ice.harvest.TurnCandidateHarvester;
+import com.red5pro.ice.harvest.TurnCandidateHarvester;
 
 /**
  * Implements a {@link DataFilter} which allows demultiplexing HTTP(S). 

@@ -9,7 +9,7 @@ import com.red5pro.ice.attribute.AttributeFactory;
 import com.red5pro.ice.attribute.ChangeRequestAttribute;
 import com.red5pro.ice.attribute.ChangedAddressAttribute;
 import com.red5pro.ice.attribute.MappedAddressAttribute;
-import com.red5pro.ice.ice.nio.IceTransport;
+import com.red5pro.ice.nio.IceTransport;
 import com.red5pro.ice.message.MessageFactory;
 import com.red5pro.ice.message.Request;
 import com.red5pro.ice.socket.IceSocketWrapper;

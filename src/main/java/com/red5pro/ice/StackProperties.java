@@ -38,27 +38,27 @@ public class StackProperties {
     /**
      * How often a STUN Binding request used for consent freshness check will be sent(value in milliseconds).
      */
-    public static final String CONSENT_FRESHNESS_INTERVAL = "com.red5pro.ice.ice.CONSENT_FRESHNESS_INTERVAL";
+    public static final String CONSENT_FRESHNESS_INTERVAL = "com.red5pro.ice.CONSENT_FRESHNESS_INTERVAL";
 
     /**
      * The maximum number of retransmissions of a STUN Binding request without a valid STUN Binding response after which consent freshness is to be
      * considered unconfirmed according to &quot;STUN Usage for Consent Freshness&quot;.
      */
-    public static final String CONSENT_FRESHNESS_MAX_RETRANSMISSIONS = "com.red5pro.ice.ice.CONSENT_FRESHNESS_MAX_RETRANSMISSIONS";
+    public static final String CONSENT_FRESHNESS_MAX_RETRANSMISSIONS = "com.red5pro.ice.CONSENT_FRESHNESS_MAX_RETRANSMISSIONS";
 
     /**
      * The number of milliseconds without a valid STUN Binding response after which a STUN Binding request is to be retransmitted according to
      * &quot;STUN Usage for Consent Freshness&quot;. This is the final value for the back-off strategy.
      * {@link #CONSENT_FRESHNESS_ORIGINAL_WAIT_INTERVAL} defines the initial interval for the first request sent. Value in milliseconds.
      */
-    public static final String CONSENT_FRESHNESS_MAX_WAIT_INTERVAL = "com.red5pro.ice.ice.CONSENT_FRESHNESS_MAX_WAIT_INTERVAL";
+    public static final String CONSENT_FRESHNESS_MAX_WAIT_INTERVAL = "com.red5pro.ice.CONSENT_FRESHNESS_MAX_WAIT_INTERVAL";
 
     /**
      * The number of milliseconds without a valid STUN Binding response after which a STUN Binding request is to be retransmitted according to
      * &quot;STUN Usage for Consent Freshness&quot;. This is the original value or back-off strategy. {@link #CONSENT_FRESHNESS_MAX_WAIT_INTERVAL} sets
      * the upper limit. Value in milliseconds.
      */
-    public static final String CONSENT_FRESHNESS_ORIGINAL_WAIT_INTERVAL = "com.red5pro.ice.ice.CONSENT_FRESHNESS_WAIT_INTERVAL";
+    public static final String CONSENT_FRESHNESS_ORIGINAL_WAIT_INTERVAL = "com.red5pro.ice.CONSENT_FRESHNESS_WAIT_INTERVAL";
 
     /**
      * The number of milliseconds a client transaction should wait before retransmitting, after it has sent a request for the first time.
@@ -138,39 +138,39 @@ public class StackProperties {
     /**
      * The name of the allowed interfaces property which specifies the allowed interfaces for host candidate allocations.
      */
-    public static final String ALLOWED_INTERFACES = "com.red5pro.ice.ice.harvest.ALLOWED_INTERFACES";
+    public static final String ALLOWED_INTERFACES = "com.red5pro.ice.harvest.ALLOWED_INTERFACES";
 
     /**
      * The name of the allowed interfaces property which specifies the blocked interfaces for host candidate allocations.
      */
-    public static final String BLOCKED_INTERFACES = "com.red5pro.ice.ice.harvest.BLOCKED_INTERFACES";
+    public static final String BLOCKED_INTERFACES = "com.red5pro.ice.harvest.BLOCKED_INTERFACES";
 
     /**
      * The name of the property which specifies a ";"-separated list of IP addresses that are allowed to be used for host candidate allocations.
      */
-    public static final String ALLOWED_ADDRESSES = "com.red5pro.ice.ice.harvest.ALLOWED_ADDRESSES";
+    public static final String ALLOWED_ADDRESSES = "com.red5pro.ice.harvest.ALLOWED_ADDRESSES";
 
     /**
      * The name of the property which, if set to true, specifies that IPv6 link local addresses should not be used for candidate allocations.
      */
-    public static final String DISABLE_LINK_LOCAL_ADDRESSES = "com.red5pro.ice.ice.harvest.DISABLE_LINK_LOCAL_ADDRESSES";
+    public static final String DISABLE_LINK_LOCAL_ADDRESSES = "com.red5pro.ice.harvest.DISABLE_LINK_LOCAL_ADDRESSES";
 
     /**
      * The name of the property which specifies a ";"-separated list of IP addresses that are not allowed to be used for host candidate allocations.
      *
-     * NOTE: this is currently only supported by {@link com.red5pro.ice.ice.harvest.TcpHarvester}.
+     * NOTE: this is currently only supported by {@link com.red5pro.ice.harvest.TcpHarvester}.
      */
-    public static final String BLOCKED_ADDRESSES = "com.red5pro.ice.ice.harvest.BLOCKED_ADDRESSES";
+    public static final String BLOCKED_ADDRESSES = "com.red5pro.ice.harvest.BLOCKED_ADDRESSES";
 
     /**
      * The name of the property which specifies whether the dynamic port UDP host harvester should be used by Agent instances.
      */
-    public static final String USE_DYNAMIC_HOST_HARVESTER = "com.red5pro.ice.ice.harvest.USE_DYNAMIC_HOST_HARVESTER";
+    public static final String USE_DYNAMIC_HOST_HARVESTER = "com.red5pro.ice.harvest.USE_DYNAMIC_HOST_HARVESTER";
 
     /**
      * Timeout, in seconds, of how long to wait for an individual harvest before timing out
      */
-    public static final String HARVESTING_TIMEOUT = "com.red5pro.ice.ice.harvest.HARVESTING_TIMEOUT";
+    public static final String HARVESTING_TIMEOUT = "com.red5pro.ice.harvest.HARVESTING_TIMEOUT";
 
     public static final String UDP_PRIORITY_MODIFIER = "UDP_PRIORITY_MODIFIER";
 
@@ -179,7 +179,7 @@ public class StackProperties {
     /**
      * Ta pace timer in milliseconds.
      */
-    public static final String TA = "com.red5pro.ice.ice.TA_PACE_TIMER";
+    public static final String TA = "com.red5pro.ice.TA_PACE_TIMER";
 
     /**
      * Returns the String value of the specified property (minus all
