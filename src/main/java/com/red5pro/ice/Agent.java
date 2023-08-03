@@ -258,10 +258,10 @@ public class Agent {
     static {
         // add the software attribute to all messages
         if (StackProperties.getString(StackProperties.SOFTWARE) == null) {
-            System.setProperty(StackProperties.SOFTWARE, "ice4j.org");
+            System.setProperty(StackProperties.SOFTWARE, "red5pro.com");
         }
         // print version and other info on first instantiation
-        logger.info("ICE4J version: {}\n\t termination delay: {}ms", VERSION, terminationDelay);
+        logger.info("Red5Pro ICE version: {}\n\t termination delay: {}ms", VERSION, terminationDelay);
     }
 
     /**
