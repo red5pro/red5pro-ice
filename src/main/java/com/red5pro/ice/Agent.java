@@ -62,9 +62,9 @@ public class Agent {
     private final static boolean isTrace = logger.isTraceEnabled(), isDebug = logger.isDebugEnabled();
 
     /**
-     * The version of the ICE4J library.
+     * The version of the library.
      */
-    private final static String VERSION = "1.0.2";
+    private final static String VERSION = "1.0.3";
 
     private final static SecureRandom random = new SecureRandom();
 
@@ -261,7 +261,7 @@ public class Agent {
             System.setProperty(StackProperties.SOFTWARE, "red5pro.com");
         }
         // print version and other info on first instantiation
-        logger.info("Red5Pro ICE version: {}\n\t termination delay: {}ms", VERSION, terminationDelay);
+        logger.info("Red5 Pro ICE version: {}\n\t termination delay: {}ms", VERSION, terminationDelay);
     }
 
     /**
