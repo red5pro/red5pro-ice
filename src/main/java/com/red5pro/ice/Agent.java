@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.net.BindException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -64,7 +65,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.0.3";
+    private final static String VERSION = "1.0.4";
 
     private final static SecureRandom random = new SecureRandom();
 
@@ -457,6 +458,60 @@ public class Agent {
     }
 
     /**
+     * Multi-port version for single transport.
+     * 
+     * @param stream
+     * @param transport
+     * @param ports
+     * @return
+     * @throws IllegalArgumentException
+     * @throws IOException
+     * @throws BindException
+     */
+    public Component createComponent(IceMediaStream stream, Transport transport, int[] ports) throws IllegalArgumentException, IOException, BindException {
+        logger.debug("createComponent: {} ports: {}", transport, Arrays.asList(ports));
+        KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
+        //logger.info("createComponent stream: {}", stream);
+        Component component = stream.createComponent(keepAliveStrategy);
+        //logger.info("createComponent stream: {} component: {}", stream, component);
+        logger.debug("Gathering candidates for component {}. Local ufrag {}", component.toShortString(), getLocalUfrag());
+        if (useHostHarvester()) {
+            for (int port : ports) {
+                if (port > 0) {
+                    hostCandidateHarvester.harvest(component, port, transport);
+                }
+            }
+        } else if (hostHarvesters.isEmpty()) {
+            logger.warn("No host harvesters available!");
+        }
+        //logger.debug("hostHarvesters: {}", hostHarvesters);
+        for (CandidateHarvester harvester : hostHarvesters) {
+            harvester.harvest(component);
+        }
+        //logger.debug("Host harvester for-loop done");
+        if (component.getLocalCandidateCount() == 0) {
+            logger.warn("Failed to gather any host candidates!");
+            // sees like we should return after failing to get any local candidates
+        } else {
+            // in case we are not trickling, apply other harvesters here
+            if (!isTrickling()) {
+                harvestingStarted = true; //raise a flag to warn on a second call.
+                harvesters.harvest(component);
+            }
+            logger.debug("Candidate count in first harvest: {}", component.getLocalCandidateCount());
+            // select the candidate to put in the media line
+            component.selectDefaultCandidate();
+            /*
+            * After we've gathered the LocalCandidate for a Component and before we've made them available to the caller, we have to make sure that the ConnectivityCheckServer is
+            * started. If there's been a previous connectivity establishment which has completed, it has stopped the ConnectivityCheckServer. If the ConnectivityCheckServer is not
+            * started after we've made the gathered LocalCandidates available to the caller, the caller may send them and a connectivity check may arrive from the remote Agent.
+            */
+            connCheckServer.start();
+        }
+        return component;
+    }
+
+    /**
      * Creates a new {@link Component} for the specified stream and allocates potentially all local candidates that should belong to it.
      *
      * @param stream the {@link IceMediaStream} that the new {@link Component} should belong to
@@ -497,14 +552,74 @@ public class Agent {
          */
         logger.debug("Gathering candidates for component {}. Local ufrag {}", component.toShortString(), getLocalUfrag());
         if (useHostHarvester()) {
-            logger.debug("Using host harvester");
             if (port1 > 0) {
                 hostCandidateHarvester.harvest(component, port1, transport1);
             }
             if (port2 > 0) {
                 hostCandidateHarvester.harvest(component, port2, transport2);
             }
-            logger.debug("Host harvester done");
+        } else if (hostHarvesters.isEmpty()) {
+            logger.warn("No host harvesters available!");
+        }
+        //logger.debug("hostHarvesters: {}", hostHarvesters);
+        for (CandidateHarvester harvester : hostHarvesters) {
+            harvester.harvest(component);
+        }
+        //logger.debug("Host harvester for-loop done");
+        if (component.getLocalCandidateCount() == 0) {
+            logger.warn("Failed to gather any host candidates!");
+            // sees like we should return after failing to get any local candidates
+        } else {
+            // in case we are not trickling, apply other harvesters here
+            if (!isTrickling()) {
+                harvestingStarted = true; //raise a flag to warn on a second call.
+                harvesters.harvest(component);
+            }
+            logger.debug("Candidate count in first harvest: {}", component.getLocalCandidateCount());
+            // select the candidate to put in the media line
+            component.selectDefaultCandidate();
+            /*
+            * After we've gathered the LocalCandidate for a Component and before we've made them available to the caller, we have to make sure that the ConnectivityCheckServer is
+            * started. If there's been a previous connectivity establishment which has completed, it has stopped the ConnectivityCheckServer. If the ConnectivityCheckServer is not
+            * started after we've made the gathered LocalCandidates available to the caller, the caller may send them and a connectivity check may arrive from the remote Agent.
+            */
+            connCheckServer.start();
+        }
+        return component;
+    }
+
+    /**
+     * Multiple ports version of {@link #createComponent(IceMediaStream, Transport, int, Transport, int)}.
+     * 
+     * @param stream
+     * @param transport1
+     * @param ports1
+     * @param transport2
+     * @param ports2
+     * @return
+     * @throws IllegalArgumentException
+     * @throws IOException
+     * @throws BindException
+     */
+    public Component createComponent(IceMediaStream stream, Transport transport1, int[] ports1, Transport transport2, int[] ports2) throws IllegalArgumentException, IOException, BindException {
+        logger.debug("createComponent: {} ports: {} {} ports: {}", transport1, Arrays.asList(ports1), transport2, Arrays.asList(ports2));
+        KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
+        //logger.info("createComponent stream: {}", stream);
+        Component component = stream.createComponent(keepAliveStrategy);
+        component.setReferenceId(getProperty("refId"));
+        //logger.info("createComponent stream: {} component: {}", stream, component);
+        logger.debug("Gathering candidates for component {}. Local ufrag {}", component.toShortString(), getLocalUfrag());
+        if (useHostHarvester()) {
+            for (int port : ports1) {
+                if (port > 0) {
+                    hostCandidateHarvester.harvest(component, port, transport1);
+                }
+            }
+            for (int port : ports2) {
+                if (port > 0) {
+                    hostCandidateHarvester.harvest(component, port, transport2);
+                }
+            }
         } else if (hostHarvesters.isEmpty()) {
             logger.warn("No host harvesters available!");
         }
