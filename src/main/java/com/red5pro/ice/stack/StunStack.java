@@ -105,6 +105,11 @@ public class StunStack implements MessageEventHandler {
     private boolean useIPv6;
 
     /**
+     * Whether or not to use all available IP versions.
+     */
+    private boolean useAllBinding;
+
+    /**
      * Executor for all threads and tasks needed in this agent.
      */
     private ExecutorService executor = Executors.newCachedThreadPool(new ThreadFactory() {
@@ -151,9 +156,10 @@ public class StunStack implements MessageEventHandler {
         logger.debug("addSocket: {} remote address: {} bind? {}", iceSocket, remoteAddress, doBind);
         boolean added = false;
         InetAddress addr = iceSocket.getLocalAddress();
-        if (useIPv6 && !addr.getHostAddress().contains(":")) {
+        boolean isIPv6Address = addr.getHostAddress().contains(":");
+        if (!useAllBinding && (useIPv6 && !isIPv6Address)) {
             logger.debug("Skipping IPv4 address: {}", addr);
-        } else if (!useIPv6 && addr.getHostAddress().contains(":")) {
+        } else if (!useAllBinding && (!useIPv6 && isIPv6Address)) {
             logger.debug("Skipping IPv6 address: {}", addr);
         } else {
             // add the wrapper for binding
@@ -638,6 +644,15 @@ public class StunStack implements MessageEventHandler {
      */
     public void useIPv6Binding(boolean useIPv6) {
         this.useIPv6 = useIPv6;
+    }
+
+    /**
+     * Used to ensure both IP versions are allowed.
+     * 
+     * @param useAllBinding if true both IPv6 and IPv4 addresses will be allowed
+     */
+    public void useAllBinding(Boolean useAllBinding) {
+        this.useAllBinding = useAllBinding;
     }
 
     /**

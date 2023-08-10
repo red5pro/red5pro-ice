@@ -373,6 +373,8 @@ public class Agent {
         logger.debug("Create media stream for {}", mediaStreamName);
         // use IPv6 over IPv4 if the property is set
         stunStack.useIPv6Binding(Boolean.valueOf(getProperty("useIPv6Binding")));
+        // use both if the property is set
+        stunStack.useAllBinding(Boolean.valueOf(getProperty("sendAllIPBinding")));
         // create the media stream
         IceMediaStream mediaStream = new IceMediaStream(Agent.this, mediaStreamName);
         if (mediaStreams.add(mediaStream)) {
