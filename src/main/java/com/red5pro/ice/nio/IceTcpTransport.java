@@ -25,6 +25,11 @@ import com.red5pro.ice.stack.StunStack;
 public class IceTcpTransport extends IceTransport {
 
     /**
+     * Socket linger for this instance.
+     */
+    private int localSoLinger = -1;
+
+    /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     private IceTcpTransport() {
@@ -106,8 +111,13 @@ public class IceTcpTransport extends IceTransport {
             SocketSessionConfig sessionConf = ((NioSocketAcceptor) acceptor).getSessionConfig();
             sessionConf.setReuseAddress(true);
             sessionConf.setTcpNoDelay(true);
-            // externalized linger property for configuration
-            sessionConf.setSoLinger(soLinger); // 0 = close immediately, -1 = disabled, > 0 = linger for x seconds
+            // set the linger value if its been set locally
+            if (localSoLinger > -1) {
+                sessionConf.setSoLinger(localSoLinger);
+            } else {
+                // externalized linger property for configuration            
+                sessionConf.setSoLinger(soLinger); // 0 = close immediately, -1 = disabled, > 0 = linger for x seconds
+            }
             // TODO(paul) externalize keep-alive property for configuration
             //sessionConf.setKeepAlive(true);
             sessionConf.setSendBufferSize(sendBufferSize);
@@ -169,7 +179,7 @@ public class IceTcpTransport extends IceTransport {
 
     /** {@inheritDoc} */
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
-        logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {}", stunStack, iceSocket);
+        logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {} soLinger: {}", stunStack, iceSocket, localSoLinger);
         boolean result = false;
         // add the stack and wrapper to a map which will hold them until an associated session is opened
         // when opened, the stack and wrapper will be added to the session as attributes
@@ -182,6 +192,15 @@ public class IceTcpTransport extends IceTransport {
             result = addBinding(localAddress);
         }
         return result;
+    }
+
+    /**
+     * Sets the socket linger on the current acceptor.
+     */
+    public void setSoLinger(int soLinger) {
+        this.localSoLinger = soLinger;
+        // if we've been given a linger property, apply it to the socket; this assumes non-shared acceptors       
+        ((NioSocketAcceptor) acceptor).getSessionConfig().setSoLinger(localSoLinger);
     }
 
 }

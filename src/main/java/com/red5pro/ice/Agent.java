@@ -25,18 +25,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.red5pro.ice.harvest.CandidateHarvester;
 import com.red5pro.ice.harvest.CandidateHarvesterSet;
 import com.red5pro.ice.harvest.HostCandidateHarvester;
 import com.red5pro.ice.harvest.MappingCandidateHarvester;
 import com.red5pro.ice.harvest.MappingCandidateHarvesters;
 import com.red5pro.ice.harvest.TrickleCallback;
+import com.red5pro.ice.nio.IceTcpTransport;
 import com.red5pro.ice.nio.IceTransport;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.StunStack;
 import com.red5pro.ice.stack.TransactionID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * An Agent could be described as the main class (i.e. the chef d'orchestre) of an ICE implementation.
@@ -65,7 +67,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.0.4";
+    private final static String VERSION = "1.0.5";
 
     private final static SecureRandom random = new SecureRandom();
 
@@ -484,6 +486,18 @@ public class Agent {
         } else if (hostHarvesters.isEmpty()) {
             logger.warn("No host harvesters available!");
         }
+        // if the we have a socket linger property, set it on the transport when we're using TCP
+        if (Transport.TCP.equals(transport)) {
+            String soLinger = getProperty("SO_LINGER");
+            if (soLinger != null) {
+                logger.debug("Setting SO_LINGER: {}", soLinger);
+                IceSocketWrapper wrapper = component.getSocket(transport);
+                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport, wrapper.getId());
+                if (transport != null) {
+                    iceTransport.setSoLinger(Integer.parseInt(soLinger));
+                }
+            }
+        }
         //logger.debug("hostHarvesters: {}", hostHarvesters);
         for (CandidateHarvester harvester : hostHarvesters) {
             harvester.harvest(component);
@@ -622,6 +636,28 @@ public class Agent {
             }
         } else if (hostHarvesters.isEmpty()) {
             logger.warn("No host harvesters available!");
+        }
+        // if the we have a socket linger property, set it on the transport when we're using TCP
+        if (Transport.TCP.equals(transport1)) {
+            String soLinger = getProperty("SO_LINGER");
+            if (soLinger != null) {
+                logger.debug("Setting SO_LINGER: {}", soLinger);
+                IceSocketWrapper wrapper = component.getSocket(transport1);
+                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport1, wrapper.getId());
+                if (transport1 != null) {
+                    iceTransport.setSoLinger(Integer.parseInt(soLinger));
+                }
+            }
+        } else if (Transport.TCP.equals(transport2)) {
+            String soLinger = getProperty("SO_LINGER");
+            if (soLinger != null) {
+                logger.debug("Setting SO_LINGER: {}", soLinger);
+                IceSocketWrapper wrapper = component.getSocket(transport2);
+                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport2, wrapper.getId());
+                if (transport2 != null) {
+                    iceTransport.setSoLinger(Integer.parseInt(soLinger));
+                }
+            }
         }
         //logger.debug("hostHarvesters: {}", hostHarvesters);
         for (CandidateHarvester harvester : hostHarvesters) {
