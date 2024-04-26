@@ -5,10 +5,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import com.red5pro.ice.TransportAddress;
-import com.red5pro.ice.message.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.StunMessageEvent;
+import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.message.Message;
 
 /**
  * This is a utility class used for dispatching incoming request events. We use this class mainly (and probably solely) for its ability to handle listener
@@ -18,6 +20,8 @@ import com.red5pro.ice.StunMessageEvent;
  * @author Lubomir Marinov
  */
 public class EventDispatcher {
+
+    private static final Logger logger = LoggerFactory.getLogger(EventDispatcher.class);
 
     /**
      * The STUN request and indication listeners registered with this EventDispatcher.
@@ -114,7 +118,9 @@ public class EventDispatcher {
      * unregistered for notifications about received STUN messages
      */
     private void removeMessageListener(MessageTypeEventHandler<?> messageListener) {
-        messageListeners.remove(messageListener);
+        if (messageListeners.remove(messageListener)) {
+            logger.debug("Removed message listener: {}", messageListener);
+        }
     }
 
     /**
@@ -130,6 +136,7 @@ public class EventDispatcher {
     private void removeMessageListener(TransportAddress localAddr, MessageTypeEventHandler<?> messageListener) {
         EventDispatcher child = children.get(localAddr);
         if (child != null) {
+            logger.debug("Removing local addr: {} message listener: {}", localAddr, messageListener);
             child.removeMessageListener(messageListener);
         }
     }
@@ -141,7 +148,7 @@ public class EventDispatcher {
      * @param listener The RequestListener to be removed
      */
     public void removeRequestListener(RequestListener listener) {
-        removeMessageListener(new RequestListenerMessageEventHandler(listener));
+        messageListeners.stream().filter(messageListener -> messageListener.delegate.equals(listener)).findFirst().ifPresent(this::removeMessageListener);
     }
 
     /**
@@ -198,7 +205,9 @@ public class EventDispatcher {
      * Removes (absolutely all listeners for this event dispatcher).
      */
     public void removeAllListeners() {
+        messageListeners.stream().forEach(this::removeMessageListener);
         messageListeners.clear();
+        children.forEach((addr, child) -> child.removeAllListeners());
         children.clear();
     }
 

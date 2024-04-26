@@ -11,9 +11,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import com.red5pro.ice.TransportAddress;
-import com.red5pro.ice.message.Request;
-import com.red5pro.ice.message.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +20,9 @@ import com.red5pro.ice.StunException;
 import com.red5pro.ice.StunMessageEvent;
 import com.red5pro.ice.StunResponseEvent;
 import com.red5pro.ice.StunTimeoutEvent;
+import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.message.Request;
+import com.red5pro.ice.message.Response;
 
 /**
  * The {@code StunClientTransaction} class retransmits requests as specified by RFC 3489.
@@ -324,6 +324,7 @@ public class StunClientTransaction implements Runnable {
      * @param waitForResponse indicates whether we should wait for the current RTO to expire before ending the transaction or immediately terminate.
      */
     void cancel(boolean waitForResponse) {
+        logger.debug("Cancelling transaction tid {}", transactionID);
         // XXX The cancelled field is initialized to false and then the one and only write access to it is here to set it to true. The rest of the
         // code just checks whether it has become true. Consequently, there shouldn't be a problem if the set is outside a synchronized block.
         // However, it being outside a synchronized block will decrease the risk of deadlocks.

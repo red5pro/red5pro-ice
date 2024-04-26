@@ -13,29 +13,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 
 import javax.crypto.Mac;
-
-import com.red5pro.ice.TransportAddress;
-import com.red5pro.ice.attribute.Attribute;
-import com.red5pro.ice.attribute.ErrorCodeAttribute;
-import com.red5pro.ice.attribute.MessageIntegrityAttribute;
-import com.red5pro.ice.attribute.OptionalAttribute;
-import com.red5pro.ice.attribute.UsernameAttribute;
-import com.red5pro.ice.nio.IceTcpTransport;
-import com.red5pro.ice.nio.IceTransport;
-import com.red5pro.ice.nio.IceUdpTransport;
-import com.red5pro.ice.message.Indication;
-import com.red5pro.ice.message.Message;
-import com.red5pro.ice.message.MessageFactory;
-import com.red5pro.ice.message.Request;
-import com.red5pro.ice.message.Response;
-import com.red5pro.ice.security.CredentialsManager;
-import com.red5pro.ice.security.LongTermCredential;
-import com.red5pro.ice.socket.IceSocketWrapper;
-import com.red5pro.ice.socket.IceUdpSocketWrapper;
-import com.red5pro.ice.util.Utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +23,25 @@ import com.red5pro.ice.ResponseCollector;
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.StunMessageEvent;
+import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.attribute.Attribute;
+import com.red5pro.ice.attribute.ErrorCodeAttribute;
+import com.red5pro.ice.attribute.MessageIntegrityAttribute;
+import com.red5pro.ice.attribute.OptionalAttribute;
+import com.red5pro.ice.attribute.UsernameAttribute;
+import com.red5pro.ice.message.Indication;
+import com.red5pro.ice.message.Message;
+import com.red5pro.ice.message.MessageFactory;
+import com.red5pro.ice.message.Request;
+import com.red5pro.ice.message.Response;
+import com.red5pro.ice.nio.IceTcpTransport;
+import com.red5pro.ice.nio.IceTransport;
+import com.red5pro.ice.nio.IceUdpTransport;
+import com.red5pro.ice.security.CredentialsManager;
+import com.red5pro.ice.security.LongTermCredential;
+import com.red5pro.ice.socket.IceSocketWrapper;
+import com.red5pro.ice.socket.IceUdpSocketWrapper;
+import com.red5pro.ice.util.Utils;
 
 /**
  * The entry point to the Stun4J stack. The class is used to start, stop and configure the stack.
@@ -94,11 +92,6 @@ public class StunStack implements MessageEventHandler {
      * A dispatcher for incoming requests event;
      */
     private final EventDispatcher eventDispatcher = new EventDispatcher();
-
-    /**
-     * The packet logger instance.
-     */
-    private static PacketLogger packetLogger;
 
     /**
      * Whether or not to prevent the use of IPv6 addresses.
@@ -670,25 +663,33 @@ public class StunStack implements MessageEventHandler {
      */
     public void shutDown() {
         logger.debug("Shutting down");
-        // remove all listeners
-        eventDispatcher.removeAllListeners();
-        // clientTransactions
-        for (StunClientTransaction tran : clientTransactions.values()) {
-            tran.cancel();
-        }
-        // serverTransactions
-        for (StunServerTransaction tran : serverTransactions.values()) {
-            tran.expire();
-        }
         // cancel the expire job if one exists
         if (serverTransactionExpireFuture != null) {
             serverTransactionExpireFuture.cancel(true);
             serverTransactionExpireFuture = null;
         }
+        // remove all listeners
+        eventDispatcher.removeAllListeners();
+        // clientTransactions
+        clientTransactions.keySet().forEach(id -> {
+            StunClientTransaction tran = clientTransactions.remove(id);
+            if (tran != null) {
+                tran.cancel();
+            }
+        });
+        // serverTransactions
+        serverTransactions.keySet().forEach(id -> {
+            StunServerTransaction tran = serverTransactions.remove(id);
+            if (tran != null) {
+                tran.expire();
+            }
+        });
         // stop the executor
         if (executor != null) {
             try {
-                executor.shutdown();
+                List.of(executor.shutdownNow()).forEach(r -> {
+                    logger.warn("Task at shutdown: {}", r);
+                });
             } catch (Exception e) {
                 logger.warn("Exception during shutdown", e);
             } finally {
@@ -836,79 +837,47 @@ public class StunStack implements MessageEventHandler {
     }
 
     /**
-     * Returns the currently set packet logger.
-     * @return the currently available packet logger.
-     */
-    public static PacketLogger getPacketLogger() {
-        return packetLogger;
-    }
-
-    /**
-     * Setting a packet logger for the stack.
-     * @param packetLogger the packet logger to use.
-     */
-    public static void setPacketLogger(PacketLogger packetLogger) {
-        StunStack.packetLogger = packetLogger;
-    }
-
-    /**
-     * Checks whether packet logger is set and enabled.
-     * @return true if we have a packet logger instance and it is enabled.
-     */
-    public static boolean isPacketLoggerEnabled() {
-        return packetLogger != null && packetLogger.isEnabled();
-    }
-
-    /**
      * Initializes and starts {@link #serverTransactionExpireThread} if necessary.
      */
     private void maybeStartServerTransactionExpireThread() {
         if (executor != null && !serverTransactions.isEmpty() && serverTransactionExpireFuture == null) {
-            serverTransactionExpireFuture = submit(new Runnable() {
-
-                // Expires the StunServerTransactions of this StunStack and removes them from {@link #serverTransactions}.
-                @Override
-                public void run() {
-                    Thread.currentThread().setName("StunStack.serverTransactionExpireThread");
-                    try {
-                        long idleStartTime = -1;
-                        do {
-                            try {
-                                logger.debug("Going to sleep for {}s before cleaning up server txns", (StunServerTransaction.LIFETIME / 1000L));
-                                Thread.sleep(StunServerTransaction.LIFETIME);
-                            } catch (InterruptedException ie) {
-                            }
-                            long now = System.currentTimeMillis();
-                            // Has the current Thread been idle long enough to merit disposing of it?
-                            if (serverTransactions.isEmpty()) {
-                                if (idleStartTime == -1) {
-                                    idleStartTime = now;
-                                } else if (now - idleStartTime > 60 * 1000) {
-                                    break;
-                                }
-                            } else {
-                                // Expire the StunServerTransactions of this StunStack.
-                                idleStartTime = -1;
-                                serverTransactions.values().forEach(serverTransaction -> {
-                                    if (serverTransaction == null || serverTransaction.isExpired()) {
-                                        serverTransactions.remove(serverTransaction.getTransactionID());
-                                    }
-                                });
-                            }
-                        } while (executor != null); // if the executor goes null, the stack has been shutdown
-                    } finally {
-                        // If serverTransactionExpireThread dies unexpectedly and yet it is still necessary, resurrect it.
-                        serverTransactionExpireFuture.cancel(true);
+            serverTransactionExpireFuture = submit(() -> {
+                // Expires the StunServerTransactions of this StunStack and removes them from {@link #serverTransactions}
+                final String oldName = Thread.currentThread().getName();
+                Thread.currentThread().setName("StunStack.txExpireThread");
+                try {
+                    long idleStartTime = -1;
+                    do {
                         try {
-                            logger.debug("Delaying 1s to wait for expiration of server txn future");
-                            serverTransactionExpireFuture.get(1L, TimeUnit.SECONDS);
-                        } catch (Exception e) {
-                            // wait for the future to finish its work
-                        } finally {
-                            serverTransactionExpireFuture = null;
-                            maybeStartServerTransactionExpireThread();
+                            logger.debug("Going to sleep for {}s before cleaning up server txns", (StunServerTransaction.LIFETIME / 1000L));
+                            Thread.sleep(StunServerTransaction.LIFETIME);
+                        } catch (InterruptedException ie) {
+                            logger.debug("Interrupted while waiting for server txns to expire", ie);
+                            break;
                         }
-                    }
+                        long now = System.currentTimeMillis();
+                        // Has the current Thread been idle long enough to merit disposing of it?
+                        if (serverTransactions.isEmpty()) {
+                            if (idleStartTime == -1) {
+                                idleStartTime = now;
+                            } else if (now - idleStartTime > 60 * 1000) {
+                                break;
+                            }
+                        } else {
+                            // Expire the StunServerTransactions of this StunStack.
+                            idleStartTime = -1;
+                            serverTransactions.values().forEach(serverTransaction -> {
+                                if (serverTransaction.isExpired()) {
+                                    StunServerTransaction tx = serverTransactions.remove(serverTransaction.getTransactionID());
+                                    if (tx != null) {
+                                        logger.debug("Expired server transaction: {}", tx.getTransactionID());
+                                    }
+                                }
+                            });
+                        }
+                    } while (executor.isShutdown());
+                } finally {
+                    Thread.currentThread().setName(oldName);
                 }
             });
         }

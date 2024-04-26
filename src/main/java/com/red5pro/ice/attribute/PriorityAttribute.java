@@ -143,6 +143,6 @@ public class PriorityAttribute extends Attribute {
 
     @Override
     public String toString() {
-        return "PriorityAttribute [priority=" + priority + "]";
+        return "PriorityAttribute [priority=" + Long.toUnsignedString(priority) + "]";
     }
 }

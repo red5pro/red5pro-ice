@@ -5,10 +5,12 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.red5pro.ice.TransportAddress;
-import com.red5pro.ice.message.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.StunException;
+import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.message.Response;
 
 /**
  * A STUN client retransmits requests as specified by the protocol.
@@ -32,6 +34,9 @@ import com.red5pro.ice.StunException;
  * @author Emil Ivov
  */
 public class StunServerTransaction {
+
+    private static final Logger logger = LoggerFactory.getLogger(StunServerTransaction.class);
+
     /**
      * The time that we keep server transactions active.
      */
@@ -153,7 +158,9 @@ public class StunServerTransaction {
      * Cancels the transaction. Once this method is called the transaction is considered terminated and will stop retransmissions.
      */
     public void expire() {
-        expired.compareAndSet(false, true);
+        if (expired.compareAndSet(false, true)) {
+            logger.debug("Expired transaction: {}", getTransactionID());
+        }
         // StunStack has a background Thread running with the purpose of removing expired StunServerTransactions.
     }
 
@@ -173,8 +180,8 @@ public class StunServerTransaction {
      * @return true if this StunServerTransaction will be expired at the specified point in time; otherwise, false
      */
     public boolean isExpired(long now) {
-        if (expirationTime.get() < now && expired.compareAndSet(false, true)) {
-            // we've expired and expired is set as such
+        if (expirationTime.get() < now) {
+            expired.set(true);
         }
         return expired.get();
     }

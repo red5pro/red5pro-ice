@@ -165,7 +165,7 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         if (priorityAttr != null) {
             priority = priorityAttr.getPriority();
             if (logger.isDebugEnabled()) {
-                logger.debug("Priority: {}", priority);
+                logger.debug("Priority: {}", Long.toUnsignedString(priority));
             }
         } else {
             if (logger.isDebugEnabled()) {
