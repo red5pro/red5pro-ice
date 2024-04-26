@@ -507,11 +507,9 @@ public class IceMediaStream implements Comparable<IceMediaStream> {
      * false otherwise.
      */
     protected boolean validListContainsNomineeForComponent(Component component) {
-        synchronized (validList) {
-            for (CandidatePair pair : validList) {
-                if (pair.isNominated() && pair.getParentComponent() == component) {
-                    return true;
-                }
+        for (CandidatePair pair : validList) {
+            if (pair.isNominated() && pair.getParentComponent() == component) {
+                return true;
             }
         }
         return false;
@@ -525,6 +523,7 @@ public class IceMediaStream implements Comparable<IceMediaStream> {
      * false otherwise.
      */
     protected boolean validListContainsAllComponents() {
+        logger.debug("validListContainsAllComponents");
         for (Component cmp : getComponents()) {
             if (getValidPair(cmp) == null) {
                 //it looks like there's at least one component we don't have a valid candidate for.
@@ -575,6 +574,7 @@ public class IceMediaStream implements Comparable<IceMediaStream> {
      * @return a valid {@link CandidatePair} for the specified component if at least one exists, and null otherwise.
      */
     protected CandidatePair getValidPair(Component component) {
+        logger.debug("getValidPair: {}", component);
         for (CandidatePair pair : validList) {
             if (pair.getParentComponent() == component) {
                 return pair;

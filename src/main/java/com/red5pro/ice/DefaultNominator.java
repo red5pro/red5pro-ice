@@ -57,6 +57,7 @@ public class DefaultNominator implements PropertyChangeListener {
      * nominate someone.
      */
     public void propertyChange(PropertyChangeEvent ev) {
+        logger.debug("Property change event: {}", ev);
         String propertyName = ev.getPropertyName();
         if (IceProcessingState.class.getName().equals(propertyName)) {
             if (ev.getNewValue() != IceProcessingState.RUNNING) {
@@ -68,7 +69,7 @@ public class DefaultNominator implements PropertyChangeListener {
             }
         }
         // CONTROLLED agents cannot nominate, but only enforce this if trickling is enabled
-        if (!parentAgent.isControlling()) {
+        if (!parentAgent.isControlling() && parentAgent.isTrickling()) {
             logger.debug("Non-controlling agent, cannot nominate");
             return;
         }
@@ -78,9 +79,23 @@ public class DefaultNominator implements PropertyChangeListener {
                 return;
             }
             CandidatePair validPair = (CandidatePair) ev.getSource();
+            logger.debug("Valid pair: {}", validPair.toShortString());
             // do not nominate pair if there is currently a selected pair for the component
             if (validPair.getParentComponent().getSelectedPair() != null) {
                 logger.debug("Keep-alive for pair: {}", validPair.toShortString());
+                return;
+            }
+            // XXX(paul) special case for ffmpeg-whip, which sends USE-CANDIDATE
+            if (parentAgent.isControlling() && !parentAgent.isTrickling() && validPair.useCandidateReceived()) {
+                logger.debug("Received USE-CANDIDATE, nominate: {}", validPair.toShortString());
+                if (!validPair.isNominated()) {
+                    validPair.nominate();
+                }
+                if (!validPair.isValid()) {
+                    parentAgent.getStreams().forEach(stream -> {
+                        stream.addToValidList(validPair);
+                    });
+                }
                 return;
             }
         }

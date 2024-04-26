@@ -359,17 +359,27 @@ class ConnectivityCheckClient implements ResponseCollector {
      * @param response
      */
     private void processSuccessResponse(CandidatePair checkedPair, Request request, Response response) {
+        logger.debug("Received a success response for pair: {}", checkedPair.toShortString());
         TransportAddress mappedAddress = null;
-        XorMappedAddressAttribute mappedAddressAttr = (XorMappedAddressAttribute) response.getAttribute(Attribute.Type.XOR_MAPPED_ADDRESS);
-        if (mappedAddressAttr == null) {
-            logger.warn("Pair failed (no XOR-MAPPED-ADDRESS): {}. Local ufrag {}", checkedPair.toShortString(), parentAgent.getLocalUfrag());
-            checkedPair.setStateFailed();
-            return;
-        }
-        mappedAddress = mappedAddressAttr.getAddress(response.getTransactionID());
-        // XXX AddressAttribute always returns UDP based TransportAddress
-        if (checkedPair.getLocalCandidate().getTransport() == Transport.TCP) {
-            mappedAddress = new TransportAddress(mappedAddress.getAddress(), mappedAddress.getPort(), Transport.TCP);
+        // skip xor mapped address for ffmpeg-whip
+        if (checkedPair.useCandidateReceived()) {
+            LocalCandidate localCandidate = checkedPair.getLocalCandidate();
+            mappedAddress = localCandidate.getTransportAddress();
+            if (localCandidate.getTransport() == Transport.TCP) {
+                mappedAddress = new TransportAddress(mappedAddress.getAddress(), mappedAddress.getPort(), Transport.TCP);
+            }
+        } else {
+            XorMappedAddressAttribute mappedAddressAttr = (XorMappedAddressAttribute) response.getAttribute(Attribute.Type.XOR_MAPPED_ADDRESS);
+            if (mappedAddressAttr == null) {
+                logger.warn("Pair failed (no XOR-MAPPED-ADDRESS): {}. Local ufrag {}", checkedPair.toShortString(), parentAgent.getLocalUfrag());
+                checkedPair.setStateFailed();
+                return;
+            }
+            mappedAddress = mappedAddressAttr.getAddress(response.getTransactionID());
+            // XXX AddressAttribute always returns UDP based TransportAddress
+            if (checkedPair.getLocalCandidate().getTransport() == Transport.TCP) {
+                mappedAddress = new TransportAddress(mappedAddress.getAddress(), mappedAddress.getPort(), Transport.TCP);
+            }
         }
         // In some situations we may have more than one local candidate matching
         // the mapped address. In this case we want to find the that matches

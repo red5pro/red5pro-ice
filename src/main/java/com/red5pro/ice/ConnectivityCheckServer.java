@@ -120,9 +120,9 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         boolean controlling = (parentAgent.isControlling() && request.getAttribute(Attribute.Type.ICE_CONTROLLING) != null);
         boolean controlled = (!parentAgent.isControlling() && request.getAttribute(Attribute.Type.ICE_CONTROLLED) != null);
         if (logger.isTraceEnabled()) {
-            logger.trace("controlling: {} controlled: {}", controlling, controlled);
+            logger.trace("Checking role, conflict if either are 'true' - controlling: {} controlled: {}", controlling, controlled);
         }
-        //detect role conflicts
+        // detect role conflicts
         if (controlling || controlled) {
             if (!repairRoleConflict(evt)) {
                 logger.debug("Role conflict not repaired: {}", username);
@@ -157,17 +157,23 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
      * {@link Response}.
      */
     private long extractPriority(Request request) throws IllegalArgumentException {
+        long priority = Integer.MAX_VALUE;
         // make sure we have a priority attribute and ignore otherwise.
         PriorityAttribute priorityAttr = (PriorityAttribute) request.getAttribute(Attribute.Type.PRIORITY);
         // apply tie-breaking
         // extract priority
-        if (priorityAttr == null) {
+        if (priorityAttr != null) {
+            priority = priorityAttr.getPriority();
             if (logger.isDebugEnabled()) {
-                logger.debug("Received a connectivity check with no PRIORITY attribute, discarding");
+                logger.debug("Priority: {}", priority);
             }
-            throw new IllegalArgumentException("Missing PRIORITY attribute!");
+        } else {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Received a connectivity check with no PRIORITY attribute");
+            }
+            //throw new IllegalArgumentException("Missing PRIORITY attribute!");
         }
-        return priorityAttr.getPriority();
+        return priority;
     }
 
     /**

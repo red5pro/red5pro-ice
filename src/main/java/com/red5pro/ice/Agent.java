@@ -1637,12 +1637,10 @@ public class Agent {
         if (!atLeastOneListSucceeded) {
             logger.trace("All lists ended, no success for {}", getLocalUfrag());
             // all lists ended but none succeeded. No love today ;(
-            if (logger.isInfoEnabled()) {
-                if (connCheckClient.isAlive() || connCheckServer.isAlive()) {
-                    logger.info("Suspicious ICE connectivity failure. Checks failed but the remote end was able to reach us.");
-                }
-                logger.info("ICE state is FAILED");
+            if (connCheckClient.isAlive() || connCheckServer.isAlive()) {
+                logger.info("Suspicious ICE connectivity failure. Checks failed but the remote end was able to reach us.");
             }
+            logger.info("ICE state is FAILED");
             terminate(IceProcessingState.FAILED);
             return;
         }
