@@ -325,7 +325,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
                 if (isTrace) {
                     short contentType = (short) (buf[offset] & 0xff);
                     if (contentType == DtlsContentType.handshake) {
-                        short messageType = (short) (buf[offset + 11] & 0xff);
+                        short messageType = (short) (buf[offset + 13] & 0xff);
                         logger.trace("DTLS handshake message type: {}", getMessageType(messageType));
                     }
                 }
@@ -400,7 +400,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
                 if (isTrace) {
                     short contentType = (short) (buf[offset] & 0xff);
                     if (contentType == DtlsContentType.handshake) {
-                        short messageType = (short) (buf[offset + 11] & 0xff);
+                        short messageType = (short) (buf[offset + 13] & 0xff);
                         logger.trace("DTLS handshake message type: {}", getMessageType(messageType));
                     }
                 }
