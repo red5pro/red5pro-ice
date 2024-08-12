@@ -4,7 +4,7 @@
     <groupId>com.red5pro</groupId>
     <artifactId>red5pro-ice</artifactId>
     <!-- When the version changes, update Agent.VERSION as well -->
-    <version>1.0.5</version>
+    <version>1.0.7</version>
     <packaging>jar</packaging>
     <name>red5pro-ice</name>
     <url>https://github.com/red5pro/red5pro-ice</url>
@@ -27,9 +27,9 @@
         <maven.compiler.target>1.11</maven.compiler.target>
         <java.release.level>11</java.release.level>
         <mina.version>2.0.23</mina.version>
-        <red5pro-common.version>11.1.0.0</red5pro-common.version>
+        <red5pro-common.version>12.0.1.3</red5pro-common.version>
         <jmdns.version>3.5.8</jmdns.version>
-        <logback.version>1.2.3</logback.version>
+        <logback.version>1.2.11</logback.version>
         <junit.version>[4.13.1,)</junit.version>
     </properties>
     <!-- private location for red5pro deploy -->

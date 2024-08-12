@@ -67,7 +67,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.0.5";
+    private final static String VERSION = "1.0.7";
 
     private final static SecureRandom random = new SecureRandom();
 
@@ -1260,6 +1260,7 @@ public class Agent {
      * @param isControlling true if this is to be the controlling Agent and false otherwise
      */
     public void setControlling(boolean isControlling) {
+        logger.debug("setControlling: {} from current setting: {}", isControlling, this.isControlling);
         if (this.isControlling != isControlling) {
             logger.info("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling, isControlling);
         }
@@ -1363,6 +1364,7 @@ public class Agent {
      */
     public RemoteCandidate findRemoteCandidate(TransportAddress remoteAddress) {
         for (IceMediaStream stream : mediaStreams) {
+            logger.debug("Looking for remote candidate in stream: {} in {}", stream.getName(), stream.getComponents().get(0).getRemoteCandidates());
             RemoteCandidate cnd = stream.findRemoteCandidate(remoteAddress);
             if (cnd != null) {
                 return cnd;

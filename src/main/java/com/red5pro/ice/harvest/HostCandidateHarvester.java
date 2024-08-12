@@ -3,7 +3,6 @@ package com.red5pro.ice.harvest;
 
 import java.io.IOException;
 import java.net.BindException;
-import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -19,9 +18,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.red5pro.ice.nio.IceTransport;
-import com.red5pro.ice.socket.IceSocketWrapper;
-import com.red5pro.ice.stack.StunStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +27,9 @@ import com.red5pro.ice.NetworkUtils;
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.nio.IceTransport;
+import com.red5pro.ice.socket.IceSocketWrapper;
+import com.red5pro.ice.stack.StunStack;
 
 /**
  * A HostCandidateHarvester gathers host Candidates for a specified {@link com.red5pro.ice.Component}. Most CandidateHarvesters
@@ -86,6 +85,9 @@ public class HostCandidateHarvester {
     private static List<AddressRef> availableHostAddresses;
 
     static {
+        // ensure the interface filters are initialized
+        initializeInterfaceFilters();
+        // gather the available host addresses
         availableHostAddresses = getAvailableHostAddresses();
         logger.debug("Available host addresses: {}", availableHostAddresses);
     }
@@ -153,6 +155,7 @@ public class HostCandidateHarvester {
     private static void initializeAddressFilters() {
         if (addressFiltersInitialized.compareAndSet(false, true)) {
             String[] allowedAddressesStr = StackProperties.getStringArray(StackProperties.ALLOWED_ADDRESSES, ";");
+            String[] blockedAddressesStr = StackProperties.getStringArray(StackProperties.BLOCKED_ADDRESSES, ";");
             if (allowedAddressesStr != null) {
                 for (String addressStr : allowedAddressesStr) {
                     InetAddress address;
@@ -169,33 +172,7 @@ public class HostCandidateHarvester {
                     logger.debug("Allowed: {}", allowedAddresses);
                 }
             }
-            String[] blockedAddressesStr = StackProperties.getStringArray(StackProperties.BLOCKED_ADDRESSES, ";");
-            // if allowed addresses is specified and blocked addresses are not, block all other addresses
-            if (allowedAddressesStr != null && blockedAddressesStr == null) {
-                boolean isIPv6Disabled = StackProperties.getBoolean(StackProperties.DISABLE_IPv6, true);
-                // create the blocked address holder if not done already
-                if (blockedAddresses == null) {
-                    blockedAddresses = new ArrayList<>();
-                }
-                // go thru detected host addresses and block those that aren't explicitly allowed
-                availableHostAddresses.forEach(ref -> {
-                    InetAddress addr = ref.getAddress();
-                    if (!allowedAddresses.contains(addr)) {
-                        if (addr instanceof Inet6Address) {
-                            // dont automatically block ipv6 unless they are disabled
-                            if (isIPv6Disabled) {
-                                blockedAddresses.add(addr);
-                            } else {
-                                // ensure they are added to allowed, since they are bindable and not disabled
-                                allowedAddresses.add(addr);
-                            }
-                        } else if (addr instanceof Inet4Address) {
-                            blockedAddresses.add(addr);
-                        }
-                    }
-                });
-                logger.debug("Allowed: {} blocked: {}", allowedAddresses, blockedAddresses);
-            } else if (blockedAddressesStr != null) {
+            if (blockedAddressesStr != null) {
                 for (String addressStr : blockedAddressesStr) {
                     InetAddress address;
                     try {
@@ -211,6 +188,7 @@ public class HostCandidateHarvester {
                 }
                 logger.debug("Blocked: {}", blockedAddresses);
             }
+            logger.debug("initializeAddressFilters - allowed: {} blocked: {}", allowedAddresses, blockedAddresses);
         }
     }
 
@@ -218,29 +196,29 @@ public class HostCandidateHarvester {
      * @return the list of all local IP addresses from all allowed network interfaces, which are allowed addresses.
      */
     public static List<InetAddress> getAllAllowedAddresses() {
-        List<InetAddress> addresses = new LinkedList<>();
-        boolean isIPv6Disabled = StackProperties.getBoolean(StackProperties.DISABLE_IPv6, true);
-        boolean isIPv6LinkLocalDisabled = StackProperties.getBoolean(StackProperties.DISABLE_LINK_LOCAL_ADDRESSES, false);
+        final List<InetAddress> addresses = new LinkedList<>();
+        final boolean isIPv6Disabled = StackProperties.getBoolean(StackProperties.DISABLE_IPv6, true);
+        final boolean isIPv6LinkLocalDisabled = StackProperties.getBoolean(StackProperties.DISABLE_LINK_LOCAL_ADDRESSES, false);
         try {
-            for (NetworkInterface iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                if (NetworkUtils.isInterfaceLoopback(iface) || !NetworkUtils.isInterfaceUp(iface) || !isInterfaceAllowed(iface)) {
-                    continue;
+            NetworkInterface.getNetworkInterfaces().asIterator().forEachRemaining(iface -> {
+                if (isInterfaceAllowed(iface) && NetworkUtils.isInterfaceUp(iface)) {
+                    Enumeration<InetAddress> ifaceAddresses = iface.getInetAddresses();
+                    while (ifaceAddresses.hasMoreElements()) {
+                        InetAddress address = ifaceAddresses.nextElement();
+                        if (!isAddressAllowed(address)) {
+                            continue;
+                        }
+                        if (isIPv6Disabled && address instanceof Inet6Address) {
+                            continue;
+                        }
+                        if (isIPv6LinkLocalDisabled && address instanceof Inet6Address && address.isLinkLocalAddress()) {
+                            continue;
+                        }
+                        addresses.add(address);
+                    }
                 }
-                Enumeration<InetAddress> ifaceAddresses = iface.getInetAddresses();
-                while (ifaceAddresses.hasMoreElements()) {
-                    InetAddress address = ifaceAddresses.nextElement();
-                    if (!isAddressAllowed(address)) {
-                        continue;
-                    }
-                    if (isIPv6Disabled && address instanceof Inet6Address) {
-                        continue;
-                    }
-                    if (isIPv6LinkLocalDisabled && address instanceof Inet6Address && address.isLinkLocalAddress()) {
-                        continue;
-                    }
-                    addresses.add(address);
-                }
-            }
+            });
+            logger.debug("Allowed addresses: {}", addresses);
         } catch (SocketException se) {
             logger.warn("Failed to get network interfaces", se);
         }
@@ -251,32 +229,36 @@ public class HostCandidateHarvester {
      * @return the list of all local IP addresses from all allowed network interfaces, which are allowed addresses.
      */
     public static List<AddressRef> getAvailableHostAddresses() {
-        Set<AddressRef> addresses = new HashSet<>();
-        boolean isIPv6Disabled = StackProperties.getBoolean(StackProperties.DISABLE_IPv6, true);
-        boolean isIPv6LinkLocalDisabled = StackProperties.getBoolean(StackProperties.DISABLE_LINK_LOCAL_ADDRESSES, false);
+        final Set<AddressRef> addresses = new HashSet<>();
+        final boolean isIPv6Disabled = StackProperties.getBoolean(StackProperties.DISABLE_IPv6, true);
+        final boolean isIPv6LinkLocalDisabled = StackProperties.getBoolean(StackProperties.DISABLE_LINK_LOCAL_ADDRESSES, false);
+        logger.info("IPv6 disabled: {} link local disabled: {}", isIPv6Disabled, isIPv6LinkLocalDisabled);
         // holder of bindable addresses
         final Set<InetAddress> bindableAddresses = new HashSet<>();
-        // gather network interfaces
-        List<NetworkInterface> nics = Collections.emptyList();
         try {
-            // get network interfaces
-            nics = Collections.list(NetworkInterface.getNetworkInterfaces());
-            // collect all the addresses that could possibly be bound on this system
-            nics.forEach(iface -> {
-                if (!NetworkUtils.isInterfaceLoopback(iface) || NetworkUtils.isInterfaceUp(iface) || isInterfaceAllowed(iface)) {
+            NetworkInterface.getNetworkInterfaces().asIterator().forEachRemaining(iface -> {
+                if (isInterfaceAllowed(iface) && NetworkUtils.isInterfaceUp(iface)) {
                     Enumeration<InetAddress> ifaceAddresses = iface.getInetAddresses();
                     while (ifaceAddresses.hasMoreElements()) {
                         InetAddress addr = ifaceAddresses.nextElement();
                         String interfaceName = iface.getDisplayName();
                         logger.info("Address {} is bindable on interface: {}", addr, interfaceName);
+                        if (!isAddressAllowed(addr)) {
+                            logger.debug("Address is not allowed: {}", addr);
+                            continue;
+                        }
+                        if (isIPv6Disabled && addr instanceof Inet6Address) {
+                            logger.debug("IPv6 address disabled: {}", addr);
+                            continue;
+                        }
+                        if (isIPv6LinkLocalDisabled && addr instanceof Inet6Address && addr.isLinkLocalAddress()) {
+                            logger.debug("IPv6 link local address disabled: {}", addr);
+                            continue;
+                        }
+                        // add to bindable addresses
                         bindableAddresses.add(addr);
                         // if the address is bindable and not on an `lo` interface, add to addresses list
-                        if (!interfaceName.startsWith("lo")) {
-                            // IPv6 addresses display with a suffix might be confusing if string compare is done
-                            if (isIPv6Disabled && addr instanceof Inet6Address) {
-                                logger.debug("IPv6 address disabled: {}", addr);
-                                continue;
-                            }                        
+                        if (!interfaceName.startsWith("lo")) {  
                             addresses.add(new AddressRef(addr, NetworkUtils.isInterfaceVirtual(iface)));
                         }
                     }
@@ -285,6 +267,7 @@ public class HostCandidateHarvester {
         } catch (Exception se) {
             logger.warn("Exception collecting network interfaces", se);
         }
+        logger.info("Bindable addresses: {}", bindableAddresses);
         // White list from the configuration
         String[] allowedAddressesStr = StackProperties.getStringArray(StackProperties.ALLOWED_ADDRESSES, ";");
         if (allowedAddressesStr != null) {
@@ -294,7 +277,7 @@ public class HostCandidateHarvester {
                     if (bindableAddresses.contains(addr)) {
                         addresses.add(new AddressRef(addr, false));
                     } else {
-                        logger.info("Address is not bindable on existing interfaces: {}", addr);
+                        logger.info("Address is not available for binding: {}", addr);
                     }
                 } catch (UnknownHostException e) {
                     logger.warn("Unknown host address during initial lookup", e);
@@ -305,69 +288,41 @@ public class HostCandidateHarvester {
                 return new ArrayList<AddressRef>(addresses);
             }
         }
-        try {
-            for (NetworkInterface iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                if (NetworkUtils.isInterfaceLoopback(iface) || !NetworkUtils.isInterfaceUp(iface) || !isInterfaceAllowed(iface)) {
-                    continue;
-                }
-                Enumeration<InetAddress> ifaceAddresses = iface.getInetAddresses();
-                while (ifaceAddresses.hasMoreElements()) {
-                    InetAddress address = ifaceAddresses.nextElement();
-                    if (!isAddressAllowed(address)) {
-                        continue;
-                    }
-                    if (isIPv6Disabled && address instanceof Inet6Address) {
-                        continue;
-                    }
-                    if (isIPv6LinkLocalDisabled && address instanceof Inet6Address && address.isLinkLocalAddress()) {
-                        continue;
-                    }
-                    addresses.add(new AddressRef(address, NetworkUtils.isInterfaceVirtual(iface)));
-                }
-            }
-        } catch (SocketException se) {
-            logger.warn("Failed to get network interfaces", se);
-        }
+        logger.info("Available host addresses: {}", addresses);
         return new ArrayList<AddressRef>(addresses);
     }
 
     public void harvest(Component component, int port, Transport transport) throws IllegalArgumentException, IOException {
         logger.debug("harvest {} port: {}", transport, port);
-        logger.trace("Starting socket creation loop");
         availableHostAddresses.forEach(addrRef -> {
-            logger.debug("addr: {}", addrRef);
+            logger.debug("socket creation - addr: {}", addrRef);
             // grab the address
             InetAddress addr = addrRef.getAddress();
-            // ensure address is allowed first
-            if (isAddressAllowed(addr)) {
-                IceSocketWrapper iceSocket = null;
-                try {
-                    if (transport == Transport.UDP) {
-                        iceSocket = createDatagramSocket(addr, port);
-                    } else if (transport == Transport.TCP) {
-                        iceSocket = createServerSocket(addr, port);
-                    }
-                    logger.debug("Socket created/bound: {}", iceSocket);
-                    HostCandidate candidate = new HostCandidate(iceSocket, component, transport);
-                    candidate.setVirtual(addrRef.isVirtual());
-                    StunStack stunStack = candidate.getStunStack();
-                    // add the socket wrapper to the stack which gets the bind and listening process started
-                    if (stunStack.addSocket(iceSocket, null, true)) { // do socket binding
-                        logger.debug("Socket added to stack: {}", iceSocket);
-                        component.addLocalCandidate(candidate);
-                        component.getComponentSocket().addSocketWrapper(iceSocket);
-                    } else {
-                        logger.warn("Socket not added to stack: {}", iceSocket);
-                    }
-                } catch (Throwable t) {
-                    // There seems to be a problem with this particular address let's just move on for now and hope we will find better
-                    logger.warn("Socket creation failed on: {} transport: {}\nPort: {}", addrRef, transport, port, t);
+            // not checking allowed since it won't be in available if its not allowed
+            IceSocketWrapper iceSocket = null;
+            try {
+                if (transport == Transport.UDP) {
+                    iceSocket = createDatagramSocket(addr, port);
+                } else if (transport == Transport.TCP) {
+                    iceSocket = createServerSocket(addr, port);
                 }
-            } else {
-                logger.debug("Address is not allowed: {}", addr);
+                logger.debug("Socket created/bound: {}", iceSocket);
+                HostCandidate candidate = new HostCandidate(iceSocket, component, transport);
+                candidate.setVirtual(addrRef.isVirtual());
+                StunStack stunStack = candidate.getStunStack();
+                // add the socket wrapper to the stack which gets the bind and listening process started
+                if (stunStack.addSocket(iceSocket, null, true)) { // do socket binding
+                    logger.debug("Socket added to stack: {}", iceSocket);
+                    component.addLocalCandidate(candidate);
+                    component.getComponentSocket().addSocketWrapper(iceSocket);
+                } else {
+                    logger.warn("Socket not added to stack: {}", iceSocket);
+                }
+            } catch (Throwable t) {
+                // There seems to be a problem with this particular address let's just move on for now and hope we will find better
+                logger.warn("Socket creation failed on: {} transport: {}\nPort: {}", addrRef, transport, port, t);
             }
         });
-        logger.trace("Exited socket creation loop");
         if (component.getLocalCandidateCount() == 0) {
             throw new IOException("Failed to bind even a single host candidate for component:" + component + " port=" + port + " transport=" + transport);
         }
@@ -442,9 +397,11 @@ public class HostCandidateHarvester {
         if (iface == null) {
             throw new IllegalArgumentException("iface cannot be null");
         }
-        // gp: use getDisplayName() on Windows and getName() on Linux. Also see NetworkAddressManagementServiceImpl in Jitsi.
-        String ifName = (System.getProperty("os.name") == null || System.getProperty("os.name").startsWith("Windows")) ? iface.getDisplayName() : iface.getName();
+        // use the display name as the interface name
+        String ifName = iface.getDisplayName();
         String[] allowedInterfaces = getAllowedInterfaces();
+        String[] blockedInterfaces = getBlockedInterfaces();
+        logger.debug("isInterfaceAllowed: {} interfaces - allowed: {} blocked: {}", ifName, allowedInterfaces, blockedInterfaces);
         // NOTE The blocked interfaces list is taken into account only if the allowed interfaces list is not defined.
         // getAllowedInterfaces returns null if the array is empty.
         if (allowedInterfaces != null) {
@@ -452,7 +409,6 @@ public class HostCandidateHarvester {
             return Arrays.asList(allowedInterfaces).contains(ifName);
         } else {
             // A list of allowed interfaces does not exist.
-            String[] blockedInterfaces = getBlockedInterfaces();
             // getBlockedInterfaces returns null if the array is empty.
             if (blockedInterfaces != null) {
                 // but a list of blocked interfaces exists.
@@ -479,16 +435,17 @@ public class HostCandidateHarvester {
         logger.debug("isAddressAllowed: {}", address);
         boolean ret = true;
         if (!address.isLoopbackAddress()) {
-            List<InetAddress> allowed = getAllowedAddresses();
-            List<InetAddress> blocked = getBlockedAddresses();
-            if (allowed != null && allowed.size() > 0) {
-                ret = allowed.contains(address);
-            }
-            if (blocked != null && blocked.size() > 0) {
-                ret = ret && !blocked.contains(address);
+            logger.debug("Allowed: {} Blocked: {}", allowedAddresses, blockedAddresses);
+            if (blockedAddresses != null && blockedAddresses.size() > 0) {
+                ret = blockedAddresses.contains(address);
+                // only check allowed addresses if blocked; to allow override
+                if (ret && allowedAddresses != null && allowedAddresses.size() > 0) {
+                    ret = allowedAddresses.contains(address);
+                }
             }        
         } else {
             // no loop back allowed
+            logger.debug("Address is loopback: {}", address);
             ret = false;
         }
         return ret;
@@ -661,6 +618,7 @@ public class HostCandidateHarvester {
         if (interfaceFiltersInitialized.compareAndSet(false, true)) {
             // Initialize the allowed interfaces array.
             allowedInterfaces = StackProperties.getStringArray(StackProperties.ALLOWED_INTERFACES, ";");
+            logger.debug("initializeInterfaceFilters - allowed: {}", Arrays.toString(allowedInterfaces));
             // getStringArray returns null if the array is empty.
             if (allowedInterfaces != null) {
                 // Validate the allowed interfaces array.
@@ -678,6 +636,7 @@ public class HostCandidateHarvester {
                 // blocked interfaces only if the allowed interfaces list is not defined.
                 // Initialize the blocked interfaces array.
                 blockedInterfaces = StackProperties.getStringArray(StackProperties.BLOCKED_INTERFACES, ";");
+                logger.debug("initializeInterfaceFilters - blocked: {}", Arrays.toString(blockedInterfaces));
                 // getStringArray returns null if the array is empty.
                 if (blockedInterfaces != null) {
                     // Validate the blocked interfaces array.

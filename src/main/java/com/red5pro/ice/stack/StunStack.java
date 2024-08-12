@@ -151,6 +151,7 @@ public class StunStack implements MessageEventHandler {
         boolean added = false;
         InetAddress addr = iceSocket.getLocalAddress();
         boolean isIPv6Address = addr.getHostAddress().contains(":");
+        logger.info("Use IPv6: {} Use all binding: {} Is IPv6 address: {}", useIPv6, useAllBinding, isIPv6Address);
         if (!useAllBinding && (useIPv6 && !isIPv6Address)) {
             logger.debug("Skipping IPv4 address: {}", addr);
         } else if (!useAllBinding && (!useIPv6 && isIPv6Address)) {
