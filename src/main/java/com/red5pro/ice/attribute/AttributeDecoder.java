@@ -30,16 +30,13 @@ public class AttributeDecoder {
         if (bytes == null || bytes.length < Attribute.HEADER_LENGTH) {
             throw new StunException(StunException.ILLEGAL_ARGUMENT, "Could not decode the specified binary array.");
         }
-
-        //Discover attribute type
+        // Discover attribute type
         Attribute.Type attributeType = Attribute.Type.valueOf((((bytes[offset] & 0xFF) << 8) | (bytes[offset + 1] & 0xFF)));
         int attributeLength = (((bytes[offset + 2] & 0xFF) << 8) | (bytes[offset + 3] & 0xFF));
-
-        if (attributeLength > bytes.length - offset)
+        if (attributeLength > bytes.length - offset) {
             throw new StunException(StunException.ILLEGAL_ARGUMENT, "Could not decode the specified binary array.");
-
-        Attribute decodedAttribute = null;
-
+        }
+        final Attribute decodedAttribute;
         switch (attributeType) {
             /* STUN attributes */
             case CHANGE_REQUEST:
@@ -144,12 +141,9 @@ public class AttributeDecoder {
                 decodedAttribute = new OptionalAttribute();
                 break;
         }
-
-        decodedAttribute.setAttributeType(attributeType);
         decodedAttribute.setLocationInMessage(offset);
-
         decodedAttribute.decodeAttributeBody(bytes, (Attribute.HEADER_LENGTH + offset), attributeLength);
-
         return decodedAttribute;
     }
+
 }

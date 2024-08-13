@@ -387,9 +387,8 @@ public class ErrorCodeAttribute extends Attribute {
                 + (4 - getDataLength() % 4) % 4];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
         //Length
         binValue[2] = (byte) (getDataLength() >> 8);
         binValue[3] = (byte) (getDataLength() & 0x00FF);
@@ -424,7 +423,7 @@ public class ErrorCodeAttribute extends Attribute {
             return true;
 
         ErrorCodeAttribute att = (ErrorCodeAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        if (att.getAttributeType() != attributeType || att.getDataLength() != getDataLength()
         //compare data
                 || att.getErrorClass() != getErrorClass() || att.getErrorNumber() != getErrorNumber()
                 || (att.getReasonPhrase() != null && !att.getReasonPhrase().equals(getReasonPhrase())))

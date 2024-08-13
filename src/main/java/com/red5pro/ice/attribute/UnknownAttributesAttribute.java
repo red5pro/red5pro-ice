@@ -115,9 +115,8 @@ public class UnknownAttributesAttribute extends Attribute {
         int offset = 0;
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[offset++] = (byte) (type >> 8);
-        binValue[offset++] = (byte) (type & 0x00FF);
+        binValue[offset++] = (byte) (attributeType.type >> 8);
+        binValue[offset++] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binValue[offset++] = (byte) (getDataLength() >> 8);
@@ -157,7 +156,7 @@ public class UnknownAttributesAttribute extends Attribute {
             return true;
 
         UnknownAttributesAttribute att = (UnknownAttributesAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        if (att.getAttributeType() != attributeType || att.getDataLength() != getDataLength()
                 || !unknownAttributes.equals(att.unknownAttributes))
             return false;
 

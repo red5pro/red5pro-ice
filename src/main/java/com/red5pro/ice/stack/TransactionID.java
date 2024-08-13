@@ -32,7 +32,7 @@ public class TransactionID {
     /**
      * Any object that the application would like to correlate to a transaction.
      */
-    private Object applicationData;
+    private transient Object applicationData;
 
     /**
      * A hashcode for hashtable storage.

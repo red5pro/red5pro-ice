@@ -45,9 +45,8 @@ public class UseCandidateAttribute extends Attribute {
     public byte[] encode() {
         byte[] binValue = new byte[HEADER_LENGTH + DATA_LENGTH_USE_CANDIDATE];
         // Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
         // Length
         binValue[2] = (byte) (DATA_LENGTH_USE_CANDIDATE >> 8);
         binValue[3] = (byte) (DATA_LENGTH_USE_CANDIDATE & 0x00FF);
@@ -69,7 +68,7 @@ public class UseCandidateAttribute extends Attribute {
             return true;
 
         UseCandidateAttribute useCandidateAtt = (UseCandidateAttribute) obj;
-        if (useCandidateAtt.getAttributeType() != getAttributeType() || useCandidateAtt.getDataLength() != getDataLength())
+        if (useCandidateAtt.getAttributeType() != attributeType || useCandidateAtt.getDataLength() != getDataLength())
             return false;
 
         return true;

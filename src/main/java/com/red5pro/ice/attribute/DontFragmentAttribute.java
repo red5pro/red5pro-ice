@@ -54,9 +54,8 @@ public class DontFragmentAttribute extends Attribute {
         byte binValue[] = new byte[HEADER_LENGTH];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
         //Length
         binValue[2] = (byte) (getDataLength() >> 8);
         binValue[3] = (byte) (getDataLength() & 0x00FF);

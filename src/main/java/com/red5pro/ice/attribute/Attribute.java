@@ -128,7 +128,7 @@ public abstract class Attribute {
     /**
      * The type of the attribute.
      */
-    protected Type attributeType;
+    protected final Type attributeType;
 
     /**
      * The size of an attribute header in bytes = len(TYPE) + len(LENGTH) = 4
@@ -148,7 +148,7 @@ public abstract class Attribute {
      * @param attributeType the type of the attribute.
      */
     protected Attribute(int attributeType) {
-        setAttributeType(attributeType);
+        this.attributeType = Type.valueOf(attributeType);
     }
 
     /**
@@ -174,7 +174,7 @@ public abstract class Attribute {
      *
      * @return this attribute's name.
      */
-    final public String getName() {
+    public final String getName() {
         return attributeType.name();
     }
 
@@ -185,24 +185,6 @@ public abstract class Attribute {
      */
     public Type getAttributeType() {
         return attributeType;
-    }
-
-    /**
-     * Sets the attribute's type.
-     *
-     * @param type the new type of this attribute
-     */
-    protected void setAttributeType(int type) {
-        this.attributeType = Type.valueOf(type);
-    }
-
-    /**
-     * Sets the attribute's type.
-     *
-     * @param type the new type of this attribute
-     */
-    protected void setAttributeType(Type type) {
-        this.attributeType = type;
     }
 
     /**

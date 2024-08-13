@@ -71,9 +71,8 @@ public class DataAttribute extends Attribute {
         byte binary[] = new byte[HEADER_LENGTH + dataLength + (padding ? ((4 - dataLength % 4) % 4) : 0)];
 
         //Type
-        int type = getAttributeType().getType();
-        binary[0] = (byte) (type >> 8);
-        binary[1] = (byte) (type & 0x00FF);
+        binary[0] = (byte) (attributeType.type >> 8);
+        binary[1] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binary[2] = (byte) (dataLength >> 8);
@@ -133,7 +132,7 @@ public class DataAttribute extends Attribute {
             return true;
 
         DataAttribute att = (DataAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength() || !Arrays.equals(att.data, data))
+        if (att.getAttributeType() != attributeType || att.getDataLength() != getDataLength() || !Arrays.equals(att.data, data))
             return false;
 
         return true;

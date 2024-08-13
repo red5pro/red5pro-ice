@@ -47,9 +47,8 @@ public class NonceAttribute extends Attribute {
         byte binValue[] = new byte[HEADER_LENGTH + getDataLength() + (getDataLength() % 4)];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binValue[2] = (byte) (getDataLength() >> 8);
@@ -101,6 +100,6 @@ public class NonceAttribute extends Attribute {
 
         NonceAttribute att = (NonceAttribute) obj;
 
-        return (att.getAttributeType() == getAttributeType() && att.getDataLength() == getDataLength() && Arrays.equals(att.nonce, nonce));
+        return (att.getAttributeType() == attributeType && att.getDataLength() == getDataLength() && Arrays.equals(att.nonce, nonce));
     }
 }

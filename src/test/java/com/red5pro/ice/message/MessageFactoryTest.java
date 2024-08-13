@@ -107,7 +107,7 @@ public class MessageFactoryTest extends TestCase {
         bindingRequest.setMessageType(Message.BINDING_REQUEST);
 /*
 Attribute changeRequest = AttributeFactory.createChangeRequestAttribute(
-            msgFixture.CHANGE_IP_FLAG_1, msgFixture.CHANGE_PORT_FLAG_1);
+    msgFixture.CHANGE_IP_FLAG_1, msgFixture.CHANGE_PORT_FLAG_1);
 bindingRequest.putAttribute(changeRequest);
 */
         Request actualReturn = MessageFactory.createBindingRequest();

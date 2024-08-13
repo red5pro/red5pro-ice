@@ -67,9 +67,8 @@ public abstract class IceControlAttribute extends Attribute {
         byte[] binValue = new byte[HEADER_LENGTH + getDataLength()];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binValue[2] = (byte) (getDataLength() >> 8);
@@ -104,7 +103,7 @@ public abstract class IceControlAttribute extends Attribute {
             return true;
 
         IceControlAttribute iceControlAtt = (IceControlAttribute) obj;
-        if (iceControlAtt.getAttributeType() != getAttributeType() || iceControlAtt.isControlling != isControlling
+        if (iceControlAtt.getAttributeType() != attributeType || iceControlAtt.isControlling != isControlling
                 || iceControlAtt.getDataLength() != DATA_LENGTH_ICE_CONTROL || getTieBreaker() != iceControlAtt.getTieBreaker()) {
             return false;
         }

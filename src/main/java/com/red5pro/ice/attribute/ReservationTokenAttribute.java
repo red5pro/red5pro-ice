@@ -62,9 +62,8 @@ public class ReservationTokenAttribute extends Attribute {
         byte binValue[] = new byte[HEADER_LENGTH + 8];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binValue[2] = (byte) (8 >> 8);
@@ -167,7 +166,7 @@ public class ReservationTokenAttribute extends Attribute {
             return true;
 
         ReservationTokenAttribute att = (ReservationTokenAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        if (att.getAttributeType() != attributeType || att.getDataLength() != getDataLength()
                 || !Arrays.equals(att.reservationToken, reservationToken))
             return false;
 

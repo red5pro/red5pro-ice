@@ -137,18 +137,6 @@ abstract class AddressAttribute extends Attribute {
     }
 
     /**
-     * Sets it as this attribute's type.
-     *
-     * @param type the new type of the attribute
-     */
-    protected void setAttributeType(char type) {
-        if (!isTypeValid(type)) {
-            throw new IllegalArgumentException(((int) type) + "is not a valid address attribute!");
-        }
-        super.setAttributeType(type);
-    }
-
-    /**
     * Compares two STUN Attributes. Attributes are considered equal when their type, length, and all data are the same.
     *
     * @param obj the object to compare this attribute with
@@ -162,7 +150,7 @@ abstract class AddressAttribute extends Attribute {
             return true;
         }
         AddressAttribute att = (AddressAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getPort() != port || !Arrays.equals(att.getAddressBytes(), address)) {
+        if (att.getAttributeType() != attributeType || att.getPort() != port || !Arrays.equals(att.getAddressBytes(), address)) {
             return false;
         }
         return true;
@@ -187,31 +175,31 @@ abstract class AddressAttribute extends Attribute {
      * @return a binary representation
      */
     public byte[] encode() {
-        int type = getAttributeType().getType();
-        if (!isTypeValid(type)) {
-            throw new IllegalStateException(type + "is not a valid address attribute!");
-        }
-        byte binValue[] = new byte[HEADER_LENGTH + getDataLength()];
-        //Type
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
-        //Length
-        binValue[2] = (byte) (getDataLength() >> 8);
-        binValue[3] = (byte) (getDataLength() & 0x00FF);
-        //Not used
-        binValue[4] = 0x00;
-        //Family
-        binValue[5] = getFamily();
-        //port
-        binValue[6] = (byte) (getPort() >> 8);
-        binValue[7] = (byte) (getPort() & 0x00FF);
-        //address
-        if (getFamily() == ADDRESS_FAMILY_IPV6) {
-            System.arraycopy(getAddressBytes(), 0, binValue, 8, 16);
+        if (isTypeValid(attributeType.type)) {
+            byte binValue[] = new byte[HEADER_LENGTH + getDataLength()];
+            //Type
+            binValue[0] = (byte) (attributeType.type >> 8);
+            binValue[1] = (byte) (attributeType.type & 0x00FF);
+            //Length
+            binValue[2] = (byte) (getDataLength() >> 8);
+            binValue[3] = (byte) (getDataLength() & 0x00FF);
+            //Not used
+            binValue[4] = 0x00;
+            //Family
+            binValue[5] = getFamily();
+            //port
+            binValue[6] = (byte) (getPort() >> 8);
+            binValue[7] = (byte) (getPort() & 0x00FF);
+            //address
+            if (getFamily() == ADDRESS_FAMILY_IPV6) {
+                System.arraycopy(getAddressBytes(), 0, binValue, 8, 16);
+            } else {
+                System.arraycopy(getAddressBytes(), 0, binValue, 8, 4);
+            }
+            return binValue;
         } else {
-            System.arraycopy(getAddressBytes(), 0, binValue, 8, 4);
+            throw new IllegalStateException(attributeType + "is not a valid address attribute!");
         }
-        return binValue;
     }
 
     /**

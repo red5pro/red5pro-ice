@@ -55,7 +55,7 @@ public class OptionalAttribute extends Attribute {
         byte binValue[] = new byte[HEADER_LENGTH + attributeValue.length];
 
         //Type
-        int type = typeOverride != Integer.MIN_VALUE ? typeOverride : getAttributeType().getType();
+        int type = typeOverride != Integer.MIN_VALUE ? typeOverride : attributeType.type;
         binValue[0] = (byte) (type >> 8);
         binValue[1] = (byte) (type & 0x00FF);
         //Length

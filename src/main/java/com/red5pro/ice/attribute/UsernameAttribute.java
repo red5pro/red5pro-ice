@@ -54,9 +54,8 @@ public class UsernameAttribute extends Attribute {
                 + (4 - getDataLength() % 4) % 4];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binValue[2] = (byte) (getDataLength() >> 8);
@@ -120,8 +119,7 @@ public class UsernameAttribute extends Attribute {
 
         UsernameAttribute att = (UsernameAttribute) obj;
         //logger.info("Equality - type: " + att.getAttributeType() + " != " + getAttributeType() + " length: " + att.getDataLength() + " !=  " + getDataLength() + " array equal: " + Arrays.equals(att.username, username));
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
-                || !Arrays.equals(att.username, username))
+        if (att.getAttributeType() != attributeType || att.getDataLength() != getDataLength() || !Arrays.equals(att.username, username))
             return false;
 
         return true;

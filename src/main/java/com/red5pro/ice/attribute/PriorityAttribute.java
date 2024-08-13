@@ -70,9 +70,8 @@ public class PriorityAttribute extends Attribute {
         byte[] binValue = new byte[HEADER_LENGTH + getDataLength()];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binValue[2] = (byte) (getDataLength() >> 8);
@@ -102,7 +101,7 @@ public class PriorityAttribute extends Attribute {
             return true;
 
         PriorityAttribute att = (PriorityAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength() || (priority != att.priority))
+        if (att.getAttributeType() != attributeType || att.getDataLength() != getDataLength() || (priority != att.priority))
             return false;
 
         return true;

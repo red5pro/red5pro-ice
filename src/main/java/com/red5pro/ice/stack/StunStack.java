@@ -104,7 +104,7 @@ public class StunStack implements MessageEventHandler {
     private boolean useAllBinding;
 
     /**
-     * Executor for all threads and tasks needed in this agent.
+     * Executor for all threads and tasks needed in this stacks agent.
      */
     private ExecutorService executor = Executors.newCachedThreadPool(new ThreadFactory() {
         public Thread newThread(Runnable r) {
@@ -134,7 +134,7 @@ public class StunStack implements MessageEventHandler {
     }
 
     public StunStack() {
-        logger.debug("ctor: {}", this);
+        logger.trace("ctor: {}", this);
         // create a new network access manager
         netAccessManager = new NetAccessManager(this);
     }
@@ -228,6 +228,10 @@ public class StunStack implements MessageEventHandler {
         StunServerTransaction serverTransaction = serverTransactions.get(transactionID);
         // If a StunServerTransaction is expired, do not return it. It will be removed from serverTransactions soon.
         if (serverTransaction != null && serverTransaction.isExpired()) {
+            // remove it from the list
+            if (serverTransactions.remove(transactionID) != null) {
+                logger.debug("Removing expired server transaction: {}", serverTransaction.getTransactionID());
+            }
             serverTransaction = null;
         }
         return serverTransaction;
@@ -243,6 +247,9 @@ public class StunStack implements MessageEventHandler {
     public void cancelTransaction(TransactionID transactionID) {
         StunClientTransaction clientTransaction = clientTransactions.get(transactionID);
         if (clientTransaction != null) {
+            if (clientTransactions.remove(transactionID) != null) {
+                logger.debug("Cancelling client transaction: {}", clientTransaction.getTransactionID());
+            }
             clientTransaction.cancel();
         }
     }
@@ -257,22 +264,26 @@ public class StunStack implements MessageEventHandler {
      */
     @SuppressWarnings("unlikely-arg-type")
     private void cancelTransactionsForAddress(TransportAddress localAddr, TransportAddress remoteAddr) {
-        for (StunClientTransaction tran : clientTransactions.values()) {
+        clientTransactions.values().forEach(tran -> {
             if (tran.getLocalAddress().equals(localAddr) && (remoteAddr == null || remoteAddr.equals(tran.getRemoteAddress()))) {
-                clientTransactions.remove(tran);
+                if (clientTransactions.remove(tran) != null) {
+                    logger.debug("Cancelling client transaction: {}", tran.getTransactionID());
+                }
                 tran.cancel();
             }
-        }
-        for (StunServerTransaction tran : serverTransactions.values()) {
+        });
+        serverTransactions.values().forEach(tran -> {
             TransportAddress listenAddr = tran.getLocalListeningAddress();
             TransportAddress sendingAddr = tran.getSendingAddress();
             if (listenAddr.equals(localAddr) || (sendingAddr != null && sendingAddr.equals(localAddr))) {
                 if (remoteAddr == null || remoteAddr.equals(tran.getRequestSourceAddress())) {
-                    serverTransactions.remove(tran);
+                    if (serverTransactions.remove(tran) != null) {
+                        logger.debug("Cancelling server transaction: {}", tran.getTransactionID());
+                    }
                     tran.expire();
                 }
             }
-        }
+        });
     }
 
     /**

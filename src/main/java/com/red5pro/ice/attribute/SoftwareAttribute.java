@@ -54,9 +54,8 @@ public class SoftwareAttribute extends Attribute {
                 + (4 - getDataLength() % 4) % 4];
 
         //Type
-        int type = getAttributeType().getType();
-        binValue[0] = (byte) (type >> 8);
-        binValue[1] = (byte) (type & 0x00FF);
+        binValue[0] = (byte) (attributeType.type >> 8);
+        binValue[1] = (byte) (attributeType.type & 0x00FF);
 
         //Length
         binValue[2] = (byte) (getDataLength() >> 8);
@@ -122,8 +121,7 @@ public class SoftwareAttribute extends Attribute {
             return true;
 
         SoftwareAttribute att = (SoftwareAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
-                || !Arrays.equals(att.software, software))
+        if (att.getAttributeType() != attributeType || att.getDataLength() != getDataLength() || !Arrays.equals(att.software, software))
             return false;
 
         return true;
