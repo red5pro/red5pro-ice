@@ -25,7 +25,7 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
 
     /**
      * Use builder to create instance.
-     * 
+     *
      * @throws IOException
      */
     IceUdpSocketWrapper(TransportAddress transportAddress) throws IOException {

@@ -141,7 +141,8 @@ public class MappingCandidateHarvesters {
             for (MappingCandidateHarvester harvester : harvesters) {
                 logger.info("Using {}", harvester);
             }
-            logger.info("Initialized mapping harvesters (delay=" + (System.currentTimeMillis() - start) + "ms). " + " stunDiscoveryFailed=" + stunDiscoveryFailed);
+            logger.info("Initialized mapping harvesters (delay=" + (System.currentTimeMillis() - start) + "ms). " + " stunDiscoveryFailed="
+                    + stunDiscoveryFailed);
         }
     }
 
@@ -184,7 +185,7 @@ public class MappingCandidateHarvesters {
 
     /**
      * Creates STUN mapping harvesters for each of the given STUN servers, and waits for address discovery to finish.
-     * 
+     *
      * @param stunServers an array of STUN server addresses (ip_address:port pairs)
      * @return  the list of those who were successful in discovering an address
      */

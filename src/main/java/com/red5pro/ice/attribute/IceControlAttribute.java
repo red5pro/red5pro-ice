@@ -52,7 +52,10 @@ public abstract class IceControlAttribute extends Attribute {
         // array used to hold the intermediate long values reconstructed from the attributeValue array
 
         // Reading in the network byte order (Big-Endian)
-        tieBreaker = ((attributeValue[offset++] & 0xffL) << 56) | ((attributeValue[offset++] & 0xffL) << 48) | ((attributeValue[offset++] & 0xffL) << 40) | ((attributeValue[offset++] & 0xffL) << 32) | ((attributeValue[offset++] & 0xffL) << 24) | ((attributeValue[offset++] & 0xffL) << 16) | ((attributeValue[offset++] & 0xffL) << 8) | (attributeValue[offset] & 0xffL);
+        tieBreaker = ((attributeValue[offset++] & 0xffL) << 56) | ((attributeValue[offset++] & 0xffL) << 48)
+                | ((attributeValue[offset++] & 0xffL) << 40) | ((attributeValue[offset++] & 0xffL) << 32)
+                | ((attributeValue[offset++] & 0xffL) << 24) | ((attributeValue[offset++] & 0xffL) << 16)
+                | ((attributeValue[offset++] & 0xffL) << 8) | (attributeValue[offset] & 0xffL);
     }
 
     /**
@@ -101,7 +104,8 @@ public abstract class IceControlAttribute extends Attribute {
             return true;
 
         IceControlAttribute iceControlAtt = (IceControlAttribute) obj;
-        if (iceControlAtt.getAttributeType() != getAttributeType() || iceControlAtt.isControlling != isControlling || iceControlAtt.getDataLength() != DATA_LENGTH_ICE_CONTROL || getTieBreaker() != iceControlAtt.getTieBreaker()) {
+        if (iceControlAtt.getAttributeType() != getAttributeType() || iceControlAtt.isControlling != isControlling
+                || iceControlAtt.getDataLength() != DATA_LENGTH_ICE_CONTROL || getTieBreaker() != iceControlAtt.getTieBreaker()) {
             return false;
         }
 
@@ -137,8 +141,8 @@ public abstract class IceControlAttribute extends Attribute {
 
     /**
      * Returns the controlling property.
-     * 
-     * @return true if controlling and false if controlled 
+     *
+     * @return true if controlling and false if controlled
      */
     public boolean isControlling() {
         return isControlling;

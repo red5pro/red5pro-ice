@@ -70,7 +70,7 @@ package com.red5pro.ice.attribute;
 public class ErrorCodeAttribute extends Attribute {
 
     // Common error codes
-    /** 
+    /**
      * Try Alternate error code.
      */
     public static final char TRY_ALTERNATE = 300;
@@ -280,35 +280,46 @@ public class ErrorCodeAttribute extends Attribute {
     public static String getDefaultReasonPhrase(char errorCode) {
         switch (errorCode) {
             case 300:
-                return "(Try Alternate): The server would like the client to" + " use the server specified in the ALTERNATE-SERVER" + " attribute instead.";
+                return "(Try Alternate): The server would like the client to" + " use the server specified in the ALTERNATE-SERVER"
+                        + " attribute instead.";
             case 400:
-                return "(Bad Request): The request was malformed.  The client" + " should not retry the request without modification from" + " the previous attempt.";
+                return "(Bad Request): The request was malformed.  The client" + " should not retry the request without modification from"
+                        + " the previous attempt.";
             case 401:
                 return "(Unauthorized): The Binding Request did not contain" + " a MESSAGE-INTEGRITY attribute.";
             case 403:
-                return "(Forbidden): The request was valid but cannot be" + " performed due to administrative or similar" + " restrictions.";
+                return "(Forbidden): The request was valid but cannot be" + " performed due to administrative or similar"
+                        + " restrictions.";
             case 420:
                 return "(Unknown Attribute): The server did not understand" + " a mandatory attribute in the request.";
             case 430:
-                return "(Stale Credentials): The Binding Request did contain" + " a MESSAGE-INTEGRITY attribute, but it used a shared" + " secret that has expired.";
+                return "(Stale Credentials): The Binding Request did contain" + " a MESSAGE-INTEGRITY attribute, but it used a shared"
+                        + " secret that has expired.";
             case 431:
-                return "(Integrity Check Failure): The Binding Request" + " contained a MESSAGE-INTEGRITY attribute, but the HMAC" + " failed verification.";
+                return "(Integrity Check Failure): The Binding Request" + " contained a MESSAGE-INTEGRITY attribute, but the HMAC"
+                        + " failed verification.";
             case 432:
-                return "(Missing Username): The Binding Request contained" + " a MESSAGE-INTEGRITY attribute, but not a USERNAME" + " attribute.";
+                return "(Missing Username): The Binding Request contained" + " a MESSAGE-INTEGRITY attribute, but not a USERNAME"
+                        + " attribute.";
             case 433:
                 return "(Use TLS): The Shared Secret request has to be sent" + " over TLS, but was not received over TLS.";
             case 437:
-                return "(Allocation Mismatch): A request was received by the" + " server that requires an allocation to be in place," + " but no allocation exists, or a request was received" + " that requires no allocation, but an allocation exists.";
+                return "(Allocation Mismatch): A request was received by the" + " server that requires an allocation to be in place,"
+                        + " but no allocation exists, or a request was received"
+                        + " that requires no allocation, but an allocation exists.";
             case 438:
                 return "(Stale Nonce): See the procedures for the long-term" + " credential mechanism.";
             case 440:
                 return "(Address Family not Supported):  The server does not" + " support the address family requested by the client.";
             case 441:
-                return "(Wrong Credentials): The credentials in the" + " (non-Allocate) request do not match those used" + " to create the allocation.";
+                return "(Wrong Credentials): The credentials in the" + " (non-Allocate) request do not match those used"
+                        + " to create the allocation.";
             case 442:
-                return "(Unsupported Transport Protocol): The Allocate request" + " asked the server to use a transport protocol between" + " the server and the peer that the server does not" + " support.";
+                return "(Unsupported Transport Protocol): The Allocate request" + " asked the server to use a transport protocol between"
+                        + " the server and the peer that the server does not" + " support.";
             case 443:
-                return "Peer Address Family Mismatch):  A peer address was of" + " a different address family than that of the relayed" + " transport address of the allocation.";
+                return "Peer Address Family Mismatch):  A peer address was of" + " a different address family than that of the relayed"
+                        + " transport address of the allocation.";
             case 446:
                 return "Connection Already Exists";
             case 447:
@@ -318,7 +329,8 @@ public class ErrorCodeAttribute extends Attribute {
             case 500:
                 return "(Server Error): The server has suffered a temporary" + " error. The client should try again.";
             case 508:
-                return "(Insufficient Capacity): The server is unable to carry" + " out the request due to some capacity limit being" + " reached.";
+                return "(Insufficient Capacity): The server is unable to carry" + " out the request due to some capacity limit being"
+                        + " reached.";
             case 600:
                 return "(Global Failure:) The server is refusing to fulfill" + " the request. The client should not retry.";
 
@@ -359,7 +371,7 @@ public class ErrorCodeAttribute extends Attribute {
     @Override
     public int getDataLength() {
         int len = (4 //error code numbers
-        + (reasonPhrase == null ? 0 : reasonPhrase.length));
+                + (reasonPhrase == null ? 0 : reasonPhrase.length));
 
         return len;
     }
@@ -414,7 +426,8 @@ public class ErrorCodeAttribute extends Attribute {
         ErrorCodeAttribute att = (ErrorCodeAttribute) obj;
         if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
         //compare data
-                || att.getErrorClass() != getErrorClass() || att.getErrorNumber() != getErrorNumber() || (att.getReasonPhrase() != null && !att.getReasonPhrase().equals(getReasonPhrase())))
+                || att.getErrorClass() != getErrorClass() || att.getErrorNumber() != getErrorNumber()
+                || (att.getReasonPhrase() != null && !att.getReasonPhrase().equals(getReasonPhrase())))
             return false;
 
         return true;

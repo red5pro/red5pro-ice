@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 public class RemoteCandidate extends Candidate<RemoteCandidate> {
 
     private static final Logger logger = LoggerFactory.getLogger(RemoteCandidate.class);
-    
+
     /**
      * Creates a RemoteCandidate instance for the specified transport
      * address and properties.
@@ -32,7 +32,8 @@ public class RemoteCandidate extends Candidate<RemoteCandidate> {
      * address (the mapped address of the TURN allocate response) for a relayed
      * candidate.
      */
-    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation, long priority, RemoteCandidate relatedCandidate) {
+    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation,
+            long priority, RemoteCandidate relatedCandidate) {
         this(transportAddress, parentComponent, type, foundation, priority, relatedCandidate, null);
     }
 
@@ -55,7 +56,8 @@ public class RemoteCandidate extends Candidate<RemoteCandidate> {
      * address (the mapped address of the TURN allocate response) for a relayed
      * candidate.
      */
-    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation, int componentId, long priority, RemoteCandidate relatedCandidate) {
+    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation,
+            int componentId, long priority, RemoteCandidate relatedCandidate) {
         this(transportAddress, parentComponent, type, foundation, componentId, priority, relatedCandidate, null);
     }
 
@@ -78,12 +80,14 @@ public class RemoteCandidate extends Candidate<RemoteCandidate> {
      * candidate.
      * @param ufrag ufrag for the remote candidate
      */
-    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation, long priority, RemoteCandidate relatedCandidate, String ufrag) {
+    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation,
+            long priority, RemoteCandidate relatedCandidate, String ufrag) {
         super(transportAddress, parentComponent, type, relatedCandidate);
         setFoundation(foundation);
         setPriority(priority);
         this.ufrag = ufrag;
-        logger.debug("ctor - addr: {} comp: {}\n    remote type: {} priority: {} related candidate: {}", transportAddress, parentComponent, type, priority, relatedCandidate);
+        logger.debug("ctor - addr: {} comp: {}\n    remote type: {} priority: {} related candidate: {}", transportAddress, parentComponent,
+                type, priority, relatedCandidate);
     }
 
     /**
@@ -106,13 +110,15 @@ public class RemoteCandidate extends Candidate<RemoteCandidate> {
      * candidate.
      * @param ufrag ufrag for the remote candidate
      */
-    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation, int componentId, long priority, RemoteCandidate relatedCandidate, String ufrag) {
+    public RemoteCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, String foundation,
+            int componentId, long priority, RemoteCandidate relatedCandidate, String ufrag) {
         // forces a component id, which in a bad circumstance may not match the parentComponents id
         super(transportAddress, parentComponent, type, componentId, relatedCandidate);
         setFoundation(foundation);
         setPriority(priority);
         this.ufrag = ufrag;
-        logger.debug("ctor - addr: {} comp: {}\n    remote type: {} priority: {} related candidate: {}", transportAddress, parentComponent, type, priority, relatedCandidate);
+        logger.debug("ctor - addr: {} comp: {}\n    remote type: {} priority: {} related candidate: {}", transportAddress, parentComponent,
+                type, priority, relatedCandidate);
     }
 
     /**

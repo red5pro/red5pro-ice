@@ -12,9 +12,7 @@ import com.red5pro.ice.stack.*;
  *
  * @author Emil Ivov
  */
-public class StunResponseEvent
-    extends StunMessageEvent
-{
+public class StunResponseEvent extends StunMessageEvent {
     /**
      * Serial version UID for this Serializable class.
      */
@@ -37,13 +35,7 @@ public class StunResponseEvent
      * @param transactionID a reference to the exact {@link TransactionID}
      * instance that represents the corresponding client transaction.
      */
-    public StunResponseEvent(
-            StunStack stunStack,
-            RawMessage rawMessage,
-            Response response,
-            Request request,
-            TransactionID transactionID)
-    {
+    public StunResponseEvent(StunStack stunStack, RawMessage rawMessage, Response response, Request request, TransactionID transactionID) {
         super(stunStack, rawMessage, response);
         this.request = request;
         super.setTransactionID(transactionID);
@@ -56,8 +48,7 @@ public class StunResponseEvent
      * @return the {@link Request} that started the transaction that this
      * {@link Response} has just arrived in.
      */
-    public Request getRequest()
-    {
+    public Request getRequest() {
         return request;
     }
 
@@ -68,8 +59,7 @@ public class StunResponseEvent
      * @return  the {@link Response} that has just arrived and that caused this
      * event.
      */
-    public Response getResponse()
-    {
-        return (Response)getMessage();
+    public Response getResponse() {
+        return (Response) getMessage();
     }
 }

@@ -47,7 +47,7 @@ public class ComponentSocket implements PropertyChangeListener {
 
     /**
      * Adds a specific address to the list of authorized remote addresses.
-     * 
+     *
      * @param address the authorized address
      */
     public void addAuthorizedAddress(SocketAddress address) {
@@ -61,7 +61,7 @@ public class ComponentSocket implements PropertyChangeListener {
      * {@inheritDoc}
      * <br>
      * Handles property change events coming from ICE pairs.
-     * 
+     *
      * @param event
      */
     @Override
@@ -99,7 +99,7 @@ public class ComponentSocket implements PropertyChangeListener {
 
     /**
      * Adds a socket wrapper.
-     * 
+     *
      * @param socketWrapper
      */
     public void addSocketWrapper(IceSocketWrapper socketWrapper) {
@@ -108,7 +108,7 @@ public class ComponentSocket implements PropertyChangeListener {
 
     /**
      * Removes a socket wrapper.
-     * 
+     *
      * @param socketWrapper
      */
     public void removeSocketWrapper(IceSocketWrapper socketWrapper) {
@@ -117,7 +117,7 @@ public class ComponentSocket implements PropertyChangeListener {
 
     /**
      * Returns the active socket wrapper.
-     * 
+     *
      * @return socketWrapper
      */
     //public IceSocketWrapper getSocketWrapper() {
@@ -126,7 +126,7 @@ public class ComponentSocket implements PropertyChangeListener {
 
     /**
      * Returns the socket wrapper for the specified transport.
-     * 
+     *
      * @param transport
      * @return socketWrapper
      */

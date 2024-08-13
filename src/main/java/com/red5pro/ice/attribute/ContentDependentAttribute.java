@@ -14,8 +14,7 @@ import com.red5pro.ice.stack.*;
  *
  * @author Emil Ivov
  */
-public interface ContentDependentAttribute
-{
+public interface ContentDependentAttribute {
     /**
      * Returns a binary representation of this attribute.
      *
@@ -30,7 +29,5 @@ public interface ContentDependentAttribute
      * @return a binary representation of this attribute valid for the message
      * with the specified content.
      */
-    public byte[] encode(
-            StunStack stunStack,
-            byte[] content, int offset, int length);
+    public byte[] encode(StunStack stunStack, byte[] content, int offset, int length);
 }

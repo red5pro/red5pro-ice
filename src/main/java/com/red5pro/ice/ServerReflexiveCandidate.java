@@ -29,7 +29,8 @@ public class ServerReflexiveCandidate extends LocalCandidate {
      * @param extendedType The type of method used to discover this candidate ("host", "upnp", "stun peer reflexive", "stun server reflexive", "turn
      * relayed", "google turn relayed", "google tcp turn relayed" or "jingle node")
      */
-    public ServerReflexiveCandidate(TransportAddress address, HostCandidate base, TransportAddress stunSrvrAddr, CandidateExtendedType extendedType) {
+    public ServerReflexiveCandidate(TransportAddress address, HostCandidate base, TransportAddress stunSrvrAddr,
+            CandidateExtendedType extendedType) {
         this(address, base, stunSrvrAddr, null, extendedType);
     }
 
@@ -43,7 +44,8 @@ public class ServerReflexiveCandidate extends LocalCandidate {
      * @param extendedType The type of method used to discover this candidate ("host", "upnp", "stun peer reflexive", "stun server reflexive", "turn
      * relayed", "google turn relayed", "google tcp turn relayed" or "jingle node")
      */
-    public ServerReflexiveCandidate(TransportAddress address, HostCandidate base, TransportAddress stunSrvrAddr, StunCandidateHarvest stunHarvest, CandidateExtendedType extendedType) {
+    public ServerReflexiveCandidate(TransportAddress address, HostCandidate base, TransportAddress stunSrvrAddr,
+            StunCandidateHarvest stunHarvest, CandidateExtendedType extendedType) {
         super(address, base.getParentComponent(), CandidateType.SERVER_REFLEXIVE_CANDIDATE, extendedType, base);
         setBase(base);
         setStunServerAddress(stunSrvrAddr);

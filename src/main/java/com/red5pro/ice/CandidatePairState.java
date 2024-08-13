@@ -9,8 +9,7 @@ package com.red5pro.ice;
  *
  * @author Emil Ivov
  */
-public enum CandidatePairState
-{
+public enum CandidatePairState {
     /**
      * Indicates that the candidate pair is in a Waiting state which means that
      * a check has not been performed for this pair, and can be performed as
@@ -58,8 +57,7 @@ public enum CandidatePairState
      * @param stateName the name of the CandidatePairState instance
      * we'd like to create.
      */
-    private CandidatePairState(String stateName)
-    {
+    private CandidatePairState(String stateName) {
         this.stateName = stateName;
     }
 
@@ -71,8 +69,7 @@ public enum CandidatePairState
      * "Frozen").
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return stateName;
     }
 

@@ -8,8 +8,7 @@ package com.red5pro.ice.security;
  *
  * @author Emil Ivov
  */
-public interface CredentialsAuthority
-{
+public interface CredentialsAuthority {
     /**
      * Returns the key (password) that corresponds to the specified local
      * username or user frag,  an empty array if there was no password for that

@@ -170,7 +170,8 @@ public class StunClientTransaction implements Runnable {
      * @param responseCollector the instance that should receive this request's
      * response retransmit.
      */
-    public StunClientTransaction(StunStack stackCallback, Request request, TransportAddress requestDestination, TransportAddress localAddress, ResponseCollector responseCollector) {
+    public StunClientTransaction(StunStack stackCallback, Request request, TransportAddress requestDestination,
+            TransportAddress localAddress, ResponseCollector responseCollector) {
         this(stackCallback, request, requestDestination, localAddress, responseCollector, TransactionID.createNewTransactionID());
     }
 
@@ -188,7 +189,8 @@ public class StunClientTransaction implements Runnable {
      * in case the application created it in order to use it for application
      * data correlation.
      */
-    public StunClientTransaction(StunStack stackCallback, Request request, TransportAddress requestDestination, TransportAddress localAddress, ResponseCollector responseCollector, TransactionID transactionID) {
+    public StunClientTransaction(StunStack stackCallback, Request request, TransportAddress requestDestination,
+            TransportAddress localAddress, ResponseCollector responseCollector, TransactionID transactionID) {
         this.stackCallback = stackCallback;
         this.request = request;
         this.localAddress = localAddress;
@@ -244,7 +246,8 @@ public class StunClientTransaction implements Runnable {
                 nextWaitInterval *= 2;
             }
             if (logger.isDebugEnabled()) {
-                logger.debug("Retrying STUN tid {} from {} to {} waited {}ms retrans {} of {}", transactionID, localAddress, requestDestination, curWaitInterval, (retransmissionCounter + 1), maxRetransmissions);
+                logger.debug("Retrying STUN tid {} from {} to {} waited {}ms retrans {} of {}", transactionID, localAddress,
+                        requestDestination, curWaitInterval, (retransmissionCounter + 1), maxRetransmissions);
             }
             try {
                 sendRequest0();
@@ -363,7 +366,8 @@ public class StunClientTransaction implements Runnable {
             if (!StackProperties.getBoolean(StackProperties.KEEP_CRANS_AFTER_A_RESPONSE, false)) {
                 cancel();
             }
-            responseCollector.processResponse(new StunResponseEvent(stackCallback, evt.getRawMessage(), (Response) evt.getMessage(), request, transactionID));
+            responseCollector.processResponse(
+                    new StunResponseEvent(stackCallback, evt.getRawMessage(), (Response) evt.getMessage(), request, transactionID));
         } finally {
             lock.unlock();
         }

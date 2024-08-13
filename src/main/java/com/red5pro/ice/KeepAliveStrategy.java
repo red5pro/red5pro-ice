@@ -5,8 +5,7 @@ package com.red5pro.ice;
  * An enumeration of strategies for selecting which candidate pairs to
  * keep alive.
  */
-public enum KeepAliveStrategy
-{
+public enum KeepAliveStrategy {
     /**
      * Only keep alive the selected pair.
      */
@@ -24,8 +23,7 @@ public enum KeepAliveStrategy
 
     private String name;
 
-    KeepAliveStrategy(String name)
-    {
+    KeepAliveStrategy(String name) {
         this.name = name;
     }
 
@@ -34,10 +32,8 @@ public enum KeepAliveStrategy
      * string, or {@code null} if there is no such strategy.
      * @param string the name of the strategy.
      */
-    public static KeepAliveStrategy fromString(String string)
-    {
-        for (KeepAliveStrategy strategy : KeepAliveStrategy.values())
-        {
+    public static KeepAliveStrategy fromString(String string) {
+        for (KeepAliveStrategy strategy : KeepAliveStrategy.values()) {
             if (strategy.name.equals(string))
                 return strategy;
         }
@@ -48,8 +44,7 @@ public enum KeepAliveStrategy
      * {@inheritDoc}
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return name;
     }
 }

@@ -9,8 +9,8 @@ import com.red5pro.ice.StunException;
  * address and/or port when sending the response.  The attribute is 32 bits
  * long, although only two bits (A and B) are used:
  * <pre>
- * 0                   1                   2                   3    
- * 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1  
+ * 0                   1                   2                   3
+ * 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  * |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 A B 0|
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -28,16 +28,14 @@ import com.red5pro.ice.StunException;
  * @author Emil Ivov
  */
 
-public class ChangeRequestAttribute
-    extends Attribute
-{
+public class ChangeRequestAttribute extends Attribute {
 
     /**
      * This is the "change IP" flag.  If true, it requests the server
      * to send the Binding Response with a different IP address than the
      * one the Binding Request was received on.
      */
-    private boolean changeIpFlag   = false;
+    private boolean changeIpFlag = false;
 
     /**
      * This is the "change port" flag.  If true, it requests the
@@ -55,8 +53,7 @@ public class ChangeRequestAttribute
     /**
      * Creates an empty ChangeRequestAttribute.
      */
-    ChangeRequestAttribute()
-    {
+    ChangeRequestAttribute() {
         super(Attribute.Type.CHANGE_REQUEST);
     }
 
@@ -67,32 +64,27 @@ public class ChangeRequestAttribute
      * @param obj the object to compare this attribute with.
      * @return true if the attributes are equal and false otherwise.
      */
-     public boolean equals(Object obj)
-     {
-         if (! (obj instanceof ChangeRequestAttribute))
-             return false;
+    public boolean equals(Object obj) {
+        if (!(obj instanceof ChangeRequestAttribute))
+            return false;
 
-         if (obj == this)
-             return true;
+        if (obj == this)
+            return true;
 
-         ChangeRequestAttribute att = (ChangeRequestAttribute) obj;
-         if (att.getAttributeType()   != getAttributeType()
-             || att.getDataLength()   != getDataLength()
-             //compare data
-             || att.getChangeIpFlag() != getChangeIpFlag()
-             || att.getChangePortFlag()       != getChangePortFlag()
-             )
-             return false;
+        ChangeRequestAttribute att = (ChangeRequestAttribute) obj;
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        //compare data
+                || att.getChangeIpFlag() != getChangeIpFlag() || att.getChangePortFlag() != getChangePortFlag())
+            return false;
 
-         return true;
+        return true;
     }
 
     /**
      * Returns the length of this attribute's body.
      * @return the length of this attribute's value (8 bytes).
      */
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return DATA_LENGTH;
     }
 
@@ -100,23 +92,21 @@ public class ChangeRequestAttribute
      * Returns a binary representation of this attribute.
      * @return a binary representation of this attribute.
      */
-    public byte[] encode()
-    {
+    public byte[] encode() {
         byte binValue[] = new byte[HEADER_LENGTH + DATA_LENGTH];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
         //Data
         binValue[4] = 0x00;
         binValue[5] = 0x00;
         binValue[6] = 0x00;
-        binValue[7] = (byte)((getChangeIpFlag() ? 4 : 0) +
-                (getChangePortFlag() ? 2 : 0));
+        binValue[7] = (byte) ((getChangeIpFlag() ? 4 : 0) + (getChangePortFlag() ? 2 : 0));
 
         return binValue;
     }
@@ -129,8 +119,7 @@ public class ChangeRequestAttribute
      *
      * @param changeIP the new value of the changeIpFlag.
      */
-    public void setChangeIpFlag(boolean changeIP)
-    {
+    public void setChangeIpFlag(boolean changeIP) {
         this.changeIpFlag = changeIP;
     }
 
@@ -141,8 +130,7 @@ public class ChangeRequestAttribute
      *
      * @return the value of the changeIpFlag.
      */
-    public boolean getChangeIpFlag()
-    {
+    public boolean getChangeIpFlag() {
         return changeIpFlag;
     }
 
@@ -153,8 +141,7 @@ public class ChangeRequestAttribute
      *
      * @param changePort the new value of the changePort flag.
      */
-    public void setChangePortFlag(boolean changePort)
-    {
+    public void setChangePortFlag(boolean changePort) {
         this.changePortFlag = changePort;
     }
 
@@ -165,8 +152,7 @@ public class ChangeRequestAttribute
      *
      * @return the value of the changePort flag.
      */
-    public boolean getChangePortFlag()
-    {
+    public boolean getChangePortFlag() {
         return changePortFlag;
     }
 
@@ -181,11 +167,9 @@ public class ChangeRequestAttribute
       * @param length the length of the binary array.
       * @throws StunException if attrubteValue contains invalid data.
       */
-     void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-         throws StunException
-     {
-         offset += 3; // first three bytes of change req att are not used
-         setChangeIpFlag((attributeValue[offset] & 4) > 0);
-         setChangePortFlag((attributeValue[offset] & 0x2) > 0);
-     }
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
+        offset += 3; // first three bytes of change req att are not used
+        setChangeIpFlag((attributeValue[offset] & 4) > 0);
+        setChangePortFlag((attributeValue[offset] & 0x2) > 0);
+    }
 }

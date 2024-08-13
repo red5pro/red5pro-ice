@@ -12,11 +12,11 @@ import com.red5pro.ice.Transport;
 
 /**
  * This class handles the ice encoding.
- * 
+ *
  * Refs
  * https://tools.ietf.org/html/rfc4571
  * https://tools.ietf.org/html/rfc6544#section-3
- * 
+ *
  * @author Paul Gregoire
  */
 public class IceEncoder extends ProtocolEncoderAdapter {
@@ -46,7 +46,8 @@ public class IceEncoder extends ProtocolEncoderAdapter {
 
     @Override
     public void encode(IoSession session, Object message, ProtocolEncoderOutput out) throws Exception {
-        logger.trace("encode (session: {}) local: {} remote: {}\n{}", session.getId(), session.getLocalAddress(), session.getRemoteAddress(), String.valueOf(message));
+        logger.trace("encode (session: {}) local: {} remote: {}\n{}", session.getId(), session.getLocalAddress(),
+                session.getRemoteAddress(), String.valueOf(message));
         if (message instanceof RawMessage) {
             // determine the transport in-use
             Transport transport = (session.getTransportMetadata().isConnectionless() ? Transport.UDP : Transport.TCP);

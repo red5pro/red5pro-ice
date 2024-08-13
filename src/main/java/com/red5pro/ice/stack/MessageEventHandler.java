@@ -12,7 +12,7 @@ public interface MessageEventHandler {
 
     /**
      * Called when an incoming message has been received, parsed and is ready for delivery.
-     * 
+     *
      * @param evt the Event object that encapsulates the newly received message
      */
     public void handleMessageEvent(StunMessageEvent evt);

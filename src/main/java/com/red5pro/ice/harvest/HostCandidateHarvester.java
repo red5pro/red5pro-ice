@@ -10,7 +10,6 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -127,7 +126,7 @@ public class HostCandidateHarvester {
     /**
      * Gets the list of addresses which have been explicitly allowed via configuration properties. To get the list of all allowed addresses,
      * use {@link #getAllAllowedAddresses()}.
-     * 
+     *
      * @return the list of explicitly allowed addresses
      */
     public static List<InetAddress> getAllowedAddresses() {
@@ -139,7 +138,7 @@ public class HostCandidateHarvester {
 
     /**
      * Gets the list of blocked addresses.
-     * 
+     *
      * @return the list of blocked addresses
      */
     public static List<InetAddress> getBlockedAddresses() {
@@ -258,7 +257,7 @@ public class HostCandidateHarvester {
                         // add to bindable addresses
                         bindableAddresses.add(addr);
                         // if the address is bindable and not on an `lo` interface, add to addresses list
-                        if (!interfaceName.startsWith("lo")) {  
+                        if (!interfaceName.startsWith("lo")) {
                             addresses.add(new AddressRef(addr, NetworkUtils.isInterfaceVirtual(iface)));
                         }
                     }
@@ -324,7 +323,8 @@ public class HostCandidateHarvester {
             }
         });
         if (component.getLocalCandidateCount() == 0) {
-            throw new IOException("Failed to bind even a single host candidate for component:" + component + " port=" + port + " transport=" + transport);
+            throw new IOException(
+                    "Failed to bind even a single host candidate for component:" + component + " port=" + port + " transport=" + transport);
         }
         logger.debug("Exit harvest port: {}", port);
     }
@@ -342,7 +342,8 @@ public class HostCandidateHarvester {
      * @throws IllegalArgumentException if either minPort or maxPort is not a valid port number, minPort &gt; maxPort or if transport is not supported
      * @throws IOException if an error occurs
      */
-    public void harvest(Component component, int preferredPort, int minPort, int maxPort, Transport transport) throws IllegalArgumentException, IOException {
+    public void harvest(Component component, int preferredPort, int minPort, int maxPort, Transport transport)
+            throws IllegalArgumentException, IOException {
         logger.debug("harvest port: {}", preferredPort);
         if (transport == null || (transport != Transport.UDP && transport != Transport.TCP)) {
             throw new IllegalArgumentException("Transport protocol not supported: " + transport);
@@ -371,7 +372,8 @@ public class HostCandidateHarvester {
                     component.getComponentSocket().addSocketWrapper(iceSocket);
                 } catch (Throwable t) {
                     // There seems to be a problem with this particular address let's just move on for now and hope we will find better
-                    logger.warn("Socket creation failed on: {} transport: {}\nPorts - preferred: {} min: {} max: {}", addrRef, transport, preferredPort, minPort, maxPort, t);
+                    logger.warn("Socket creation failed on: {} transport: {}\nPorts - preferred: {} min: {} max: {}", addrRef, transport,
+                            preferredPort, minPort, maxPort, t);
                 }
             } else {
                 logger.debug("Address is not allowed: {}", addr);
@@ -379,7 +381,8 @@ public class HostCandidateHarvester {
         });
         logger.trace("Exited socket creation loop");
         if (component.getLocalCandidateCount() == 0) {
-            throw new IOException("Failed to bind even a single host candidate for component:" + component + " preferredPort=" + preferredPort + " minPort=" + minPort + " maxPort=" + maxPort);
+            throw new IOException("Failed to bind even a single host candidate for component:" + component + " preferredPort="
+                    + preferredPort + " minPort=" + minPort + " maxPort=" + maxPort);
         }
         logger.debug("Exit harvest port: {}", preferredPort);
     }
@@ -442,7 +445,7 @@ public class HostCandidateHarvester {
                 if (ret && allowedAddresses != null && allowedAddresses.size() > 0) {
                     ret = allowedAddresses.contains(address);
                 }
-            }        
+            }
         } else {
             // no loop back allowed
             logger.debug("Address is loopback: {}", address);
@@ -478,7 +481,8 @@ public class HostCandidateHarvester {
      * @throws IOException if an error occurs while the underlying resolver lib is using sockets
      * @throws BindException if we couldn't find a free port between minPort and maxPort before reaching the maximum allowed number of retries
      */
-    private IceSocketWrapper createServerSocket(InetAddress laddr, int preferredPort, int minPort, int maxPort, Component component) throws IllegalArgumentException, IOException, BindException {
+    private IceSocketWrapper createServerSocket(InetAddress laddr, int preferredPort, int minPort, int maxPort, Component component)
+            throws IllegalArgumentException, IOException, BindException {
         // make sure port numbers are valid
         checkPorts(preferredPort, minPort, maxPort);
         int bindRetries = StackProperties.getInt(StackProperties.BIND_RETRIES, StackProperties.BIND_RETRIES_DEFAULT_VALUE);
@@ -538,7 +542,8 @@ public class HostCandidateHarvester {
      * @throws IOException if an error occurs while the underlying resolver lib is using sockets
      * @throws BindException if we couldn't find a free port between minPort and maxPort before reaching the maximum allowed number of retries
      */
-    private IceSocketWrapper createDatagramSocket(InetAddress laddr, int preferredPort, int minPort, int maxPort) throws IllegalArgumentException, IOException, BindException {
+    private IceSocketWrapper createDatagramSocket(InetAddress laddr, int preferredPort, int minPort, int maxPort)
+            throws IllegalArgumentException, IOException, BindException {
         // make sure port numbers are valid
         //checkPorts(preferredPort, minPort, maxPort);
         int mx = Math.min(maxPort, 65535);
@@ -586,7 +591,8 @@ public class HostCandidateHarvester {
     private void checkPorts(int preferredPort, int minPort, int maxPort) throws IllegalArgumentException {
         // make sure port numbers are valid
         if (!NetworkUtils.isValidPortNumber(minPort) || !NetworkUtils.isValidPortNumber(maxPort)) {
-            throw new IllegalArgumentException("minPort (" + minPort + ") and maxPort (" + maxPort + ") should be integers between 1024 and 65535");
+            throw new IllegalArgumentException(
+                    "minPort (" + minPort + ") and maxPort (" + maxPort + ") should be integers between 1024 and 65535");
         }
         // make sure minPort comes before maxPort.
         if (minPort > maxPort) {
@@ -594,7 +600,8 @@ public class HostCandidateHarvester {
         }
         // if preferredPort is not in the allowed range, place it at min.
         if (minPort > preferredPort || preferredPort > maxPort) {
-            throw new IllegalArgumentException("preferredPort (" + preferredPort + ") must be between minPort (" + minPort + ") and maxPort (" + maxPort + ")");
+            throw new IllegalArgumentException(
+                    "preferredPort (" + preferredPort + ") must be between minPort (" + minPort + ") and maxPort (" + maxPort + ")");
         }
     }
 

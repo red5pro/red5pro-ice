@@ -188,7 +188,8 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         Message req = evt.getMessage();
         boolean selfIceControlling = parentAgent.isControlling();
         // determine requester control
-        IceControlAttribute theirIceControl = (IceControlAttribute) Optional.ofNullable(req.getAttribute(Attribute.Type.ICE_CONTROLLING)).orElse(req.getAttribute(Attribute.Type.ICE_CONTROLLED));
+        IceControlAttribute theirIceControl = (IceControlAttribute) Optional.ofNullable(req.getAttribute(Attribute.Type.ICE_CONTROLLING))
+                .orElse(req.getAttribute(Attribute.Type.ICE_CONTROLLED));
         logger.info("Requested control attribute: {}", theirIceControl);
         // If the agent is in the controlling role, and the ICE-CONTROLLING attribute is present in the request:
         boolean bothControllingConflict = selfIceControlling && theirIceControl.isControlling();
@@ -206,7 +207,8 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         if (Long.compareUnsigned(selfTieBreaker, theirTieBreaker) >= 0) {
             UsernameAttribute requestUserName = (UsernameAttribute) req.getAttribute(Attribute.Type.USERNAME);
             Response response = MessageFactory.createBindingErrorResponse(ErrorCodeAttribute.ROLE_CONFLICT);
-            Attribute messageIntegrityAttribute = AttributeFactory.createMessageIntegrityAttribute(new String(requestUserName.getUsername()));
+            Attribute messageIntegrityAttribute = AttributeFactory
+                    .createMessageIntegrityAttribute(new String(requestUserName.getUsername()));
             response.putAttribute(messageIntegrityAttribute);
             try {
                 stunStack.sendResponse(evt.getTransactionID().getBytes(), response, evt.getLocalAddress(), evt.getRemoteAddress());
@@ -218,7 +220,8 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         } else {
             //If the agent's tie-breaker is less than the contents of the ICE control attribute, the agent toggles its ICE control role.
             String selfNextControlState = selfIceControlling ? "controlled" : "controlling";
-            logger.trace("Switching to {} because theirTieBreaker={} selfTieBreaker={}", selfNextControlState, theirTieBreaker, selfTieBreaker);
+            logger.trace("Switching to {} because theirTieBreaker={} selfTieBreaker={}", selfNextControlState, theirTieBreaker,
+                    selfTieBreaker);
             parentAgent.setControlling(!selfIceControlling);
         }
         logger.debug("No role conflict");

@@ -8,14 +8,12 @@ package com.red5pro.ice.attribute;
  *
  * @author Sebastien Vincent
  */
-public class RemoteAddressAttribute extends AddressAttribute
-{
+public class RemoteAddressAttribute extends AddressAttribute {
 
     /**
      * Constructor.
      */
-    RemoteAddressAttribute()
-    {
+    RemoteAddressAttribute() {
         super(Attribute.Type.REMOTE_ADDRESS);
     }
 }

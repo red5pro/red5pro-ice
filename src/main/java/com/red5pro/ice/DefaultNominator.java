@@ -133,7 +133,8 @@ public class DefaultNominator implements PropertyChangeListener {
      */
     private void strategyNominateHighestPrio(PropertyChangeEvent ev) {
         String pname = ev.getPropertyName();
-        if (IceMediaStream.PROPERTY_PAIR_VALIDATED.equals(pname) || (IceMediaStream.PROPERTY_PAIR_STATE_CHANGED.equals(pname) && (ev.getNewValue() == CandidatePairState.FAILED))) {
+        if (IceMediaStream.PROPERTY_PAIR_VALIDATED.equals(pname)
+                || (IceMediaStream.PROPERTY_PAIR_STATE_CHANGED.equals(pname) && (ev.getNewValue() == CandidatePairState.FAILED))) {
             CandidatePair validPair = (CandidatePair) ev.getSource();
             Component parentComponent = validPair.getParentComponent();
             IceMediaStream parentStream = parentComponent.getParentStream();
@@ -165,7 +166,9 @@ public class DefaultNominator implements PropertyChangeListener {
             CandidatePair validPair = (CandidatePair) evt.getSource();
             Component component = validPair.getParentComponent();
             LocalCandidate localCandidate = validPair.getLocalCandidate();
-            boolean isRelayed = (localCandidate instanceof RelayedCandidate) || localCandidate.getType().equals(CandidateType.RELAYED_CANDIDATE) || validPair.getRemoteCandidate().getType().equals(CandidateType.RELAYED_CANDIDATE);
+            boolean isRelayed = (localCandidate instanceof RelayedCandidate)
+                    || localCandidate.getType().equals(CandidateType.RELAYED_CANDIDATE)
+                    || validPair.getRemoteCandidate().getType().equals(CandidateType.RELAYED_CANDIDATE);
             boolean nominate = false;
             TimerTask task = validatedCandidates.get(component.toShortString());
             if (isRelayed && task == null) {

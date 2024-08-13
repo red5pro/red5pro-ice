@@ -94,7 +94,8 @@ public class ShallowStackTest extends TestCase {
     @Before
     protected void setUp() throws Exception {
         super.setUp();
-        logger.info("--------------------------------------------------------------------------------------\nSettting up {}", getClass().getName());
+        logger.info("--------------------------------------------------------------------------------------\nSettting up {}",
+                getClass().getName());
         System.setProperty("com.red5pro.ice.TERMINATION_DELAY", "500");
         System.setProperty("com.red5pro.ice.BIND_RETRIES", "1");
         //System.setProperty("com.red5pro.ice.harvest.NAT_HARVESTER_LOCAL_ADDRESS", IPAddress);
@@ -142,13 +143,14 @@ public class ShallowStackTest extends TestCase {
         msgFixture = null;
         stunStack.shutDown();
         super.tearDown();
-        logger.info("======================================================================================\nTorn down {}", getClass().getName());
+        logger.info("======================================================================================\nTorn down {}",
+                getClass().getName());
     }
 
     @SuppressWarnings("incomplete-switch")
     @Test
     public void testMassBindings() throws Exception {
-        // setup the acceptor 
+        // setup the acceptor
         //IceUdpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
         // create some agents
         int agentCount = 32;
@@ -181,7 +183,8 @@ public class ShallowStackTest extends TestCase {
                             logger.debug("ICE connectivity completed: {} elapsed: {}", id, (System.currentTimeMillis() - iceStartTime));
                             break;
                         case FAILED:
-                            logger.warn("ICE connectivity failed for: {} port: {} elapsed: {}", id, allocatedPort, (System.currentTimeMillis() - iceStartTime));
+                            logger.warn("ICE connectivity failed for: {} port: {} elapsed: {}", id, allocatedPort,
+                                    (System.currentTimeMillis() - iceStartTime));
                             // now stop
                             agent.free();
                             break;
@@ -203,7 +206,8 @@ public class ShallowStackTest extends TestCase {
                     int remotePort = Integer.valueOf(agent.getProperty("remotePort"));
                     TransportAddress serverAddr = new TransportAddress(IPAddress, remotePort, Transport.UDP);
                     // create remote candidate
-                    RemoteCandidate remoteCand = new RemoteCandidate(serverAddr, component, CandidateType.HOST_CANDIDATE, localCand.getFoundation(), localCand.getComponentId(), 1686052607L, null);
+                    RemoteCandidate remoteCand = new RemoteCandidate(serverAddr, component, CandidateType.HOST_CANDIDATE,
+                            localCand.getFoundation(), localCand.getComponentId(), 1686052607L, null);
                     String remoteUfrag = String.format("rem%d", remotePort);
                     remoteCand.setUfrag(remoteUfrag);
                     stream.setRemoteUfrag(remoteUfrag);
@@ -212,10 +216,10 @@ public class ShallowStackTest extends TestCase {
                     // server socket and its own stunstack
                     StunStack stnStack = new StunStack();
                     IceUdpSocketWrapper serverSock = (IceUdpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
-                    stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true); // do socket binding   
+                    stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true); // do socket binding
                     // instance a remote server
                     //ResponseSequenceServer server = new ResponseSequenceServer(stnStack, serverAddr);
-                    //server.start();             
+                    //server.start();
                 } catch (Exception e) {
                     logger.warn("Exception in setupICE for: {}", agent.getProperty("proref"));
                 }
@@ -330,7 +334,10 @@ public class ShallowStackTest extends TestCase {
         byte[] actualReturn = collectedRequest.encode(stunStack);
         assertTrue("Received request was not the same as the one that was sent", Arrays.equals(expectedReturn, actualReturn));
         //---------- create the response ---------------------------------------
-        Response bindingResponse = MessageFactory.create3489BindingResponse(new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP), new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_2, MsgFixture.ADDRESS_ATTRIBUTE_PORT_2, Transport.UDP), new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_3, MsgFixture.ADDRESS_ATTRIBUTE_PORT_3, Transport.UDP));
+        Response bindingResponse = MessageFactory.create3489BindingResponse(
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP),
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_2, MsgFixture.ADDRESS_ATTRIBUTE_PORT_2, Transport.UDP),
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_3, MsgFixture.ADDRESS_ATTRIBUTE_PORT_3, Transport.UDP));
         //---------- send & receive the response -------------------------------
         //dgramCollector.startListening(serverAddress);
         stunStack.sendResponse(collectedRequest.getTransactionID(), bindingResponse, localAddress, serverAddress);
@@ -559,7 +566,7 @@ public class ShallowStackTest extends TestCase {
 
         /**
          * Blocks until a request arrives or 50 ms pass.
-         * @throws InterruptedException 
+         * @throws InterruptedException
          */
         public void waitForResponse() throws InterruptedException {
             do {

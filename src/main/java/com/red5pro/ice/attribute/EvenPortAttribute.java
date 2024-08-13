@@ -13,8 +13,7 @@ import com.red5pro.ice.StunException;
  *
  * @author Sebastien Vincent
  */
-public class EvenPortAttribute extends Attribute
-{
+public class EvenPortAttribute extends Attribute {
 
     /**
      * The length of the data contained by this attribute.
@@ -29,8 +28,7 @@ public class EvenPortAttribute extends Attribute
     /**
      * Constructor.
      */
-    EvenPortAttribute()
-    {
+    EvenPortAttribute() {
         super(Attribute.Type.EVEN_PORT);
     }
 
@@ -40,20 +38,17 @@ public class EvenPortAttribute extends Attribute
      * @param obj the object to compare this attribute with.
      * @return true if the attributes are equal and false otherwise.
      */
-    public boolean equals(Object obj)
-    {
-        if (! (obj instanceof EvenPortAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof EvenPortAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         EvenPortAttribute att = (EvenPortAttribute) obj;
-        if (att.getAttributeType() != getAttributeType()
-                || att.getDataLength() != getDataLength()
-                /* compare data */
-                || att.rFlag != rFlag
-           )
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        /* compare data */
+                || att.rFlag != rFlag)
             return false;
 
         return true;
@@ -63,8 +58,7 @@ public class EvenPortAttribute extends Attribute
      * Returns the length of this attribute's body.
      * @return the length of this attribute's value (8 bytes).
      */
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return DATA_LENGTH;
     }
 
@@ -72,19 +66,18 @@ public class EvenPortAttribute extends Attribute
      * Returns a binary representation of this attribute.
      * @return a binary representation of this attribute.
      */
-    public byte[] encode()
-    {
+    public byte[] encode() {
         byte binValue[] = new byte[HEADER_LENGTH + DATA_LENGTH];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
         //Data
-        binValue[4] = (byte)(rFlag ? 1 << 8 : 0);
+        binValue[4] = (byte) (rFlag ? 1 << 8 : 0);
 
         return binValue;
     }
@@ -99,11 +92,8 @@ public class EvenPortAttribute extends Attribute
      * @param length the length of the binary array.
      * @throws StunException if attrubteValue contains invalid data.
      */
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-        throws StunException
-    {
-        if(length != 4)
-        {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
+        if (length != 4) {
             throw new StunException("length invalid");
         }
 
@@ -114,8 +104,7 @@ public class EvenPortAttribute extends Attribute
      * Set the R flag.
      * @param rFlag true of false
      */
-    public void setRFlag(boolean rFlag)
-    {
+    public void setRFlag(boolean rFlag) {
         this.rFlag = rFlag;
     }
 
@@ -123,8 +112,7 @@ public class EvenPortAttribute extends Attribute
      * Is the R flag set
      * @return true if it is, false otherwise
      */
-    public boolean isRFlag()
-    {
+    public boolean isRFlag() {
         return rFlag;
     }
 }

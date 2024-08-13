@@ -58,8 +58,7 @@ public class HarvestStatistics {
         //count total candidates
         if (harvest != null)
             stopHarvestTiming(harvest.size());
-        else
-            stopHarvestTiming(0);
+        else stopHarvestTiming(0);
 
     }
 
@@ -145,6 +144,7 @@ public class HarvestStatistics {
      */
     @Override
     public String toString() {
-        return harvesterName + ": time=" + getHarvestDuration() + "ms harvests=" + getHarvestCount() + " candidates=" + getTotalCandidateCount();
+        return harvesterName + ": time=" + getHarvestDuration() + "ms harvests=" + getHarvestCount() + " candidates="
+                + getTotalCandidateCount();
     }
 }

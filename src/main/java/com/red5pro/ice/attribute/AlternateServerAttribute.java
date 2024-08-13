@@ -25,14 +25,12 @@ package com.red5pro.ice.attribute;
  *
  * @author Sebastien Vincent
  */
-public class AlternateServerAttribute extends AddressAttribute
-{
+public class AlternateServerAttribute extends AddressAttribute {
 
     /**
      * Constructor.
      */
-    AlternateServerAttribute()
-    {
+    AlternateServerAttribute() {
         super(Attribute.Type.ALTERNATE_SERVER);
     }
 }

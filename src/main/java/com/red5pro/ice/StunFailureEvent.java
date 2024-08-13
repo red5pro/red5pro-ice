@@ -25,7 +25,7 @@ public class StunFailureEvent extends BaseStunMessageEvent {
     /**
      * Constructs a StunFailureEvent according to the specified
      * message.
-     * 
+     *
      * @param stunStack the StunStack to be associated with the new
      * instance
      * @param message the message itself

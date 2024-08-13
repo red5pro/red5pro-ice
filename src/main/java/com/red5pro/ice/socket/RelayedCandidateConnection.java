@@ -87,12 +87,12 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
     /**
      * The lifetime in milliseconds of a TURN permission created using a CreatePermission request.
      */
-    private static final long PERMISSION_LIFETIME = 300 /* seconds */* 1000L;
+    private static final long PERMISSION_LIFETIME = 300 /* seconds */ * 1000L;
 
     /**
      * The time in milliseconds before a TURN permission expires that a RelayedCandidateConnection is to try to reinstall it.
      */
-    private static final long PERMISSION_LIFETIME_LEEWAY = 60 /* seconds */* 1000L;
+    private static final long PERMISSION_LIFETIME_LEEWAY = 60 /* seconds */ * 1000L;
 
     /**
      * The RelayedCandidate which uses this instance as the value of its socket property.
@@ -180,7 +180,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
     public RelayedCandidateConnection(RelayedCandidate relayedCandidate, TurnCandidateHarvest turnCandidateHarvest) throws SocketException {
         this.relayedCandidate = relayedCandidate;
         this.turnCandidateHarvest = turnCandidateHarvest;
-        this.turnCandidateHarvest.harvester.getStunStack().addIndicationListener(this.turnCandidateHarvest.hostCandidate.getTransportAddress(), this);
+        this.turnCandidateHarvest.harvester.getStunStack()
+                .addIndicationListener(this.turnCandidateHarvest.hostCandidate.getTransportAddress(), this);
     }
 
     /**
@@ -200,7 +201,7 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
     //                // The first two bits should be 0b01 because of the current channel number range 0x4000 - 0x7FFE. But 0b10 and 0b11
     //                // which are currently reserved and may be used in the future to extend the range of channel numbers.
     //                if ((pData[pOffset] & 0xC0) != 0) {
-    //                    // Technically, we cannot create a DatagramPacket from a ChannelData message with a Channel Number we do not know about. 
+    //                    // Technically, we cannot create a DatagramPacket from a ChannelData message with a Channel Number we do not know about.
     //                    // But determining that we know the value of the Channel Number field may be too much of an unnecessary performance penalty
     //                    // and it may be unnecessary because the message comes from our TURN server and it looks like a ChannelData message already.
     //                    pOffset += CHANNELDATA_CHANNELNUMBER_LENGTH;
@@ -221,7 +222,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
      */
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            turnCandidateHarvest.harvester.getStunStack().removeIndicationListener(turnCandidateHarvest.hostCandidate.getTransportAddress(), this);
+            turnCandidateHarvest.harvester.getStunStack().removeIndicationListener(turnCandidateHarvest.hostCandidate.getTransportAddress(),
+                    this);
             turnCandidateHarvest.close(this);
         }
     }
@@ -305,9 +307,10 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
             // Is it from our TURN server?
             if (turnCandidateHarvest.harvester.stunServer.equals(event.getRemoteAddress())) {
                 Message stunMessage = event.getMessage();
-                // RFC 5766: When the client receives a Data indication, it checks that the Data indication contains both an 
+                // RFC 5766: When the client receives a Data indication, it checks that the Data indication contains both an
                 // XOR-PEER-ADDRESS and a DATA attribute and discards the indication if it does not.
-                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) stunMessage.getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
+                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) stunMessage
+                        .getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
                 DataAttribute dataAttribute = (DataAttribute) stunMessage.getAttribute(Attribute.Type.DATA);
                 if (peerAddressAttribute != null && dataAttribute != null) {
                     TransportAddress peerAddress = peerAddressAttribute.getAddress(stunMessage.getTransactionID());
@@ -335,7 +338,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                                         logger.debug("Channel bind peer address: {}", localPeerAddr);
                                         // create and send a channel bind request
                                         TransactionID transID = TransactionID.createNewTransactionID();
-                                        Request channelRequest = MessageFactory.createChannelBindRequest(RelayedCandidateConnection.MIN_CHANNEL_NUMBER, localPeerAddr, transID.getBytes());
+                                        Request channelRequest = MessageFactory.createChannelBindRequest(
+                                                RelayedCandidateConnection.MIN_CHANNEL_NUMBER, localPeerAddr, transID.getBytes());
                                         turnCandidateHarvest.getLongTermCredentialSession().addAttributes(channelRequest);
                                         // store the transaction id so we can keep track of it being sent
                                         channelBindRequest = TransactionID.build(turnCandidateHarvest.sendRequest(this, channelRequest));
@@ -392,19 +396,22 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
         }
         switch (response.getMessageType()) {
             case Message.ALLOCATE_RESPONSE:
-                XorMappedAddressAttribute mappedAddressAttribute = (XorMappedAddressAttribute) response.getAttribute(Attribute.Type.XOR_MAPPED_ADDRESS);
+                XorMappedAddressAttribute mappedAddressAttribute = (XorMappedAddressAttribute) response
+                        .getAttribute(Attribute.Type.XOR_MAPPED_ADDRESS);
                 localPeerAddress = mappedAddressAttribute.getAddress(response.getTransactionID());
                 logger.info("Local peer address: {}", localPeerAddress);
                 break;
             case Message.CREATEPERMISSION_RESPONSE:
-                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) request.getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
+                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) request
+                        .getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
                 remotePeerAddress = peerAddressAttribute.getAddress(request.getTransactionID());
                 logger.info("Remote peer address: {}", remotePeerAddress);
                 // update the component socket to inform it of the ice socket wrapper to use
                 ComponentSocket componentSocket = relayedCandidate.getParentComponent().getComponentSocket();
                 // authorize the remote address
                 componentSocket.addAuthorizedAddress(remotePeerAddress);
-                logger.debug("Component socket: {} relayed socket: {}", componentSocket.getSocketWrapper(Transport.UDP), relayedCandidate.getCandidateIceSocketWrapper());
+                logger.debug("Component socket: {} relayed socket: {}", componentSocket.getSocketWrapper(Transport.UDP),
+                        relayedCandidate.getCandidateIceSocketWrapper());
                 // get the relayed socket
                 IceSocketWrapper relayedSocket = relayedCandidate.getCandidateIceSocketWrapper();
                 // get currently set socket and close it if its not our relayed ice socket
@@ -430,10 +437,11 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
             if (remotePeerAddress != null) {
                 Indication indication = MessageFactory.createSendIndication(remotePeerAddress, data, transID.getBytes());
                 try {
-                    turnCandidateHarvest.harvester.getStunStack().sendIndication(indication, turnCandidateHarvest.harvester.stunServer, turnCandidateHarvest.hostCandidate.getTransportAddress());
+                    turnCandidateHarvest.harvester.getStunStack().sendIndication(indication, turnCandidateHarvest.harvester.stunServer,
+                            turnCandidateHarvest.hostCandidate.getTransportAddress());
                 } catch (StunException sex) {
                     logger.warn("Failed to send send-indication", sex);
-                }    
+                }
             } else {
                 logger.warn("Remote peer address is null, cannot send indication; create permission response not received yet");
             }
@@ -483,7 +491,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
     @Override
     public void sessionCreated(IoSession session) throws Exception {
         if (logger.isTraceEnabled()) {
-            logger.trace("Session created (session: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(), session.getRemoteAddress());
+            logger.trace("Session created (session: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(),
+                    session.getRemoteAddress());
         }
         // get the ice socket using the host candidates address
         TransportAddress addr = turnCandidateHarvest.hostCandidate.getTransportAddress();
@@ -493,14 +502,15 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
     }
 
     /**
-     * {@inheritDoc} 
+     * {@inheritDoc}
      * <br>
      * This should only receive data from the tunneled connection.
      */
     @Override
     public void messageReceived(IoSession session, Object message) throws Exception {
         if (logger.isTraceEnabled()) {
-            logger.trace("Message received (session: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(), session.getRemoteAddress());
+            logger.trace("Message received (session: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(),
+                    session.getRemoteAddress());
             logger.trace("Received: {} type: {}", String.valueOf(message), message.getClass().getName());
         }
         // get the transport
@@ -548,7 +558,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
     @Override
     public void messageSent(IoSession session, Object message) throws Exception {
         if (logger.isTraceEnabled()) {
-            logger.trace("Message sent (session: {}) local: {} remote: {}\nread: {} write: {}", session.getId(), session.getLocalAddress(), session.getRemoteAddress(), session.getReadBytes(), session.getWrittenBytes());
+            logger.trace("Message sent (session: {}) local: {} remote: {}\nread: {} write: {}", session.getId(), session.getLocalAddress(),
+                    session.getRemoteAddress(), session.getReadBytes(), session.getWrittenBytes());
         }
     }
 
@@ -569,7 +580,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                 channel.setBound(bound, transactionID);
                 // create and send a channel bind request
                 try {
-                    Request chanBindRequest = MessageFactory.createChannelBindRequest(channel.channelNumber, peerAddress, TransactionID.createNewTransactionID().getBytes());
+                    Request chanBindRequest = MessageFactory.createChannelBindRequest(channel.channelNumber, peerAddress,
+                            TransactionID.createNewTransactionID().getBytes());
                     turnCandidateHarvest.sendRequest(this, chanBindRequest);
                 } catch (StunException sex) {
                     logger.warn("Channel bind request failed", sex);
@@ -738,7 +750,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                 }
                 if (channelNumber != CHANNEL_NUMBER_NOT_SPECIFIED) {
                     byte[] channelBindTransactionID = TransactionID.createNewTransactionID().getBytes();
-                    Request channelBindRequest = MessageFactory.createChannelBindRequest(channelNumber, peerAddress, channelBindTransactionID);
+                    Request channelBindRequest = MessageFactory.createChannelBindRequest(channelNumber, peerAddress,
+                            channelBindTransactionID);
                     channelBindRequest.setTransactionID(channelBindTransactionID);
                     // be prepared to receive ChannelData messages from the TURN server as soon as the ChannelBind request is sent and before
                     // success response is received
@@ -786,7 +799,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
          * @return true if this instance is currently considered bound/installed; otherwise, false
          */
         public boolean isBound() {
-            if (bindingTimeStamp == -1 || (bindingTimeStamp + PERMISSION_LIFETIME - PERMISSION_LIFETIME_LEEWAY) < System.currentTimeMillis()) {
+            if (bindingTimeStamp == -1
+                    || (bindingTimeStamp + PERMISSION_LIFETIME - PERMISSION_LIFETIME_LEEWAY) < System.currentTimeMillis()) {
                 return false;
             }
             return (bindingTransactionID == null) && bound;
@@ -847,7 +861,8 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                 // data array won't contain the channel number + length
                 Indication sendIndication = MessageFactory.createSendIndication(peerAddress, data.array(), transactionID);
                 sendIndication.setTransactionID(transactionID);
-                turnCandidateHarvest.harvester.getStunStack().sendIndication(sendIndication, turnCandidateHarvest.harvester.stunServer, turnCandidateHarvest.hostCandidate.getTransportAddress());
+                turnCandidateHarvest.harvester.getStunStack().sendIndication(sendIndication, turnCandidateHarvest.harvester.stunServer,
+                        turnCandidateHarvest.hostCandidate.getTransportAddress());
             }
         }
 

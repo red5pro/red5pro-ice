@@ -39,7 +39,7 @@ public class RequestedAddressFamilyAttribute extends Attribute {
 
     /**
      * Returns the length of this attribute's body.
-     * 
+     *
      * @return the length of this attribute's value (1 byte)
      */
     @Override

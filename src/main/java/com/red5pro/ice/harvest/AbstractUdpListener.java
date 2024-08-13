@@ -69,7 +69,7 @@ public abstract class AbstractUdpListener {
 
     /**
      * Initializes a new SinglePortUdpHarvester instance which is to bind on the specified local address.
-     * 
+     *
      * @param localAddress the address to bind to
      * @throws IOException if initialization fails
      */
@@ -110,7 +110,7 @@ public abstract class AbstractUdpListener {
 
     /**
      * Looks for a registered ICE candidate, which has a local ufrag of {@code ufrag}, and if one is found it accepts the new socket and adds it to the candidate.
-     * 
+     *
      * @param iceSocket
      * @param remoteAddress
      * @param ufrag

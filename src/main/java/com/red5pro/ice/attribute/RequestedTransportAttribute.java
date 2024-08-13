@@ -13,8 +13,7 @@ import com.red5pro.ice.StunException;
  * @author Sebastien Vincent
  * @author Aakash Garg
  */
-public class RequestedTransportAttribute extends Attribute
-{
+public class RequestedTransportAttribute extends Attribute {
 
     /**
      * The length of the data contained by this attribute.
@@ -32,12 +31,11 @@ public class RequestedTransportAttribute extends Attribute
      * 6 = TCP.
      */
     byte transportProtocol = UDP;
-    
+
     /**
      * Constructor.
      */
-    RequestedTransportAttribute()
-    {
+    RequestedTransportAttribute() {
         super(Attribute.Type.REQUESTED_TRANSPORT);
     }
 
@@ -48,20 +46,17 @@ public class RequestedTransportAttribute extends Attribute
      * @return true if the attributes are equal and false otherwise.
      */
     @Override
-    public boolean equals(Object obj)
-    {
-        if (! (obj instanceof RequestedTransportAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof RequestedTransportAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         RequestedTransportAttribute att = (RequestedTransportAttribute) obj;
-        if (att.getAttributeType()   != getAttributeType()
-                || att.getDataLength()   != getDataLength()
-                /* compare data */
-                || att.transportProtocol != transportProtocol
-           )
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        /* compare data */
+                || att.transportProtocol != transportProtocol)
             return false;
 
         return true;
@@ -72,8 +67,7 @@ public class RequestedTransportAttribute extends Attribute
      * @return the length of this attribute's value (8 bytes).
      */
     @Override
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return DATA_LENGTH;
     }
 
@@ -82,17 +76,16 @@ public class RequestedTransportAttribute extends Attribute
      * @return a binary representation of this attribute.
      */
     @Override
-    public byte[] encode()
-    {
+    public byte[] encode() {
         byte binValue[] = new byte[HEADER_LENGTH + DATA_LENGTH];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
         //Data
         binValue[4] = transportProtocol;
         binValue[5] = 0x00;
@@ -113,11 +106,8 @@ public class RequestedTransportAttribute extends Attribute
      * @throws StunException if attrubteValue contains invalid data.
      */
     @Override
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-        throws StunException
-    {
-        if(length != 4)
-        {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
+        if (length != 4) {
             throw new StunException("length invalid");
         }
 
@@ -128,8 +118,7 @@ public class RequestedTransportAttribute extends Attribute
      * Set the transport protocol.
      * @param transportProtocol transport protocol
      */
-    public void setRequestedTransport(byte transportProtocol)
-    {
+    public void setRequestedTransport(byte transportProtocol) {
         this.transportProtocol = transportProtocol;
     }
 
@@ -137,8 +126,7 @@ public class RequestedTransportAttribute extends Attribute
      * Get the transport protocol.
      * @return transport protocol
      */
-    public int getRequestedTransport()
-    {
+    public int getRequestedTransport() {
         return transportProtocol;
     }
 }

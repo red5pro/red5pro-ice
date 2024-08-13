@@ -54,7 +54,7 @@ public class ResponseSequenceServer implements RequestListener {
 
     /**
      * Initializes the underlying stack.
-     * 
+     *
      * @throws StunException if something else fails
      * @throws IOException if we fail to bind a local socket.
      */
@@ -74,7 +74,7 @@ public class ResponseSequenceServer implements RequestListener {
 
     /**
      * Adds the specified response to this sequence or marks a pause (i.e. do not respond) if response is null.
-     * 
+     *
      * @param response the response to add or null to mark a pause
      */
     public void addMessage(Response response) {
@@ -89,7 +89,7 @@ public class ResponseSequenceServer implements RequestListener {
     /**
      * Completely ignores the event that is passed and just sends the next message from the sequence - or does nothing if there's something
      * different from a Response on the current position.
-     * 
+     *
      * @param evt the event being dispatched
      */
     public void processRequest(StunMessageEvent evt) {
@@ -110,7 +110,7 @@ public class ResponseSequenceServer implements RequestListener {
 
     /**
      * Returns a string representation of this Server.
-     * 
+     *
      * @return the ip address and port where this server is bound
      */
     public String toString() {

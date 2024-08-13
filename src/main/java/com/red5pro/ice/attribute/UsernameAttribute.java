@@ -120,7 +120,8 @@ public class UsernameAttribute extends Attribute {
 
         UsernameAttribute att = (UsernameAttribute) obj;
         //logger.info("Equality - type: " + att.getAttributeType() + " != " + getAttributeType() + " length: " + att.getDataLength() + " !=  " + getDataLength() + " array equal: " + Arrays.equals(att.username, username));
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength() || !Arrays.equals(att.username, username))
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+                || !Arrays.equals(att.username, username))
             return false;
 
         return true;

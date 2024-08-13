@@ -11,8 +11,7 @@ import com.red5pro.ice.StunException;
  *
  * @author Sebastien Vincent
  */
-public class RealmAttribute extends Attribute
-{
+public class RealmAttribute extends Attribute {
 
     /**
      * Realm value.
@@ -22,8 +21,7 @@ public class RealmAttribute extends Attribute
     /**
      * Constructor.
      */
-    RealmAttribute()
-    {
+    RealmAttribute() {
         super(Attribute.Type.REALM);
     }
 
@@ -37,9 +35,7 @@ public class RealmAttribute extends Attribute
      * @param length the length of the binary array.
      * @throws StunException if attributeValue contains invalid data.
      */
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-        throws StunException
-    {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
         realm = new byte[length];
         System.arraycopy(attributeValue, offset, realm, 0, length);
     }
@@ -48,19 +44,17 @@ public class RealmAttribute extends Attribute
      * Returns a binary representation of this attribute.
      * @return a binary representation of this attribute.
      */
-    public byte[] encode()
-    {
-        byte binValue[] = new byte[HEADER_LENGTH + getDataLength() +
-                                   (getDataLength() % 4)];
+    public byte[] encode() {
+        byte binValue[] = new byte[HEADER_LENGTH + getDataLength() + (getDataLength() % 4)];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
 
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
 
         /* realm */
         System.arraycopy(realm, 0, binValue, 4, getDataLength());
@@ -72,8 +66,7 @@ public class RealmAttribute extends Attribute
      * Returns the length of this attribute's body.
      * @return the length of this attribute's value.
      */
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return realm.length;
     }
 
@@ -82,8 +75,7 @@ public class RealmAttribute extends Attribute
      * attribute.
      * @return the binary array containing the realm.
      */
-    public byte[] getRealm()
-    {
+    public byte[] getRealm() {
         return (realm == null) ? null : realm.clone();
     }
 
@@ -92,10 +84,8 @@ public class RealmAttribute extends Attribute
      * attribute.
      * @param realm the binary array containing the realm.
      */
-    public void setRealm(byte[] realm)
-    {
-        if (realm == null)
-        {
+    public void setRealm(byte[] realm) {
+        if (realm == null) {
             this.realm = null;
             return;
         }
@@ -110,18 +100,15 @@ public class RealmAttribute extends Attribute
      * @param obj the object to compare this attribute with.
      * @return true if the attributes are equal and false otherwise.
      */
-    public boolean equals(Object obj)
-    {
-        if (! (obj instanceof RealmAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof RealmAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         RealmAttribute att = (RealmAttribute) obj;
-        if (att.getAttributeType() != getAttributeType()
-                || att.getDataLength() != getDataLength()
-                || !Arrays.equals( att.realm, realm))
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength() || !Arrays.equals(att.realm, realm))
             return false;
 
         return true;

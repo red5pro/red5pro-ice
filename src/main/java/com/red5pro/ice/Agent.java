@@ -67,9 +67,12 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.0.7";
+    private final static String VERSION = "1.0.8";
 
-    private final static SecureRandom random = new SecureRandom();
+    /**
+     * Secure random for shared use.
+     */
+    public final static SecureRandom random = new SecureRandom();
 
     /**
      * The default number of milliseconds we should wait before moving from {@link IceProcessingState#COMPLETED} into {@link IceProcessingState#TERMINATED}.
@@ -264,7 +267,7 @@ public class Agent {
             System.setProperty(StackProperties.SOFTWARE, "red5pro.com");
         }
         // print version and other info on first instantiation
-        logger.info("Red5 Pro ICE version: {}\n\t termination delay: {}ms", VERSION, terminationDelay);
+        logger.info("Red5 Pro ICE version: {} termination delay: {}ms", VERSION, terminationDelay);
     }
 
     /**
@@ -276,7 +279,7 @@ public class Agent {
 
     /**
      * Creates an empty Agent with no streams, and no address.
-     * 
+     *
      * @param ufragPrefix an optional prefix to the generated local ICE username fragment.
      */
     public Agent(String ufragPrefix) {
@@ -304,7 +307,7 @@ public class Agent {
 
     /**
      * Submits a runnable task to the executor.
-     * 
+     *
      * @param task
      * @return Future<?>
      */
@@ -321,7 +324,7 @@ public class Agent {
 
     /**
      * Returns the latch that we use to wait for ICE to be set up.
-     * 
+     *
      * @return iceSetupLatch
      */
     public CountDownLatch getSetupLatch() {
@@ -330,7 +333,7 @@ public class Agent {
 
     /**
      * Waits for the latch to be counted down, up-to the specified timeout.
-     * 
+     *
      * @param maxICETimeoutMs
      * @return true if the latch was counted down, false if the timeout was reached
      * @throws InterruptedException
@@ -341,7 +344,7 @@ public class Agent {
 
     /**
      * Time at which ICE started.
-     * 
+     *
      * @return iceStartTime
      */
     public long getIceStartTime() {
@@ -350,7 +353,7 @@ public class Agent {
 
     /**
      * Allows setting the termination delay. Note that this should be set early (before connectivity checks start).
-     * 
+     *
      * @param delay
      */
     public void setTerminationDelay(long delay) {
@@ -396,7 +399,7 @@ public class Agent {
      * @param stream the {@link IceMediaStream} that the new {@link Component} should belong to
      * @param transport transport protocol used by the component
      * @param port the port number that should be tried first when binding local Candidate sockets
-     * 
+     *
      * @return the newly created {@link Component} and with a list containing all and only local candidates
      *
      * @throws IllegalArgumentException if either minPort or maxPort is not a valid port number or if minPort &gt;
@@ -405,7 +408,8 @@ public class Agent {
      * @throws BindException if we couldn't find a free port between minPort and maxPort before reaching the maximum allowed
      * number of retries
      */
-    public Component createComponent(IceMediaStream stream, Transport transport, int port) throws IllegalArgumentException, IOException, BindException {
+    public Component createComponent(IceMediaStream stream, Transport transport, int port)
+            throws IllegalArgumentException, IOException, BindException {
         logger.debug("createComponent: {} port: {}", transport, port);
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
         // check the preferred port against any existing bindings first!
@@ -461,7 +465,7 @@ public class Agent {
 
     /**
      * Multi-port version for single transport.
-     * 
+     *
      * @param stream
      * @param transport
      * @param ports
@@ -470,7 +474,8 @@ public class Agent {
      * @throws IOException
      * @throws BindException
      */
-    public Component createComponent(IceMediaStream stream, Transport transport, int[] ports) throws IllegalArgumentException, IOException, BindException {
+    public Component createComponent(IceMediaStream stream, Transport transport, int[] ports)
+            throws IllegalArgumentException, IOException, BindException {
         logger.debug("createComponent: {} ports: {}", transport, Arrays.asList(ports));
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
         //logger.info("createComponent stream: {}", stream);
@@ -542,7 +547,8 @@ public class Agent {
      * @throws BindException if we couldn't find a free port between minPort and maxPort before reaching the maximum allowed
      * number of retries
      */
-    public Component createComponent(IceMediaStream stream, Transport transport1, int port1, Transport transport2, int port2) throws IllegalArgumentException, IOException, BindException {
+    public Component createComponent(IceMediaStream stream, Transport transport1, int port1, Transport transport2, int port2)
+            throws IllegalArgumentException, IOException, BindException {
         logger.debug("createComponent: {} port: {} {} port: {}", transport1, port1, transport2, port2);
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
         // check the preferred port against any existing bindings first!
@@ -604,7 +610,7 @@ public class Agent {
 
     /**
      * Multiple ports version of {@link #createComponent(IceMediaStream, Transport, int, Transport, int)}.
-     * 
+     *
      * @param stream
      * @param transport1
      * @param ports1
@@ -615,7 +621,8 @@ public class Agent {
      * @throws IOException
      * @throws BindException
      */
-    public Component createComponent(IceMediaStream stream, Transport transport1, int[] ports1, Transport transport2, int[] ports2) throws IllegalArgumentException, IOException, BindException {
+    public Component createComponent(IceMediaStream stream, Transport transport1, int[] ports1, Transport transport2, int[] ports2)
+            throws IllegalArgumentException, IOException, BindException {
         logger.debug("createComponent: {} ports: {} {} ports: {}", transport1, Arrays.asList(ports1), transport2, Arrays.asList(ports2));
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
         //logger.info("createComponent stream: {}", stream);
@@ -703,7 +710,8 @@ public class Agent {
      * @throws BindException if we couldn't find a free port between minPort and maxPort before reaching the maximum allowed
      * number of retries.
      */
-    public Component createComponent(IceMediaStream stream, Transport transport, int preferredPort, int minPort, int maxPort) throws IllegalArgumentException, IOException, BindException {
+    public Component createComponent(IceMediaStream stream, Transport transport, int preferredPort, int minPort, int maxPort)
+            throws IllegalArgumentException, IOException, BindException {
         return createComponent(stream, transport, preferredPort, minPort, maxPort, KeepAliveStrategy.SELECTED_ONLY);
     }
 
@@ -725,7 +733,8 @@ public class Agent {
      * @throws BindException if we couldn't find a free port between minPort and maxPort before reaching the maximum allowed
      * number of retries
      */
-    public Component createComponent(IceMediaStream stream, Transport transport, int preferredPort, int minPort, int maxPort, KeepAliveStrategy keepAliveStrategy) throws IllegalArgumentException, IOException, BindException {
+    public Component createComponent(IceMediaStream stream, Transport transport, int preferredPort, int minPort, int maxPort,
+            KeepAliveStrategy keepAliveStrategy) throws IllegalArgumentException, IOException, BindException {
         logger.debug("createComponent: {} preferredPort: {}", transport, preferredPort);
         // check the preferred port against any existing bindings first!
         if (IceTransport.isBound(preferredPort)) {
@@ -891,7 +900,7 @@ public class Agent {
 
     /**
      * Returns true if this agent has not been freed.
-     * 
+     *
      * @return true if actively running and false otherwise
      */
     public boolean isActive() {
@@ -1262,7 +1271,8 @@ public class Agent {
     public void setControlling(boolean isControlling) {
         logger.debug("setControlling: {} from current setting: {}", isControlling, this.isControlling);
         if (this.isControlling != isControlling) {
-            logger.info("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling, isControlling);
+            logger.info("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling,
+                    isControlling);
         }
         this.isControlling = isControlling;
         // in case we have already initialized our check lists we'd need to recompute pair priorities
@@ -1364,7 +1374,8 @@ public class Agent {
      */
     public RemoteCandidate findRemoteCandidate(TransportAddress remoteAddress) {
         for (IceMediaStream stream : mediaStreams) {
-            logger.debug("Looking for remote candidate in stream: {} in {}", stream.getName(), stream.getComponents().get(0).getRemoteCandidates());
+            logger.debug("Looking for remote candidate in stream: {} in {}", stream.getName(),
+                    stream.getComponents().get(0).getRemoteCandidates());
             RemoteCandidate cnd = stream.findRemoteCandidate(remoteAddress);
             if (cnd != null) {
                 return cnd;
@@ -1423,7 +1434,8 @@ public class Agent {
      * @param localUFrag local user fragment
      * @param useCandidate indicates whether the incoming check {@link com.red5pro.ice.message.Request} contained the USE-CANDIDATE ICE attribute
      */
-    protected void incomingCheckReceived(TransportAddress remoteAddress, TransportAddress localAddress, long priority, String remoteUFrag, String localUFrag, boolean useCandidate) {
+    protected void incomingCheckReceived(TransportAddress remoteAddress, TransportAddress localAddress, long priority, String remoteUFrag,
+            String localUFrag, boolean useCandidate) {
         LocalCandidate localCandidate = findLocalCandidate(localAddress);
         if (localCandidate != null) {
             // lookup a remote candidate match first before creating a peer candidate
@@ -1442,7 +1454,8 @@ public class Agent {
                     }
                 }
                 // We can not know the related candidate of a remote peer reflexive candidate. We must set it to "null"
-                remoteCandidate = new RemoteCandidate(remoteAddress, parentComponent, CandidateType.PEER_REFLEXIVE_CANDIDATE, foundationsRegistry.obtainFoundationForPeerReflexiveCandidate(), priority, remoteHostCandidate, ufrag);
+                remoteCandidate = new RemoteCandidate(remoteAddress, parentComponent, CandidateType.PEER_REFLEXIVE_CANDIDATE,
+                        foundationsRegistry.obtainFoundationForPeerReflexiveCandidate(), priority, remoteHostCandidate, ufrag);
             }
             // look up existing pair first
             CandidatePair triggeredPair = findCandidatePair(localAddress, remoteAddress);
@@ -1460,7 +1473,8 @@ public class Agent {
             } else if (state.get() != IceProcessingState.FAILED) {
                 // Running, Connected or Terminated, but not Failed
                 if (isDebug) {
-                    logger.debug("Received check from {} triggered a check. Local ufrag {}", triggeredPair.toShortString(), getLocalUfrag());
+                    logger.debug("Received check from {} triggered a check. Local ufrag {}", triggeredPair.toShortString(),
+                            getLocalUfrag());
                 }
                 // We have been started, and have not failed (yet). If this is a new pair, handle it (even if we have already completed).
                 triggerCheck(triggeredPair);
@@ -1481,7 +1495,8 @@ public class Agent {
             logger.trace("triggerCheck: {}", triggerPair);
         }
         // first check whether we already know about the remote address in case we've just discovered a peer-reflexive candidate
-        CandidatePair knownPair = findCandidatePair(triggerPair.getLocalCandidate().getTransportAddress(), triggerPair.getRemoteCandidate().getTransportAddress());
+        CandidatePair knownPair = findCandidatePair(triggerPair.getLocalCandidate().getTransportAddress(),
+                triggerPair.getRemoteCandidate().getTransportAddress());
         IceMediaStream parentStream = triggerPair.getLocalCandidate().getParentComponent().getParentStream();
         if (knownPair != null) {
             if (isTrace) {
@@ -1935,16 +1950,20 @@ public class Agent {
      */
     private void runInStunKeepAliveThread() {
         long consentFreshnessInterval = Long.getLong(StackProperties.CONSENT_FRESHNESS_INTERVAL, DEFAULT_CONSENT_FRESHNESS_INTERVAL);
-        int originalConsentFreshnessWaitInterval = Integer.getInteger(StackProperties.CONSENT_FRESHNESS_ORIGINAL_WAIT_INTERVAL, DEFAULT_CONSENT_FRESHNESS_ORIGINAL_WAIT_INTERVAL);
-        int maxConsentFreshnessWaitInterval = Integer.getInteger(StackProperties.CONSENT_FRESHNESS_MAX_WAIT_INTERVAL, DEFAULT_CONSENT_FRESHNESS_MAX_WAIT_INTERVAL);
-        int consentFreshnessMaxRetransmissions = Integer.getInteger(StackProperties.CONSENT_FRESHNESS_MAX_RETRANSMISSIONS, DEFAULT_CONSENT_FRESHNESS_MAX_RETRANSMISSIONS);
+        int originalConsentFreshnessWaitInterval = Integer.getInteger(StackProperties.CONSENT_FRESHNESS_ORIGINAL_WAIT_INTERVAL,
+                DEFAULT_CONSENT_FRESHNESS_ORIGINAL_WAIT_INTERVAL);
+        int maxConsentFreshnessWaitInterval = Integer.getInteger(StackProperties.CONSENT_FRESHNESS_MAX_WAIT_INTERVAL,
+                DEFAULT_CONSENT_FRESHNESS_MAX_WAIT_INTERVAL);
+        int consentFreshnessMaxRetransmissions = Integer.getInteger(StackProperties.CONSENT_FRESHNESS_MAX_RETRANSMISSIONS,
+                DEFAULT_CONSENT_FRESHNESS_MAX_RETRANSMISSIONS);
         while (runInStunKeepAliveThreadCondition()) {
             for (IceMediaStream stream : getStreams()) {
                 for (Component component : stream.getComponents()) {
                     for (CandidatePair pair : component.getKeepAlivePairs()) {
                         if (pair != null) {
                             if (performConsentFreshness) {
-                                connCheckClient.startCheckForPair(pair, originalConsentFreshnessWaitInterval, maxConsentFreshnessWaitInterval, consentFreshnessMaxRetransmissions);
+                                connCheckClient.startCheckForPair(pair, originalConsentFreshnessWaitInterval,
+                                        maxConsentFreshnessWaitInterval, consentFreshnessMaxRetransmissions);
                             } else {
                                 connCheckClient.sendBindingIndicationForPair(pair);
                             }
@@ -2134,7 +2153,7 @@ public class Agent {
 
     /**
      * Sets the flag which indicates whether the dynamic host harvester will be used or not by this Agent.
-     * 
+     *
      * @param useHostHarvester the value to set.
      */
     public void setUseHostHarvester(boolean useHostHarvester) {
@@ -2143,7 +2162,7 @@ public class Agent {
 
     /**
      * Sets a property on this candidate.
-     * 
+     *
      * @param key
      * @param value
      */
@@ -2153,7 +2172,7 @@ public class Agent {
 
     /**
      * Returns a value matching the given key in the property map, if it exists.
-     * 
+     *
      * @param key
      * @return value
      */
@@ -2163,7 +2182,7 @@ public class Agent {
 
     /**
      * Returns the system property for the UDP priority modifier.
-     * 
+     *
      * @return priority modifier
      */
     public static int getUdpPriorityModifier() {
@@ -2172,7 +2191,7 @@ public class Agent {
 
     /**
      * Returns the system property for the TCP priority modifier.
-     * 
+     *
      * @return priority modifier
      */
     public static int getTcpPriorityModifier() {
@@ -2223,7 +2242,8 @@ public class Agent {
                 // loop through the streams and setup the selected pair with the ice socket
                 CandidatePair selectedPair = null;
                 List<String> streamNames = getStreamNames();
-                GET_SELECTED_PAIR: {
+                GET_SELECTED_PAIR:
+                {
                     for (String streamName : streamNames) {
                         // webrtc bundled, only one component here
                         selectedPair = getSelectedPair(streamName);

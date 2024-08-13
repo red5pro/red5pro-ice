@@ -100,7 +100,8 @@ public class StunServerTransaction {
      * @param localListeningAddress the TransportAddress that this transaction is receiving requests on
      * @param requestSource the TransportAddress that this transaction is receiving requests from
      */
-    public StunServerTransaction(StunStack stunStack, TransactionID tranID, TransportAddress localListeningAddress, TransportAddress requestSource) {
+    public StunServerTransaction(StunStack stunStack, TransactionID tranID, TransportAddress localListeningAddress,
+            TransportAddress requestSource) {
         this.stunStack = stunStack;
         this.transactionID = tranID;
         this.localListeningAddress = localListeningAddress;
@@ -127,7 +128,8 @@ public class StunServerTransaction {
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      * @throws StunException if message encoding fails
      */
-    public void sendResponse(Response response, TransportAddress sendThrough, TransportAddress sendTo) throws StunException, IOException, IllegalArgumentException {
+    public void sendResponse(Response response, TransportAddress sendThrough, TransportAddress sendTo)
+            throws StunException, IOException, IllegalArgumentException {
         if (!isRetransmitting) {
             this.response = response;
             // the transaction id might already have been set, but its our job to make sure of that

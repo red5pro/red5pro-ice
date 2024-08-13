@@ -30,8 +30,8 @@ import com.red5pro.ice.Transport;
  * port.  They consist of an eight bit address family, and a sixteen bit
  * port, followed by a fixed length value representing the IP address.
  *<pre>
- *  0                   1                   2                   3   
- *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 
+ *  0                   1                   2                   3
+ *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  * |x x x x x x x x|    Family     |           Port                |
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -114,7 +114,7 @@ abstract class AddressAttribute extends Attribute {
 
     /**
      * Verifies that type is a valid address attribute type.
-     * 
+     *
      * @param type the type to test
      * @return true if the type is a valid address attribute type and false otherwise
      */
@@ -170,7 +170,7 @@ abstract class AddressAttribute extends Attribute {
 
     /**
      * Returns the length of this attribute's body.
-     * 
+     *
      * @return the length of this attribute's value (8 bytes)
      */
     public int getDataLength() {
@@ -183,7 +183,7 @@ abstract class AddressAttribute extends Attribute {
 
     /**
      * Returns a binary representation of this attribute.
-     * 
+     *
      * @return a binary representation
      */
     public byte[] encode() {
@@ -239,7 +239,7 @@ abstract class AddressAttribute extends Attribute {
 
     /**
      * Returns the family that the this.address belongs to.
-     * 
+     *
      * @return the address family
      */
     public byte getFamily() {
@@ -248,7 +248,7 @@ abstract class AddressAttribute extends Attribute {
 
     /**
      * Returns the port associated with the address contained by the attribute.
-     * 
+     *
      * @return the port associated with the address
      */
     public int getPort() {

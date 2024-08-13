@@ -332,7 +332,8 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
      * {@link #hostCandidate} and the STUN server associated with {@link #harvester}
      */
     protected ServerReflexiveCandidate createServerReflexiveCandidate(TransportAddress transportAddress) {
-        return new ServerReflexiveCandidate(transportAddress, hostCandidate, harvester.stunServer, CandidateExtendedType.STUN_SERVER_REFLEXIVE_CANDIDATE);
+        return new ServerReflexiveCandidate(transportAddress, hostCandidate, harvester.stunServer,
+                CandidateExtendedType.STUN_SERVER_REFLEXIVE_CANDIDATE);
     }
 
     /**
@@ -391,7 +392,7 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
 
     /**
      * Returns the LongTermCredentialSession if one has been established.
-     * 
+     *
      * @return LongTermCredentialSession or null if it doesnt exist
      */
     public LongTermCredentialSession getLongTermCredentialSession() {
@@ -453,7 +454,8 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
                 Object applicationData = requestTransactionID.getApplicationData();
                 if (applicationData != null) {
                     byte[] retryRequestTransactionIDAsBytes = retryRequest.getTransactionID();
-                    retryRequestTransactionID = (retryRequestTransactionIDAsBytes == null) ? TransactionID.createNewTransactionID() : TransactionID.createTransactionID(harvester.getStunStack(), retryRequestTransactionIDAsBytes);
+                    retryRequestTransactionID = (retryRequestTransactionIDAsBytes == null) ? TransactionID.createNewTransactionID()
+                            : TransactionID.createTransactionID(harvester.getStunStack(), retryRequestTransactionIDAsBytes);
                     retryRequestTransactionID.setApplicationData(applicationData);
                 }
             }
@@ -587,18 +589,24 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
                     }
                 } else if (response.getMessageType() == Message.ALLOCATE_RESPONSE) {
                     // check for mapped or xor mapped address in allocate response
-                    if (!response.containsAnyAttributes(EnumSet.of(Attribute.Type.MAPPED_ADDRESS, Attribute.Type.XOR_MAPPED_ADDRESS, Attribute.Type.XOR_RELAYED_ADDRESS))) {
+                    if (!response.containsAnyAttributes(EnumSet.of(Attribute.Type.MAPPED_ADDRESS, Attribute.Type.XOR_MAPPED_ADDRESS,
+                            Attribute.Type.XOR_RELAYED_ADDRESS))) {
                         logger.warn("Mapped address attributes are absent, discarding response");
                         return;
                     }
                 } else {
-                    EnumSet<Attribute.Type> includedRequestAttributeTypes = EnumSet.of(Attribute.Type.USERNAME, Attribute.Type.MESSAGE_INTEGRITY);
+                    EnumSet<Attribute.Type> includedRequestAttributeTypes = EnumSet.of(Attribute.Type.USERNAME,
+                            Attribute.Type.MESSAGE_INTEGRITY);
                     // For a request or indication message, the agent MUST include the USERNAME and MESSAGE-INTEGRITY attributes in the message.
                     if (request.containsAllAttributes(includedRequestAttributeTypes)) {
-                        MessageIntegrityAttribute messageIntegrityAttribute = (MessageIntegrityAttribute) response.getAttribute(Attribute.Type.MESSAGE_INTEGRITY);
+                        MessageIntegrityAttribute messageIntegrityAttribute = (MessageIntegrityAttribute) response
+                                .getAttribute(Attribute.Type.MESSAGE_INTEGRITY);
                         // Authentication and Message-Integrity Mechanisms
                         UsernameAttribute usernameAttribute = (UsernameAttribute) request.getAttribute(Attribute.Type.USERNAME);
-                        if (!harvester.getStunStack().validateMessageIntegrity(messageIntegrityAttribute, LongTermCredential.toString(usernameAttribute.getUsername()), request.getAttribute(Attribute.Type.REALM) == null && request.getAttribute(Attribute.Type.NONCE) == null, event.getRawMessage())) {
+                        if (!harvester.getStunStack().validateMessageIntegrity(messageIntegrityAttribute,
+                                LongTermCredential.toString(usernameAttribute.getUsername()),
+                                request.getAttribute(Attribute.Type.REALM) == null && request.getAttribute(Attribute.Type.NONCE) == null,
+                                event.getRawMessage())) {
                             logger.warn("MESSAGE-INTEGRITY not validated, discarding response");
                             return;
                         }
@@ -656,7 +664,8 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
         // The request MUST contain USERNAME, REALM, NONCE and MESSAGE-INTEGRITY attributes.
         boolean challenge = false;
         if (request.getAttributeCount() > 0) {
-            EnumSet<Attribute.Type> includedRequestAttributeTypes = EnumSet.of(Attribute.Type.USERNAME, Attribute.Type.REALM, Attribute.Type.NONCE, Attribute.Type.MESSAGE_INTEGRITY);
+            EnumSet<Attribute.Type> includedRequestAttributeTypes = EnumSet.of(Attribute.Type.USERNAME, Attribute.Type.REALM,
+                    Attribute.Type.NONCE, Attribute.Type.MESSAGE_INTEGRITY);
             if (request.containsAllAttributes(includedRequestAttributeTypes)) {
                 challenge = true;
             }
@@ -694,7 +703,8 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
         boolean challenge = true;
         // The client SHOULD omit the USERNAME, MESSAGE-INTEGRITY, REALM, and NONCE attributes from the "First Request".
         if (request.getAttributeCount() > 0) {
-            EnumSet<Attribute.Type> excludedRequestAttributeTypes = EnumSet.of(Attribute.Type.USERNAME, Attribute.Type.MESSAGE_INTEGRITY, Attribute.Type.REALM, Attribute.Type.NONCE);
+            EnumSet<Attribute.Type> excludedRequestAttributeTypes = EnumSet.of(Attribute.Type.USERNAME, Attribute.Type.MESSAGE_INTEGRITY,
+                    Attribute.Type.REALM, Attribute.Type.NONCE);
             if (request.containsAnyAttributes(excludedRequestAttributeTypes)) {
                 challenge = false;
             }
@@ -820,7 +830,8 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
         if (transactionID == null) {
             byte[] transactionIDAsBytes = request.getTransactionID();
             //logger.warn("transactionIDAsBytes {}", (transactionIDAsBytes != null ? transactionIDAsBytes.length : null));
-            transactionID = (transactionIDAsBytes == null) ? TransactionID.createNewTransactionID() : TransactionID.createTransactionID(stunStack, transactionIDAsBytes);
+            transactionID = (transactionIDAsBytes == null) ? TransactionID.createNewTransactionID()
+                    : TransactionID.createTransactionID(stunStack, transactionIDAsBytes);
             //logger.debug("TransactionID: {}", transactionID);
         }
         logger.debug("Request transaction id: {}", transactionID.toString());

@@ -38,7 +38,7 @@ class Connector implements Comparable<Connector> {
 
     /**
      * Creates a network access point.
-     * 
+     *
      * @param socket the socket that this access point is supposed to use for communication
      * @param remoteAddress the remote address of the socket of this {@link Connector} if it is a TCP socket, or null if it is UDP
      */
@@ -59,7 +59,7 @@ class Connector implements Comparable<Connector> {
 
     /**
      * Returns alive status.
-     * 
+     *
      * @return true if alive and false if stopped
      */
     public boolean isAlive() {
@@ -101,7 +101,7 @@ class Connector implements Comparable<Connector> {
 
     /**
      * Allow setting remote address for TCP sockets.
-     * 
+     *
      * @param remoteAddress
      */
     void setRemoteAddress(TransportAddress remoteAddress) {
@@ -124,7 +124,7 @@ class Connector implements Comparable<Connector> {
 
     /**
      * Returns a String representation of the object.
-     * 
+     *
      * @return String
      */
     @Override

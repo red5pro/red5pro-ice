@@ -2,7 +2,8 @@
 package com.red5pro.ice.stack;
 
 import java.util.Arrays;
-import java.util.Random;
+
+import com.red5pro.ice.Agent;
 
 /**
  * This class encapsulates a STUN transaction ID. It is useful for storing transaction IDs in collection objects as it implements the equals method.
@@ -22,11 +23,6 @@ public class TransactionID {
     public static final int RFC3489_TRANSACTION_ID_LENGTH = 16;
 
     private static final char[] hexArray = "0123456789ABCDEF".toCharArray();
-
-    /**
-     * Used to randomly generate transaction ids; seeded with current time.
-     */
-    private static final Random random = new Random(System.currentTimeMillis());
 
     /**
      * The id itself
@@ -69,7 +65,7 @@ public class TransactionID {
      */
     public static TransactionID createNewTransactionID() {
         TransactionID tid = new TransactionID();
-        random.nextBytes(tid.transactionID);
+        Agent.random.nextBytes(tid.transactionID);
         return tid;
     }
 
@@ -84,7 +80,7 @@ public class TransactionID {
      */
     public static TransactionID createNewTransactionID(Object applicationData) {
         TransactionID tid = new TransactionID();
-        random.nextBytes(tid.transactionID);
+        Agent.random.nextBytes(tid.transactionID);
         tid.applicationData = applicationData;
         return tid;
     }
@@ -99,7 +95,7 @@ public class TransactionID {
      */
     public static TransactionID createNewRFC3489TransactionID() {
         TransactionID tid = new TransactionID(true);
-        random.nextBytes(tid.transactionID);
+        Agent.random.nextBytes(tid.transactionID);
         return tid;
     }
 
@@ -129,7 +125,7 @@ public class TransactionID {
 
     /**
      * Create a TransactionID from supplied byte array.
-     * 
+     *
      * @param transactionID
      * @return tid
      */
@@ -160,7 +156,7 @@ public class TransactionID {
 
     /**
      * Compares two TransactionID objects.
-     * 
+     *
      * @param obj the object to compare with
      * @return true if the objects are equal and false otherwise
      */
@@ -175,7 +171,7 @@ public class TransactionID {
 
     /**
      * Compares the specified byte array with this transaction id.
-     * 
+     *
      * @param targetID the id to compare with ours
      * @return true if targetID matches this transaction id
      */
@@ -186,13 +182,14 @@ public class TransactionID {
     /**
      * Returns the first four bytes of the transactionID to ensure proper
      * retrieval from hashtables.
-     * 
+     *
      * @return the hashcode of this object
      */
     public int hashCode() {
         if (hashCode == 0) {
             //calculate hashcode for Hashtable storage
-            hashCode = (transactionID[3] << 24 & 0xFF000000) | (transactionID[2] << 16 & 0x00FF0000) | (transactionID[1] << 8 & 0x0000FF00) | (transactionID[0] & 0x000000FF);
+            hashCode = (transactionID[3] << 24 & 0xFF000000) | (transactionID[2] << 16 & 0x00FF0000) | (transactionID[1] << 8 & 0x0000FF00)
+                    | (transactionID[0] & 0x000000FF);
         }
         return hashCode;
     }

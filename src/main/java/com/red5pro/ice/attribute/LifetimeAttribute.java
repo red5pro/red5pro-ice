@@ -46,7 +46,7 @@ public class LifetimeAttribute extends Attribute {
         LifetimeAttribute att = (LifetimeAttribute) obj;
         if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
         /* compare data */
-        || att.lifetime != lifetime)
+                || att.lifetime != lifetime)
             return false;
 
         return true;
@@ -101,7 +101,8 @@ public class LifetimeAttribute extends Attribute {
             throw new StunException("length invalid");
         }
 
-        lifetime = ((attributeValue[offset] << 24) & 0xff000000) + ((attributeValue[offset + 1] << 16) & 0x00ff0000) + ((attributeValue[offset + 2] << 8) & 0x0000ff00) + (attributeValue[offset + 3] & 0x000000ff);
+        lifetime = ((attributeValue[offset] << 24) & 0xff000000) + ((attributeValue[offset + 1] << 16) & 0x00ff0000)
+                + ((attributeValue[offset + 2] << 8) & 0x0000ff00) + (attributeValue[offset + 3] & 0x000000ff);
     }
 
     /**

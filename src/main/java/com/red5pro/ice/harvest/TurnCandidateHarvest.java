@@ -65,7 +65,7 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
      * Allocation be deleted
      */
     public void close(RelayedCandidateConnection relayedCandidateSocket) {
-        // FIXME As far as logic goes, it seems that it is possible to send a TURN Refresh, cancel the STUN keep-alive functionality here and only 
+        // FIXME As far as logic goes, it seems that it is possible to send a TURN Refresh, cancel the STUN keep-alive functionality here and only
         // then receive the response to the TURN Refresh which will enable the STUN keep-alive functionality again.
         setSendKeepAliveMessageInterval(SEND_KEEP_ALIVE_MESSAGE_INTERVAL_NOT_SPECIFIED);
         // TURN Refresh with a LIFETIME value equal to zero deletes the TURN Allocation.
@@ -189,9 +189,11 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
         char type = request.getMessageType();
         switch (type) {
             case Message.ALLOCATE_REQUEST: {
-                RequestedTransportAttribute requestedTransportAttribute = (RequestedTransportAttribute) request.getAttribute(Attribute.Type.REQUESTED_TRANSPORT);
+                RequestedTransportAttribute requestedTransportAttribute = (RequestedTransportAttribute) request
+                        .getAttribute(Attribute.Type.REQUESTED_TRANSPORT);
                 // XXX defaults to UDP if no transport is requested via attribute
-                int requestedTransport = (requestedTransportAttribute == null) ? Transport.UDP.getProtocolNumber() : requestedTransportAttribute.getRequestedTransport();
+                int requestedTransport = (requestedTransportAttribute == null) ? Transport.UDP.getProtocolNumber()
+                        : requestedTransportAttribute.getRequestedTransport();
                 //logger.debug("createRequestToRetry - ALLOCATE_REQUEST type: {}", requestedTransport);
                 // XXX not sure that even-port is allowed with TCP TURN
                 EvenPortAttribute evenPortAttribute = (EvenPortAttribute) request.getAttribute(Attribute.Type.EVEN_PORT);
@@ -199,9 +201,11 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
                 return MessageFactory.createAllocateRequest((byte) requestedTransport, rFlag);
             }
             case Message.CHANNELBIND_REQUEST: {
-                ChannelNumberAttribute channelNumberAttribute = (ChannelNumberAttribute) request.getAttribute(Attribute.Type.CHANNEL_NUMBER);
+                ChannelNumberAttribute channelNumberAttribute = (ChannelNumberAttribute) request
+                        .getAttribute(Attribute.Type.CHANNEL_NUMBER);
                 char channelNumber = channelNumberAttribute.getChannelNumber();
-                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) request.getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
+                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) request
+                        .getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
                 TransportAddress peerAddress = peerAddressAttribute.getAddress(request.getTransactionID());
                 logger.debug("Retry channel bind for {}", peerAddress);
                 byte[] retryTransactionID = TransactionID.createNewTransactionID().getBytes();
@@ -214,7 +218,8 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
                 return retryChannelBindRequest;
             }
             case Message.CREATEPERMISSION_REQUEST: {
-                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) request.getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
+                XorPeerAddressAttribute peerAddressAttribute = (XorPeerAddressAttribute) request
+                        .getAttribute(Attribute.Type.XOR_PEER_ADDRESS);
                 TransportAddress peerAddress = peerAddressAttribute.getAddress(request.getTransactionID());
                 logger.debug("Retry permission for {}", peerAddress);
                 byte[] retryTransactionID = TransactionID.createNewTransactionID().getBytes();
@@ -276,7 +281,8 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
     protected boolean processErrorOrFailure(Response response, Request request, TransactionID transactionID) {
         // TurnCandidateHarvest uses the applicationData of TransactionID to deliver the results of Requests sent by RelayedCandidateDatagramSocket back to it.
         Object applicationData = transactionID.getApplicationData();
-        if ((applicationData instanceof RelayedCandidateConnection) && ((RelayedCandidateConnection) applicationData).processErrorOrFailure(response, request)) {
+        if ((applicationData instanceof RelayedCandidateConnection)
+                && ((RelayedCandidateConnection) applicationData).processErrorOrFailure(response, request)) {
             return true;
         }
         return super.processErrorOrFailure(response, request, transactionID);

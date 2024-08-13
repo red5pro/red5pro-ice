@@ -25,7 +25,7 @@ public class SocketClosedException extends SocketException {
 
     /**
      * Initializes a new {@link SocketClosedException}.
-     * 
+     *
      * @param message
      */
     public SocketClosedException(String message) {

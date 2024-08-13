@@ -27,13 +27,13 @@ import com.red5pro.ice.TransportAddress;
 
 /**
  * This class handles the ice decoding.
- * 
+ *
  * @author Paul Gregoire
  */
 public class IceDecoder extends ProtocolDecoderAdapter {
 
     private static final Logger logger = LoggerFactory.getLogger(IceDecoder.class);
-    
+
     private static final boolean isTrace = logger.isTraceEnabled();
 
     private static final boolean isDebug = logger.isDebugEnabled();
@@ -122,7 +122,8 @@ public class IceDecoder extends ProtocolDecoderAdapter {
         //logger.trace("Remaining at start: {}", frameLength);
         // get the socket which may be null if the associated candidate hasn't been nominated yet
         // else if the ice socket is not in the session yet, attempt to pull it from those registered in the handler
-        iceSocket = (IceSocketWrapper) Optional.ofNullable(session.getAttribute(Ice.CONNECTION)).orElse(IceTransport.getIceHandler().lookupBinding((TransportAddress) session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR)));
+        iceSocket = (IceSocketWrapper) Optional.ofNullable(session.getAttribute(Ice.CONNECTION)).orElse(
+                IceTransport.getIceHandler().lookupBinding((TransportAddress) session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR)));
         // if the socket is valid for processing input
         if (iceSocket == null || iceSocket.isClosed()) {
             logger.warn("Ice socket missing in session or closed: {}", session);
@@ -139,7 +140,8 @@ public class IceDecoder extends ProtocolDecoderAdapter {
                 iceSocket.setSession(session);
             }
             // loop reading input until no usable bytes remain
-            checkFrameComplete: do {
+            checkFrameComplete:
+            do {
                 //logger.trace("Remaining at loop start: {}", in.remaining());
                 // check for an existing frame chunk first
                 FrameChunk frameChunk = (FrameChunk) session.getAttribute(Ice.TCP_BUFFER);
@@ -249,7 +251,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
 
     /**
      * Ensure that local and remote TransportAddresses are cached in the session. Optimize by doing this only once per session.
-     * 
+     *
      * @param session
      * @param transport
      */
@@ -272,14 +274,16 @@ public class IceDecoder extends ProtocolDecoderAdapter {
             }
         }
         if (isTrace) {
-            logger.trace("({}) transport addresses local: {} remote: {}", transport, session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR), session.getAttribute(IceTransport.Ice.REMOTE_TRANSPORT_ADDR));
+            logger.trace("({}) transport addresses local: {} remote: {}", transport,
+                    session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR),
+                    session.getAttribute(IceTransport.Ice.REMOTE_TRANSPORT_ADDR));
         }
     }
-    
+
     /**
      * Process the given bytes for handling as STUN, DTLS, or data (usually rtp/rtcp). Incoming webrtc packets in udp contain only one message,
      * in tcp they may come in as a whole, fragments, or any combo of the two as well as multiple messages.
-     * 
+     *
      * @param session
      * @param iceSocket
      * @param in incoming I/O buffer
@@ -359,7 +363,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
     /**
      * Process the given bytes for handling as STUN, DTLS, or data (usually rtp/rtcp). Incoming webrtc packets in udp contain only one message,
      * in tcp they may come in as a whole, fragments, or any combo of the two as well as multiple messages.
-     * 
+     *
      * @param session
      * @param iceSocket
      * @param buf
@@ -443,7 +447,8 @@ public class IceDecoder extends ProtocolDecoderAdapter {
         // All STUN messages MUST start with a 20-byte header followed by zero or more Attributes
         if (buf.length >= 20) {
             // If the MAGIC COOKIE is present this is a STUN packet (RFC5389 compliant).
-            if (buf[4] == Message.MAGIC_COOKIE[0] && buf[5] == Message.MAGIC_COOKIE[1] && buf[6] == Message.MAGIC_COOKIE[2] && buf[7] == Message.MAGIC_COOKIE[3]) {
+            if (buf[4] == Message.MAGIC_COOKIE[0] && buf[5] == Message.MAGIC_COOKIE[1] && buf[6] == Message.MAGIC_COOKIE[2]
+                    && buf[7] == Message.MAGIC_COOKIE[3]) {
                 isStunPacket = true;
             } else {
                 // Else, this packet may be a STUN packet (RFC3489 compliant). To determine this, we must continue the checks.
@@ -490,7 +495,8 @@ public class IceDecoder extends ProtocolDecoderAdapter {
         // All STUN messages MUST start with a 20-byte header followed by zero or more Attributes
         if (buf.length >= 20) {
             // If the MAGIC COOKIE is present this is a STUN packet (RFC5389 compliant).
-            if (buf[4] == Message.MAGIC_COOKIE[0] && buf[5] == Message.MAGIC_COOKIE[1] && buf[6] == Message.MAGIC_COOKIE[2] && buf[7] == Message.MAGIC_COOKIE[3]) {
+            if (buf[4] == Message.MAGIC_COOKIE[0] && buf[5] == Message.MAGIC_COOKIE[1] && buf[6] == Message.MAGIC_COOKIE[2]
+                    && buf[7] == Message.MAGIC_COOKIE[3]) {
                 isStunPacket = true;
             }
         }
@@ -533,7 +539,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
 
     /**
      * Returns the DTLS version as a string or null if parsing fails.
-     * 
+     *
      * @param buf the bytes to probe
      * @param offset data start position
      * @param length data length
@@ -586,7 +592,8 @@ public class IceDecoder extends ProtocolDecoderAdapter {
             return null;
         }
         // RFC5389, Section 6: The magic cookie field MUST contain the fixed value 0x2112A442 in network byte order.
-        if (((buf[off + 4] & 0xFF) == 0x21 && (buf[off + 5] & 0xFF) == 0x12 && (buf[off + 6] & 0xFF) == 0xA4 && (buf[off + 7] & 0xFF) == 0x42)) {
+        if (((buf[off + 4] & 0xFF) == 0x21 && (buf[off + 5] & 0xFF) == 0x12 && (buf[off + 6] & 0xFF) == 0xA4
+                && (buf[off + 7] & 0xFF) == 0x42)) {
             try {
                 Message stunMessage = Message.decode(buf, off, len);
                 if (stunMessage.getMessageType() == Message.BINDING_REQUEST) {

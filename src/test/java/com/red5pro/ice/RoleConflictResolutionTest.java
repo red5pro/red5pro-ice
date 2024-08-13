@@ -102,7 +102,8 @@ public class RoleConflictResolutionTest {
             for (Component component : stream.getComponents()) {
                 CandidatePair selectedPair = component.getSelectedPair();
                 if (selectedPair != null) {
-                    logger.info(peer.toString() + ": selected pair for component " + component.getComponentID() + " :" + selectedPair.toString());
+                    logger.info(peer.toString() + ": selected pair for component " + component.getComponentID() + " :"
+                            + selectedPair.toString());
                 }
             }
         }
@@ -141,7 +142,8 @@ public class RoleConflictResolutionTest {
 
     private static void copyRemoteCandidates(Component localComponent, Component remoteComponent) {
         for (LocalCandidate candidate : remoteComponent.getLocalCandidates()) {
-            localComponent.addRemoteCandidate(new RemoteCandidate(candidate.getTransportAddress(), localComponent, candidate.getType(), candidate.getFoundation(), candidate.getPriority(), null));
+            localComponent.addRemoteCandidate(new RemoteCandidate(candidate.getTransportAddress(), localComponent, candidate.getType(),
+                    candidate.getFoundation(), candidate.getPriority(), null));
         }
     }
 }

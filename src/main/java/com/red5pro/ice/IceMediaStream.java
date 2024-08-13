@@ -416,7 +416,8 @@ public class IceMediaStream implements Comparable<IceMediaStream> {
      */
     public CandidatePair findCandidatePair(TransportAddress localAddress, TransportAddress remoteAddress) {
         for (CandidatePair pair : checkList) {
-            if (pair.getLocalCandidate().getTransportAddress().equals(localAddress) && pair.getRemoteCandidate().getTransportAddress().equals(remoteAddress)) {
+            if (pair.getLocalCandidate().getTransportAddress().equals(localAddress)
+                    && pair.getRemoteCandidate().getTransportAddress().equals(remoteAddress)) {
                 return pair;
             }
         }
@@ -691,5 +692,5 @@ public class IceMediaStream implements Comparable<IceMediaStream> {
         // we want to sort streams by name; this will not sort or check the agent which is fine.
         return this.name.compareTo(that.name);
     }
-    
+
 }

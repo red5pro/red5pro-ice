@@ -55,7 +55,7 @@ public class MagicCookieAttribute extends Attribute {
         MagicCookieAttribute att = (MagicCookieAttribute) obj;
         if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
         /* compare data */
-        || att.value != value)
+                || att.value != value)
             return false;
 
         return true;
@@ -101,6 +101,7 @@ public class MagicCookieAttribute extends Attribute {
             throw new StunException("length invalid");
         }
 
-        value = ((attributeValue[0] << 24) & 0xff000000) + ((attributeValue[1] << 16) & 0x00ff0000) + ((attributeValue[2] << 8) & 0x0000ff00) + (attributeValue[3] & 0x000000ff);
+        value = ((attributeValue[0] << 24) & 0xff000000) + ((attributeValue[1] << 16) & 0x00ff0000)
+                + ((attributeValue[2] << 8) & 0x0000ff00) + (attributeValue[3] & 0x000000ff);
     }
 }

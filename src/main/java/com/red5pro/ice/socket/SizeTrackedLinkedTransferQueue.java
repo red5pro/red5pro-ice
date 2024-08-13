@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Extension of the LinkedTransferQueue so that removals may be tracked when performed by outside callers.
- * 
+ *
  * @param <E>
  */
 public class SizeTrackedLinkedTransferQueue<E> extends LinkedTransferQueue<E> {
@@ -21,7 +21,8 @@ public class SizeTrackedLinkedTransferQueue<E> extends LinkedTransferQueue<E> {
     private final static boolean isDebug = logger.isDebugEnabled();
 
     @SuppressWarnings("rawtypes")
-    private final static AtomicIntegerFieldUpdater<SizeTrackedLinkedTransferQueue> AtomicQueueSizeUpdater = AtomicIntegerFieldUpdater.newUpdater(SizeTrackedLinkedTransferQueue.class, "queueSize");
+    private final static AtomicIntegerFieldUpdater<SizeTrackedLinkedTransferQueue> AtomicQueueSizeUpdater = AtomicIntegerFieldUpdater
+            .newUpdater(SizeTrackedLinkedTransferQueue.class, "queueSize");
 
     private volatile int queueSize;
 
@@ -65,7 +66,7 @@ public class SizeTrackedLinkedTransferQueue<E> extends LinkedTransferQueue<E> {
 
     @Override
     public E take() throws InterruptedException {
-        E message =  super.take();
+        E message = super.take();
         if (message != null) {
             int size = AtomicQueueSizeUpdater.decrementAndGet(this);
             if (isDebug) {

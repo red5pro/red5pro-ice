@@ -7,8 +7,7 @@ package com.red5pro.ice;
  *
  * @author Emil Ivov
  */
-public class StunException extends Exception
-{
+public class StunException extends Exception {
     /**
      * Serial version UID for this Serializable class.
      */
@@ -62,8 +61,7 @@ public class StunException extends Exception
     /**
      * Creates a StunException.
      */
-    public StunException()
-    {
+    public StunException() {
 
     }
 
@@ -71,8 +69,7 @@ public class StunException extends Exception
      * Creates a StunException setting id as its identifier.
      * @param id an error ID
      */
-    public StunException(int id)
-    {
+    public StunException(int id) {
         setID(id);
     }
 
@@ -80,8 +77,7 @@ public class StunException extends Exception
      * Creates a StunException, setting an error message.
      * @param message an error message.
      */
-    public StunException(String message)
-    {
+    public StunException(String message) {
         super(message);
     }
 
@@ -90,8 +86,7 @@ public class StunException extends Exception
      * @param message an error message.
      * @param id an error id.
      */
-    public StunException(int id, String message)
-    {
+    public StunException(int id, String message) {
         super(message);
         setID(id);
     }
@@ -104,8 +99,7 @@ public class StunException extends Exception
      * @param message an error message.
      * @param cause the error that caused this exception.
      */
-    public StunException(int id, String message, Throwable cause)
-    {
+    public StunException(int id, String message, Throwable cause) {
         super(message, cause);
         setID(id);
     }
@@ -115,8 +109,7 @@ public class StunException extends Exception
      * @param message an error message.
      * @param cause the error object that caused this exception.
      */
-    public StunException(String message, Throwable cause)
-    {
+    public StunException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -124,8 +117,7 @@ public class StunException extends Exception
      * Creates an exception, setting the Throwable object, that caused it.
      * @param cause the error that caused this exception.
      */
-    public StunException(Throwable cause)
-    {
+    public StunException(Throwable cause) {
         super(cause);
     }
 
@@ -133,8 +125,7 @@ public class StunException extends Exception
      * Sets the identifier of the error that caused the exception.
      * @param id the identifier of the error that caused the exception.
      */
-    public void setID(int id)
-    {
+    public void setID(int id) {
         this.id = id;
     }
 
@@ -142,8 +133,7 @@ public class StunException extends Exception
      * Returns this exception's identifier.
      * @return this exception's identifier;
      */
-    public int getID()
-    {
+    public int getID() {
         return id;
     }
 

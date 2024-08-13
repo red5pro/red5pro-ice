@@ -7,8 +7,7 @@ package com.red5pro.ice;
  *
  * @author Vincent Lucas
  */
-public enum CandidateExtendedType
-{
+public enum CandidateExtendedType {
     /**
      * There candidate is discovered directly by the host.
      */
@@ -70,8 +69,7 @@ public enum CandidateExtendedType
      * @param extendedTypeName the name of the CandidateExtendedType
      * instance we'd like to create.
      */
-    private CandidateExtendedType(String extendedTypeName)
-    {
+    private CandidateExtendedType(String extendedTypeName) {
         this.extendedTypeName = extendedTypeName;
     }
 
@@ -85,8 +83,7 @@ public enum CandidateExtendedType
      * "google turn relayed", "google tcp turn relayed" or "jingle node").
      */
     @Override
-    public String toString()
-    {
+    public String toString() {
         return extendedTypeName;
     }
 
@@ -103,32 +100,24 @@ public enum CandidateExtendedType
      * @throws IllegalArgumentException in case extendedTypeName is
      * not a valid or currently supported candidate extended type.
      */
-    public static CandidateExtendedType parse(String extendedTypeName)
-        throws IllegalArgumentException
-    {
-        if(HOST_CANDIDATE.toString().equals(extendedTypeName))
+    public static CandidateExtendedType parse(String extendedTypeName) throws IllegalArgumentException {
+        if (HOST_CANDIDATE.toString().equals(extendedTypeName))
             return HOST_CANDIDATE;
-        else if(UPNP_CANDIDATE.toString().equals(extendedTypeName))
+        else if (UPNP_CANDIDATE.toString().equals(extendedTypeName))
             return UPNP_CANDIDATE;
-        else if(STUN_PEER_REFLEXIVE_CANDIDATE.toString().equals(
-                    extendedTypeName))
+        else if (STUN_PEER_REFLEXIVE_CANDIDATE.toString().equals(extendedTypeName))
             return STUN_PEER_REFLEXIVE_CANDIDATE;
-        else if(STUN_SERVER_REFLEXIVE_CANDIDATE.toString().equals(
-                    extendedTypeName))
+        else if (STUN_SERVER_REFLEXIVE_CANDIDATE.toString().equals(extendedTypeName))
             return STUN_SERVER_REFLEXIVE_CANDIDATE;
-        else if(TURN_RELAYED_CANDIDATE.toString().equals(extendedTypeName))
+        else if (TURN_RELAYED_CANDIDATE.toString().equals(extendedTypeName))
             return TURN_RELAYED_CANDIDATE;
-        else if(GOOGLE_TURN_RELAYED_CANDIDATE.toString().equals(
-                    extendedTypeName))
+        else if (GOOGLE_TURN_RELAYED_CANDIDATE.toString().equals(extendedTypeName))
             return GOOGLE_TURN_RELAYED_CANDIDATE;
-        else if(GOOGLE_TCP_TURN_RELAYED_CANDIDATE.toString().equals(
-                    extendedTypeName))
+        else if (GOOGLE_TCP_TURN_RELAYED_CANDIDATE.toString().equals(extendedTypeName))
             return GOOGLE_TCP_TURN_RELAYED_CANDIDATE;
-        else if(JINGLE_NODE_CANDIDATE.toString().equals(extendedTypeName))
+        else if (JINGLE_NODE_CANDIDATE.toString().equals(extendedTypeName))
             return JINGLE_NODE_CANDIDATE;
 
-        throw new IllegalArgumentException(
-            extendedTypeName
-            + " is not a currently supported CandidateExtendedType");
+        throw new IllegalArgumentException(extendedTypeName + " is not a currently supported CandidateExtendedType");
     }
 }

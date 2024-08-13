@@ -43,7 +43,8 @@ public class AttributeDecoderTest extends TestCase {
         char length = (char) bytes.length;
 
         //create the message
-        MappedAddressAttribute expectedReturn = new MappedAddressAttribute(new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP));
+        MappedAddressAttribute expectedReturn = new MappedAddressAttribute(
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP));
 
         Attribute actualReturn = AttributeDecoder.decode(bytes, offset, length);
 
@@ -57,7 +58,8 @@ public class AttributeDecoderTest extends TestCase {
         char length = (char) bytes.length;
 
         //create the message
-        MappedAddressAttribute expectedReturn = new MappedAddressAttribute(new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_V6, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP));
+        MappedAddressAttribute expectedReturn = new MappedAddressAttribute(
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_V6, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP));
 
         Attribute actualReturn = AttributeDecoder.decode(bytes, offset, length);
 

@@ -24,8 +24,7 @@ package com.red5pro.ice.util;
  *
  * @author Lyubomir Marinov
  */
-public class RateStatistics
-{
+public class RateStatistics {
     /**
      * Total count recorded in buckets.
      */
@@ -58,8 +57,7 @@ public class RateStatistics
      * second).
      * @param windowSizeMs window size in ms for the rate estimation
      */
-    public RateStatistics(int windowSizeMs)
-    {
+    public RateStatistics(int windowSizeMs) {
         this(windowSizeMs, 8000F);
     }
 
@@ -68,32 +66,27 @@ public class RateStatistics
      * @param scale coefficient to convert counts/ms to desired units. For
      * example, if counts represents bytes, use 8*1000 to go to bits/s.
      */
-    public RateStatistics(int windowSizeMs, float scale)
-    { 
+    public RateStatistics(int windowSizeMs, float scale) {
         buckets = new long[windowSizeMs + 1]; // N ms in (N+1) buckets.
         this.scale = scale / (buckets.length - 1);
     }
 
-    private synchronized void eraseOld(long nowMs)
-    {
+    private synchronized void eraseOld(long nowMs) {
         long newOldestTime = nowMs - buckets.length + 1;
 
         if (newOldestTime <= oldestTime)
             return;
 
-        while (oldestTime < newOldestTime)
-        {
+        while (oldestTime < newOldestTime) {
             long countInOldestBucket = buckets[oldestIndex];
 
             accumulatedCount -= countInOldestBucket;
             buckets[oldestIndex] = 0L;
-            if (++oldestIndex >= buckets.length)
-            {
+            if (++oldestIndex >= buckets.length) {
                 oldestIndex = 0;
             }
             ++oldestTime;
-            if (accumulatedCount == 0L)
-            {
+            if (accumulatedCount == 0L) {
                 // This guarantees we go through all the buckets at most once,
                 // even if newOldestTime is far greater than oldestTime.
                 break;
@@ -102,36 +95,30 @@ public class RateStatistics
         oldestTime = newOldestTime;
     }
 
-    public long getRate()
-    {
+    public long getRate() {
         return getRate(System.currentTimeMillis());
     }
 
-    public long getRate(long nowMs)
-    {
+    public long getRate(long nowMs) {
         eraseOld(nowMs);
         return (long) (accumulatedCount * scale + 0.5F);
     }
 
-    public long getAccumulatedCount()
-    {
+    public long getAccumulatedCount() {
         return getAccumulatedCount(System.currentTimeMillis());
     }
 
-    public long getAccumulatedCount(long nowMs)
-    {
+    public long getAccumulatedCount(long nowMs) {
         eraseOld(nowMs);
         return accumulatedCount;
     }
 
 
-    public void update(int count, long nowMs)
-    {
+    public void update(int count, long nowMs) {
         if (nowMs < oldestTime) // Too old data is ignored.
             return;
 
-        synchronized (this)
-        {
+        synchronized (this) {
             eraseOld(nowMs);
 
             int nowOffset = (int) (nowMs - oldestTime);

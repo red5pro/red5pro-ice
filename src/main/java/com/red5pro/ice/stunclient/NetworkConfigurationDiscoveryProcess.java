@@ -123,7 +123,7 @@ public class NetworkConfigurationDiscoveryProcess {
 
     /**
      * Puts the discoverer into an operational state.
-     * 
+     *
      * @throws IOException if we fail to bind
      * @throws StunException if the stun4j stack fails start for some reason
      */
@@ -142,7 +142,7 @@ public class NetworkConfigurationDiscoveryProcess {
 
     /**
      * Implements the discovery process itself (see class description).
-     * 
+     *
      * @return a StunDiscoveryReport containing details about the network configuration of the host where the class is executed
      *
      * @throws StunException ILLEGAL_STATE if the discoverer has not been started
@@ -157,14 +157,16 @@ public class NetworkConfigurationDiscoveryProcess {
             report.setNatType(StunDiscoveryReport.UDP_BLOCKING_FIREWALL);
             return report;
         } else {
-            TransportAddress mappedAddress = ((MappedAddressAttribute) evt.getMessage().getAttribute(Attribute.Type.MAPPED_ADDRESS)).getAddress();
+            TransportAddress mappedAddress = ((MappedAddressAttribute) evt.getMessage().getAttribute(Attribute.Type.MAPPED_ADDRESS))
+                    .getAddress();
             if (mappedAddress == null) {
                 // maybe we contact a STUNbis server and which do not understand our request.
                 logger.info("Failed to do the network discovery");
                 return null;
             }
             logger.debug("mapped address is=" + mappedAddress + ", name=" + mappedAddress.getHostAddress());
-            TransportAddress backupServerAddress = ((ChangedAddressAttribute) evt.getMessage().getAttribute(Attribute.Type.CHANGED_ADDRESS)).getAddress();
+            TransportAddress backupServerAddress = ((ChangedAddressAttribute) evt.getMessage().getAttribute(Attribute.Type.CHANGED_ADDRESS))
+                    .getAddress();
             logger.debug("backup server address is=" + backupServerAddress + ", name=" + backupServerAddress.getHostAddress());
             report.setPublicAddress(mappedAddress);
             if (mappedAddress.equals(localAddress)) {
@@ -186,7 +188,8 @@ public class NetworkConfigurationDiscoveryProcess {
                         logger.info("Failed to receive a response frombackup stun server!");
                         return report;
                     }
-                    TransportAddress mappedAddress2 = ((MappedAddressAttribute) evt.getMessage().getAttribute(Attribute.Type.MAPPED_ADDRESS)).getAddress();
+                    TransportAddress mappedAddress2 = ((MappedAddressAttribute) evt.getMessage()
+                            .getAttribute(Attribute.Type.MAPPED_ADDRESS)).getAddress();
                     if (mappedAddress.equals(mappedAddress2)) {
                         evt = doTestIII(serverAddress);
                         if (evt == null) {

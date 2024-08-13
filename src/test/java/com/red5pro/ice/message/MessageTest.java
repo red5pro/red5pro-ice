@@ -57,15 +57,18 @@ public class MessageTest extends TestCase {
         bindingResponse = new Response();
         bindingResponse.setMessageType(Message.BINDING_SUCCESS_RESPONSE);
 
-        mappedAddress = AttributeFactory.createMappedAddressAttribute(new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP));
+        mappedAddress = AttributeFactory.createMappedAddressAttribute(
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS, MsgFixture.ADDRESS_ATTRIBUTE_PORT, Transport.UDP));
 
         bindingResponse.putAttribute(mappedAddress);
 
-        sourceAddress = AttributeFactory.createSourceAddressAttribute(new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_2, MsgFixture.ADDRESS_ATTRIBUTE_PORT_2, Transport.UDP));
+        sourceAddress = AttributeFactory.createSourceAddressAttribute(
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_2, MsgFixture.ADDRESS_ATTRIBUTE_PORT_2, Transport.UDP));
 
         bindingResponse.putAttribute(sourceAddress);
 
-        changedAddress = AttributeFactory.createChangedAddressAttribute(new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_3, MsgFixture.ADDRESS_ATTRIBUTE_PORT_3, Transport.UDP));
+        changedAddress = AttributeFactory.createChangedAddressAttribute(
+                new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_3, MsgFixture.ADDRESS_ATTRIBUTE_PORT_3, Transport.UDP));
 
         bindingResponse.putAttribute(changedAddress);
         bindingResponse.setTransactionID(MsgFixture.TRANSACTION_ID);
@@ -217,7 +220,8 @@ public class MessageTest extends TestCase {
 
         bindingRequest.removeAttribute(changeRequest.getAttributeType());
 
-        assertNull("An attribute was still in the request after being removed", bindingRequest.getAttribute(changeRequest.getAttributeType()));
+        assertNull("An attribute was still in the request after being removed",
+                bindingRequest.getAttribute(changeRequest.getAttributeType()));
 
         //test count
         int expectedReturn = 0;

@@ -10,8 +10,7 @@ import com.red5pro.ice.StunException;
  * @author Sebastien Vincent
  * @author Aakash Garg
  */
-public class ChannelNumberAttribute extends Attribute
-{
+public class ChannelNumberAttribute extends Attribute {
 
     /**
      * The length of the data contained by this attribute.
@@ -26,8 +25,7 @@ public class ChannelNumberAttribute extends Attribute
     /**
      * Constructor.
      */
-    ChannelNumberAttribute()
-    {
+    ChannelNumberAttribute() {
         super(Attribute.Type.CHANNEL_NUMBER);
     }
 
@@ -38,20 +36,17 @@ public class ChannelNumberAttribute extends Attribute
      * @return true if the attributes are equal and false otherwise.
      */
     @Override
-    public boolean equals(Object obj)
-    {
-        if (! (obj instanceof ChannelNumberAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof ChannelNumberAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         ChannelNumberAttribute att = (ChannelNumberAttribute) obj;
-        if (att.getAttributeType()   != getAttributeType()
-                || att.getDataLength()   != getDataLength()
-                /* compare data */
-                || att.channelNumber != channelNumber
-           )
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        /* compare data */
+                || att.channelNumber != channelNumber)
             return false;
 
         return true;
@@ -62,8 +57,7 @@ public class ChannelNumberAttribute extends Attribute
      * @return the length of this attribute's value (8 bytes).
      */
     @Override
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return DATA_LENGTH;
     }
 
@@ -72,20 +66,19 @@ public class ChannelNumberAttribute extends Attribute
      * @return a binary representation of this attribute.
      */
     @Override
-    public byte[] encode()
-    {
+    public byte[] encode() {
         byte binValue[] = new byte[HEADER_LENGTH + DATA_LENGTH];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
         //Data
-        binValue[4] = (byte)((channelNumber >> 8) & 0xff);
-        binValue[5] = (byte)((channelNumber) & 0xff);
+        binValue[4] = (byte) ((channelNumber >> 8) & 0xff);
+        binValue[5] = (byte) ((channelNumber) & 0xff);
         binValue[6] = 0x00;
         binValue[7] = 0x00;
 
@@ -103,25 +96,19 @@ public class ChannelNumberAttribute extends Attribute
      * @throws StunException if attrubteValue contains invalid data.
      */
     @Override
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-        throws StunException
-    {
-        if(length != 4)
-        {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
+        if (length != 4) {
             throw new StunException("length invalid");
         }
 
-        channelNumber =
-            ((char) ((attributeValue[offset] << 8) 
-                | (attributeValue[offset + 1] & 0xFF)));
+        channelNumber = ((char) ((attributeValue[offset] << 8) | (attributeValue[offset + 1] & 0xFF)));
     }
 
     /**
      * Set the channel number.
      * @param channelNumber channel number
      */
-    public void setChannelNumber(char channelNumber)
-    {
+    public void setChannelNumber(char channelNumber) {
         this.channelNumber = channelNumber;
     }
 
@@ -129,20 +116,17 @@ public class ChannelNumberAttribute extends Attribute
      * Get the channel number.
      * @return channel number
      */
-    public char getChannelNumber()
-    {
+    public char getChannelNumber() {
         return channelNumber;
     }
-    
+
     /**
      * Determines if the channelNo is in valid range.
      * @param channelNo the channelNo to validate.
      * @return true if channnelNo is &gt;= 0x4000.
      */
-    public static boolean isValidRange(char channelNo)
-    {
-        if(channelNo >= 0x4000)
-        {
+    public static boolean isValidRange(char channelNo) {
+        if (channelNo >= 0x4000) {
             return true;
         }
         return false;

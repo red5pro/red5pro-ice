@@ -64,7 +64,7 @@ public class BlockingRequestSender extends AbstractResponseCollector {
 
     /**
      * Creates a new request sender.
-     * 
+     *
      * @param stunStack the stack that the sender should send requests through
      * @param localAddress the TransportAddress that requests should be leaving from
      */
@@ -103,7 +103,7 @@ public class BlockingRequestSender extends AbstractResponseCollector {
 
     /**
      * Saves the message event and notifies the discoverer thread so that it may resume.
-     * 
+     *
      * @param event the newly arrived message event
      */
     @Override
@@ -121,7 +121,7 @@ public class BlockingRequestSender extends AbstractResponseCollector {
 
     /**
      * Sends the specified request and blocks until a response has been received or the request transaction has timed out.
-     * 
+     *
      * @param request the request to send
      * @param serverAddress the request destination address
      * @return the event encapsulating the response or null if no response has been received
@@ -130,7 +130,8 @@ public class BlockingRequestSender extends AbstractResponseCollector {
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      * @throws StunException if message encoding fails
      */
-    public StunMessageEvent sendRequestAndWaitForResponse(Request request, TransportAddress serverAddress) throws StunException, IOException {
+    public StunMessageEvent sendRequestAndWaitForResponse(Request request, TransportAddress serverAddress)
+            throws StunException, IOException {
         // send the request
         stunStack.sendRequest(request, serverAddress, localAddress, BlockingRequestSender.this);
         TransactionID txId = null;
@@ -153,7 +154,7 @@ public class BlockingRequestSender extends AbstractResponseCollector {
 
     /**
      * Sends the specified request and blocks until a response has been received or the request transaction has timed out with given transactionID.
-     * 
+     *
      * @param request the request to send
      * @param serverAddress the request destination address
      * @param txId the TransactionID to set for this request
@@ -163,7 +164,8 @@ public class BlockingRequestSender extends AbstractResponseCollector {
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      * @throws StunException if message encoding fails
      */
-    public StunMessageEvent sendRequestAndWaitForResponse(Request request, TransportAddress serverAddress, TransactionID txId) throws StunException, IOException {
+    public StunMessageEvent sendRequestAndWaitForResponse(Request request, TransportAddress serverAddress, TransactionID txId)
+            throws StunException, IOException {
         // send the request
         stunStack.sendRequest(request, serverAddress, localAddress, BlockingRequestSender.this, txId);
         try {

@@ -97,7 +97,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * The message queue is where incoming messages are added that were not otherwise processed (ie. DTLS etc..).
      */
     protected SizeTrackedLinkedTransferQueue<RawMessage> rawMessageQueue = new SizeTrackedLinkedTransferQueue<>();
-    
+
     /**
      * Reusable IoFutureListener for connect.
      */
@@ -148,7 +148,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * Constructor.
      *
      * @param address TransportAddress
-     * @throws IOException 
+     * @throws IOException
      */
     IceSocketWrapper(TransportAddress address) throws IOException {
         logger.debug("New wrapper for {}", address);
@@ -174,21 +174,21 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Receives a DatagramPacket from this instance. Essentially it reads from already queued data, if the queue is empty, the datagram will be empty.
-     * 
+     *
      * @param p DatagramPacket to receive
      */
     public abstract void receive(DatagramPacket p) throws IOException;
 
     /**
      * Reads one message from the head of the queue or null if the queue is empty.
-     * 
+     *
      * @return RawMessage
      */
     public abstract RawMessage read();
 
     /**
      * Returns true if closed or unbound and false otherwise.
-     * 
+     *
      * @return true = not open, false = not closed
      */
     public boolean isClosed() {
@@ -210,7 +210,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Closes the connected session as well as the acceptor, if its non-shared.
-     * 
+     *
      * @param sess IoSession being closed
      */
     public void close(IoSession sess) {
@@ -282,7 +282,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Updates the written bytes / message counters.
-     * 
+     *
      * @param bytesLength
      */
     public void updateWriteCounters(long bytesLength) {
@@ -294,7 +294,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Updates the STUN/TURN written bytes / message counters.
-     * 
+     *
      * @param bytesLength
      */
     public void updateSTUNWriteCounters(int bytesLength) {
@@ -306,7 +306,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns the written byte count excluding STUN/TURN bytes.
-     * 
+     *
      * @return byte count minus STUN/TURN bytes
      */
     public long getWrittenBytes() {
@@ -319,7 +319,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns the written message count excluding STUN/TURN messages.
-     * 
+     *
      * @return message count minus STUN/TURN messages
      */
     public long getWrittenMessages() {
@@ -332,7 +332,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns the unique identifier for the associated acceptor.
-     * 
+     *
      * @return UUID string for this instance or "disconnected" if not set on the session or not connected
      */
     public String getId() {
@@ -373,7 +373,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Sets the IoSession for this socket wrapper.
-     * 
+     *
      * @param newSession
      */
     public void setSession(IoSession newSession) {
@@ -411,7 +411,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns the Transport for this socket wrapper.
-     * 
+     *
      * @return transport
      */
     public Transport getTransport() {
@@ -420,7 +420,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns TransportAddress for the wrapped socket implementation.
-     * 
+     *
      * @return transport address
      */
     public TransportAddress getTransportAddress() {
@@ -432,7 +432,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Sets the TransportAddress of the remote end-point.
-     * 
+     *
      * @param remoteAddress address
      */
     public void setRemoteTransportAddress(TransportAddress remoteAddress) {
@@ -440,7 +440,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         if (this instanceof IceTcpSocketWrapper) {
             remoteTransportAddress = remoteAddress;
         } else {
-            // get the transport 
+            // get the transport
             IceUdpTransport transport = IceUdpTransport.getInstance(id);
             // get session matching the remote address
             IoSession sess = transport.getSessionByRemote(remoteAddress);
@@ -467,7 +467,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Sets the relay connection used for channel data in TURN.
-     * 
+     *
      * @param relayedCandidateConnection
      */
     public void setRelayedConnection(RelayedCandidateConnection relayedCandidateConnection) {
@@ -480,7 +480,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Sets the socket timeout.
-     * 
+     *
      * @param timeout
      */
     public void setSoTimeout(int timeout) throws SocketException {
@@ -489,7 +489,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Sets the traffic class.
-     * 
+     *
      * @param trafficClass
      */
     public void setTrafficClass(int trafficClass) {
@@ -522,7 +522,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns the raw message queue, which shouldn't contain any STUN/TURN messages.
-     * 
+     *
      * @return rawMessageQueue
      */
     public LinkedTransferQueue<RawMessage> getRawMessageQueue() {
@@ -531,7 +531,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Accepts or rejects an offered message based on our closed state.
-     * 
+     *
      * @param message
      * @return true if accepted and false otherwise
      */
@@ -547,7 +547,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns whether or not this is a TCP wrapper, based on the instance type.
-     * 
+     *
      * @return true if TCP and false otherwise
      */
     public boolean isTCP() {
@@ -556,7 +556,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Returns whether or not this is a UDP wrapper, based on the instance type.
-     * 
+     *
      * @return true if UDP and false otherwise
      */
     public boolean isUDP() {
@@ -565,12 +565,12 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Sets the id of acceptor, so we can lookup the transport.
-     * 
+     *
      * @param id
      */
-	public void setId(String id) {
+    public void setId(String id) {
         this.id = id;
-	}
+    }
 
     @Override
     public int compareTo(IceSocketWrapper that) {
@@ -602,11 +602,11 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             // ...
         }
     }
-    
+
     /**
      * Builder for immutable IceSocketWrapper instance. If the IoSession is connection-less, an IceUdpSocketWrapper is returned; otherwise
      * an IceTcpSocketWrapper is returned.
-     * 
+     *
      * @param session IoSession for the socket
      * @return IceSocketWrapper for the given session type
      * @throws IOException
@@ -631,7 +631,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     /**
      * Builder for immutable IceSocketWrapper instance. If the localAddress is udp, an IceUdpSocketWrapper is returned; otherwise
      * an IceTcpSocketWrapper is returned.
-     * 
+     *
      * @param localAddress local address
      * @param remoteAddress destination address
      * @return IceSocketWrapper for the given address type
@@ -645,7 +645,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             iceSocket = new IceTcpSocketWrapper(localAddress);
             if (remoteAddress != null) {
                 // set remote address (only sticks if its TCP)
-                iceSocket.setRemoteTransportAddress(new TransportAddress(remoteAddress.getAddress(), remoteAddress.getPort(), Transport.TCP));
+                iceSocket.setRemoteTransportAddress(
+                        new TransportAddress(remoteAddress.getAddress(), remoteAddress.getPort(), Transport.TCP));
             }
         }
         return iceSocket;
@@ -654,14 +655,15 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     /**
      * Builder for immutable IceSocketWrapper instance. If the localAddress is udp, an IceUdpSocketWrapper is returned; otherwise
      * an IceTcpSocketWrapper is returned.
-     * 
+     *
      * @param relayedCandidateConnection relay connection (TURN channel)
      * @return IceSocketWrapper for the address session type
      * @throws IOException
      */
     public final static IceSocketWrapper build(RelayedCandidateConnection relayedCandidateConnection) throws IOException {
         // use the host address
-        TransportAddress localAddress = (TransportAddress) relayedCandidateConnection.getTurnCandidateHarvest().hostCandidate.getTransportAddress();
+        TransportAddress localAddress = (TransportAddress) relayedCandidateConnection.getTurnCandidateHarvest().hostCandidate
+                .getTransportAddress();
         // look for an existing ice socket before creating a new one with the same local address
         IceSocketWrapper iceSocket = IceTransport.getIceHandler().lookupBinding(localAddress);
         if (iceSocket == null) {
@@ -671,12 +673,13 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             } else {
                 iceSocket = new IceTcpSocketWrapper(localAddress);
                 // set remote address (only sticks if its TCP)
-                iceSocket.setRemoteTransportAddress(new TransportAddress(remoteAddress.getAddress(), remoteAddress.getPort(), Transport.TCP));
+                iceSocket.setRemoteTransportAddress(
+                        new TransportAddress(remoteAddress.getAddress(), remoteAddress.getPort(), Transport.TCP));
             }
         }
         // attach the relay connection
         iceSocket.setRelayedConnection(relayedCandidateConnection);
         return iceSocket;
     }
-    
+
 }

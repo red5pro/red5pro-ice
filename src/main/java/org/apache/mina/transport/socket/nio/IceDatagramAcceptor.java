@@ -46,7 +46,7 @@ import com.red5pro.ice.StackProperties;
 
 /**
  * Reimagining for NioDatagramAcceptor within ice4j.
- * 
+ *
  * {@link IoAcceptor} for datagram transport (UDP/IP).
  *
  * @author <a href="http://mina.apache.org">Apache MINA Project</a>
@@ -65,7 +65,7 @@ public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramA
      * Maximum time in milliseconds to wait for a binding request to complete.
      */
     private static long maxRequestWaitTimeout = StackProperties.getInt("BIND_REQUEST_TIMEOUT", 3);
-    
+
     /**
      * A timeout used for the select, as we need to get out to deal with idle sessions
      */
@@ -81,7 +81,8 @@ public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramA
 
     private final Queue<NioSession> flushingSessions = new ConcurrentLinkedQueue<>();
 
-    private final Map<SocketAddress, DatagramChannel> boundHandles = Collections.synchronizedMap(new HashMap<SocketAddress, DatagramChannel>());
+    private final Map<SocketAddress, DatagramChannel> boundHandles = Collections
+            .synchronizedMap(new HashMap<SocketAddress, DatagramChannel>());
 
     private IoSessionRecycler sessionRecycler = DEFAULT_RECYCLER;
 
@@ -241,7 +242,7 @@ public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramA
             }
         });
         handles.clear();
-        /* 
+        /*
         final Iterator<SelectionKey> iterator = handles.iterator();
         while (iterator.hasNext()) {
             try {
@@ -737,8 +738,8 @@ public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramA
         AcceptorOperationFuture request = new AcceptorOperationFuture(localAddresses);
         cancelQueue.add(request);
         //startupAcceptor();
-        //wakeup();        
-         // Waits up to "maxRequestWaitTimeout" seconds for the un-bind to be completed
+        //wakeup();
+        // Waits up to "maxRequestWaitTimeout" seconds for the un-bind to be completed
         logger.info("Acceptor unbind0 waiting {}s uninterruptibly for request", maxRequestWaitTimeout);
         request.awaitUninterruptibly(maxRequestWaitTimeout, TimeUnit.SECONDS);
         if (request.getException() != null) {

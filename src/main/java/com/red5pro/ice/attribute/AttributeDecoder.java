@@ -41,7 +41,7 @@ public class AttributeDecoder {
         Attribute decodedAttribute = null;
 
         switch (attributeType) {
-        /* STUN attributes */
+            /* STUN attributes */
             case CHANGE_REQUEST:
                 decodedAttribute = new ChangeRequestAttribute();
                 break;

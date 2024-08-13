@@ -220,7 +220,8 @@ public class CandidatePair implements Comparable<CandidatePair> {
         CandidatePairState oldState = state.getAndSet(newState);
         if (newState == CandidatePairState.IN_PROGRESS) {
             if (tranID == null) {
-                throw new IllegalArgumentException("Putting a pair into the In-Progress state MUST be accompanied with the TransactionID of the connectivity check");
+                throw new IllegalArgumentException(
+                        "Putting a pair into the In-Progress state MUST be accompanied with the TransactionID of the connectivity check");
             }
         } else {
             if (tranID != null) {
@@ -244,20 +245,21 @@ public class CandidatePair implements Comparable<CandidatePair> {
 
     /**
      * Returns whether this candidate pair has succeeded or not.
-     * 
+     *
      * @return true if this candidate pair has succeeded and false otherwise
      */
     public boolean isSucceeded() {
         return getState().equals(CandidatePairState.SUCCEEDED);
-    }    
-    
+    }
+
     /**
      * Returns the candidate in this pair that belongs to the controlling agent.
      *
      * @return a reference to the Candidate instance that comes from the controlling agent
      */
     public Candidate<?> getControllingAgentCandidate() {
-        return (getLocalCandidate().getParentComponent().getParentStream().getParentAgent().isControlling()) ? getLocalCandidate() : getRemoteCandidate();
+        return (getLocalCandidate().getParentComponent().getParentStream().getParentAgent().isControlling()) ? getLocalCandidate()
+                : getRemoteCandidate();
     }
 
     /**
@@ -266,7 +268,8 @@ public class CandidatePair implements Comparable<CandidatePair> {
      * @return a reference to the Candidate instance that comes from the controlled agent
      */
     public Candidate<?> getControlledAgentCandidate() {
-        return (getLocalCandidate().getParentComponent().getParentStream().getParentAgent().isControlling()) ? getRemoteCandidate() : getLocalCandidate();
+        return (getLocalCandidate().getParentComponent().getParentStream().getParentAgent().isControlling()) ? getRemoteCandidate()
+                : getLocalCandidate();
     }
 
     /**
@@ -343,7 +346,8 @@ public class CandidatePair implements Comparable<CandidatePair> {
         // XXX Don't change this to also depend on other pair properties because ConnectivityCheckClient counts on it only using the candidates for comparisons
         //return localCandidate.equals(thatPair.localCandidate) && remoteCandidate.equals(thatPair.remoteCandidate);
         // use the short string, it should be good enough to check pair equality
-        return localCandidate.toShortString().equals(thatPair.localCandidate.toShortString()) && remoteCandidate.toShortString().equals(thatPair.remoteCandidate.toShortString());
+        return localCandidate.toShortString().equals(thatPair.localCandidate.toShortString())
+                && remoteCandidate.toShortString().equals(thatPair.remoteCandidate.toShortString());
     }
 
     /** {@inheritDoc} */
@@ -362,7 +366,8 @@ public class CandidatePair implements Comparable<CandidatePair> {
      */
     @Override
     public String toString() {
-        return "CandidatePair (State=" + getState() + " Priority=" + Long.toUnsignedString(getPriority()) + " UseCand=" + useCandidateReceived() + "):\n\tLocalCandidate=" + getLocalCandidate() + "\n\tRemoteCandidate=" + getRemoteCandidate();
+        return "CandidatePair (State=" + getState() + " Priority=" + Long.toUnsignedString(getPriority()) + " UseCand="
+                + useCandidateReceived() + "):\n\tLocalCandidate=" + getLocalCandidate() + "\n\tRemoteCandidate=" + getRemoteCandidate();
     }
 
     /**
@@ -371,7 +376,8 @@ public class CandidatePair implements Comparable<CandidatePair> {
      * @return a short String representation of the object
      */
     public String toShortString() {
-        return getLocalCandidate().toShortString() + " -> " + getRemoteCandidate().toShortString() + " (" + getParentComponent().toShortString() + ")";
+        return getLocalCandidate().toShortString() + " -> " + getRemoteCandidate().toShortString() + " ("
+                + getParentComponent().toShortString() + ")";
     }
 
     /**
@@ -502,7 +508,7 @@ public class CandidatePair implements Comparable<CandidatePair> {
 
     /**
      * Returns whether or not the local and remote candidate bases match.
-     * 
+     *
      * @return true for a matching transport and false otherwise
      */
     public boolean validTransport() {
@@ -535,7 +541,8 @@ public class CandidatePair implements Comparable<CandidatePair> {
             long oldValue = this.consentFreshness;
             this.consentFreshness = consentFreshness;
             long newValue = this.consentFreshness;
-            getParentComponent().getParentStream().firePairPropertyChange(this, IceMediaStream.PROPERTY_PAIR_CONSENT_FRESHNESS_CHANGED, oldValue, newValue);
+            getParentComponent().getParentStream().firePairPropertyChange(this, IceMediaStream.PROPERTY_PAIR_CONSENT_FRESHNESS_CHANGED,
+                    oldValue, newValue);
         }
     }
 

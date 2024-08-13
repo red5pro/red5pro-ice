@@ -457,7 +457,7 @@ public abstract class AbstractTcpListener {
 
         /**
          * Initializes a new ChannelDesc with the given channel.
-         * 
+         *
          * @param channel the channel.
          */
         public ChannelDesc(SocketChannel channel) {
@@ -505,7 +505,7 @@ public abstract class AbstractTcpListener {
                 // An invalid key specifies that either the channel was closed
                 // (in which case we do not have to do anything else to it) or
                 // that we no longer control the channel (i.e. we do not want to
-                // do anything else to it). 
+                // do anything else to it).
                 if (!key.isValid()) {
                     continue;
                 }
@@ -651,7 +651,8 @@ public abstract class AbstractTcpListener {
          * @throws IllegalStateException if the session for the extracted username fragment cannot be accepted for implementation reasons
          * (e.g. no ICE Agent with the given local ufrag is found).
          */
-        private void processFirstDatagram(byte[] bytesRead, ChannelDesc channelDesc, SelectionKey key) throws IOException, IllegalStateException {
+        private void processFirstDatagram(byte[] bytesRead, ChannelDesc channelDesc, SelectionKey key)
+                throws IOException, IllegalStateException {
             // Does this look like a STUN binding request? What's the username?
             String ufrag = IceDecoder.getUfrag(bytesRead, 0, bytesRead.length);
             if (ufrag == null) {

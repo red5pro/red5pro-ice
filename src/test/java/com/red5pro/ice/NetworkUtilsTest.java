@@ -5,11 +5,9 @@ import static org.junit.Assert.*;
 
 import org.junit.*;
 
-public class NetworkUtilsTest
-{
+public class NetworkUtilsTest {
     @Test
-    public void testIpv6StringToBytes()
-    {
+    public void testIpv6StringToBytes() {
         byte[] addr = NetworkUtils.strToIPv6("::12");
         assertNotNull(addr);
         assertEquals(18, addr[15]);

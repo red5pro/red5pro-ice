@@ -18,8 +18,7 @@ package com.red5pro.ice.util;
 import java.util.logging.*;
 import java.util.logging.Logger; // Disambiguation.
 
-public class QueueStatistics
-{
+public class QueueStatistics {
     /**
      * The scale to use for {@link RateStatistics}. This makes their output in
      * units (e.g. packets) per second.
@@ -59,12 +58,11 @@ public class QueueStatistics
 
     /**
      * Initializes a new {@link QueueStatistics} instance.
-     * 
+     *
      * @param id Identifier to distinguish the log output of multiple
      *            {@link QueueStatistics} instances.
      */
-    public QueueStatistics(String id)
-    {
+    public QueueStatistics(String id) {
         logger = Logger.getLogger("QueueStatistics-" + id);
         logHeader = "QueueStatistics-" + id + ": ";
 
@@ -78,8 +76,7 @@ public class QueueStatistics
      * @param now the time (in milliseconds since the epoch) at which the
      * packet was added.
      */
-    public synchronized void add(long now)
-    {
+    public synchronized void add(long now) {
         addRateStatistics.update(1, now);
         size++;
         totalPacketsAdded++;
@@ -91,17 +88,14 @@ public class QueueStatistics
      * @param now the time (in milliseconds since the epoch) at which the
      * packet was removed.
      */
-    public synchronized void remove(long now)
-    {
+    public synchronized void remove(long now) {
         removeRateStatistics.update(1, now);
         size--;
         update(now);
     }
 
-    private synchronized void update(long now)
-    {
-        if (head == sizes.length)
-        {
+    private synchronized void update(long now) {
+        if (head == sizes.length) {
             print();
             head = 0;
         }
@@ -114,17 +108,11 @@ public class QueueStatistics
         head++;
     }
 
-    private void print()
-    {
+    private void print() {
         StringBuilder s = new StringBuilder();
-        for (int i =0; i<sizes.length; i++)
-        {
-            s.append(logHeader).
-                append(timestamps[i]).append(' ').
-                append(sizes[i]).append(' ').
-                append(addRates[i]).append(' ').
-                append(removeRates[i]).append(' ').
-                append(totalPacketsAddedHistory[i]).append('\n');
+        for (int i = 0; i < sizes.length; i++) {
+            s.append(logHeader).append(timestamps[i]).append(' ').append(sizes[i]).append(' ').append(addRates[i]).append(' ')
+                    .append(removeRates[i]).append(' ').append(totalPacketsAddedHistory[i]).append('\n');
         }
         logger.fine(s.toString());
     }

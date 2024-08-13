@@ -15,9 +15,7 @@ import java.util.*;
  * @author Emil Ivov
  * @author Sebastien Vincent
  */
-public class SoftwareAttribute
-    extends Attribute
-{
+public class SoftwareAttribute extends Attribute {
     /**
      * The value that this SoftwareAttribute is transporting.
      */
@@ -26,8 +24,7 @@ public class SoftwareAttribute
     /**
      * Creates a new SoftwareAttribute.
      */
-    protected SoftwareAttribute ()
-    {
+    protected SoftwareAttribute() {
         super(Attribute.Type.SOFTWARE);
     }
 
@@ -41,8 +38,7 @@ public class SoftwareAttribute
      * offset is equal to the index of the first byte after length)
      * @param length the length of the binary array.
      */
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-    {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) {
         software = new byte[length];
         System.arraycopy(attributeValue, offset, software, 0, length);
     }
@@ -52,20 +48,19 @@ public class SoftwareAttribute
      *
      * @return a binary representation of this attribute.
      */
-    public byte[] encode()
-    {
+    public byte[] encode() {
         byte binValue[] = new byte[HEADER_LENGTH + getDataLength()
-                                   //add padding
-                                   + (4 - getDataLength() % 4) % 4];
+        //add padding
+                + (4 - getDataLength() % 4) % 4];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
 
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
 
         //software
         System.arraycopy(software, 0, binValue, 4, getDataLength());
@@ -78,8 +73,7 @@ public class SoftwareAttribute
      *
      * @return the length of this attribute's value.
      */
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return software.length;
     }
 
@@ -88,8 +82,7 @@ public class SoftwareAttribute
      * attribute.
      * @return the binary array containing the software.
      */
-    public byte[] getSoftware()
-    {
+    public byte[] getSoftware() {
         if (software == null)
             return null;
 
@@ -104,10 +97,8 @@ public class SoftwareAttribute
      *
      * @param software the binary array containing the software.
      */
-    public void setSoftware(byte[] software)
-    {
-        if (software == null)
-        {
+    public void setSoftware(byte[] software) {
+        if (software == null) {
             this.software = null;
             return;
         }
@@ -123,18 +114,16 @@ public class SoftwareAttribute
      * @param obj the object to compare this attribute with.
      * @return true if the attributes are equal and false otherwise.
      */
-    public boolean equals(Object obj)
-    {
-        if (! (obj instanceof SoftwareAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof SoftwareAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         SoftwareAttribute att = (SoftwareAttribute) obj;
-        if (att.getAttributeType() != getAttributeType()
-                || att.getDataLength() != getDataLength()
-                || !Arrays.equals( att.software, software))
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+                || !Arrays.equals(att.software, software))
             return false;
 
         return true;

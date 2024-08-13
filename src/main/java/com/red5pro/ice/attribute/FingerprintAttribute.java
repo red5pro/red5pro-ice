@@ -108,7 +108,8 @@ public class FingerprintAttribute extends Attribute implements ContentDependentA
      * dependent encode method.
      */
     public byte[] encode() throws UnsupportedOperationException {
-        throw new UnsupportedOperationException("ContentDependentAttributes should be encoded " + "through the contend-dependent encode method");
+        throw new UnsupportedOperationException(
+                "ContentDependentAttributes should be encoded " + "through the contend-dependent encode method");
     }
 
     /**

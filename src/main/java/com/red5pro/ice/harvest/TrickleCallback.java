@@ -16,8 +16,7 @@ import java.util.*;
  *
  * @author Emil Ivov
  */
-public interface TrickleCallback
-{
+public interface TrickleCallback {
 
     /**
      * Notifies the callback that a new batch of LocalCandidates has

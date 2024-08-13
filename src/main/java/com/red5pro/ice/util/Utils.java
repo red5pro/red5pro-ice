@@ -6,7 +6,7 @@ public class Utils {
 
     /**
      * Returns a byte array for the given hex encoded string.
-     * 
+     *
      * @param hexString encoded hex string
      * @return byte array
      */
@@ -23,7 +23,7 @@ public class Utils {
 
     /**
      * Returns a hex string for a given byte array.
-     * 
+     *
      * @param bytes
      * @return hex string
      */

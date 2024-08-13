@@ -57,7 +57,7 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
      * Component id from the candidate definition.
      */
     private int componentId;
-    
+
     /**
      * An arbitrary string that is the same for two candidates that have the same type, base IP address, protocol (UDP, TCP,
      * etc.) and STUN or TURN server. If any of these are different then the foundation will be different. Two candidate pairs with the
@@ -76,7 +76,7 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
      * determine the order of the connectivity checks and the relative preference for candidates.
      */
     protected long priority = 0;
-    
+
     /**
      * Ufrag for the candidate.
      */
@@ -86,9 +86,9 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
      * Generation for the candidate.
      */
     protected int generation;
-    
+
     protected int networkId;
-    
+
     protected int networkCost;
 
     /**
@@ -162,7 +162,8 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
         }
     }
 
-    public Candidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, int componentId, T relatedCandidate) {
+    public Candidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, int componentId,
+            T relatedCandidate) {
         this.transportAddress = transportAddress;
         this.parentComponent = parentComponent;
         this.setComponentId(componentId);
@@ -289,7 +290,7 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
 
     /**
      * Indicates whether some other Candidate is "equal to" this one. We consider candidates equal when they are redundant.
-     * 
+     *
      * @param obj the reference object with which to compare
      * @return <code>true</code> if this Candidate is equal to the obj argument; <code>false</code> otherwise
      * @throws java.lang.NullPointerException if obj is null
@@ -322,7 +323,8 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
             baseEqualsCandidateBase = (base == this && candidateBase == candidate) || base.equals(candidateBase);
         }
         // compare other properties
-        return baseEqualsCandidateBase && getPriority() == candidate.getPriority() && getType() == candidate.getType() && getFoundation().equals(candidate.getFoundation());
+        return baseEqualsCandidateBase && getPriority() == candidate.getPriority() && getType() == candidate.getType()
+                && getFoundation().equals(candidate.getFoundation());
     }
 
     /** {@inheritDoc} */
@@ -366,9 +368,10 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
         //priority = (2^24)*(type preference) +
         //           (2^8)*(local preference) +
         //           (2^0)*(256 - component ID)
-        long calculatedPriority = (long) (getTypePreference(candidateType) << 24) + (long) (getLocalPreference() << 8) + (long) (256 - getParentComponent().getComponentID());
+        long calculatedPriority = (long) (getTypePreference(candidateType) << 24) + (long) (getLocalPreference() << 8)
+                + (long) (256 - getParentComponent().getComponentID());
         // determine whether or not the transport should incur a modification to the priority
-        switch(getTransport()) {
+        switch (getTransport()) {
             case UDP:
                 // UDP transport should have a priority modifier of x
                 int udpPriorityModifier = Agent.getUdpPriorityModifier();
@@ -852,7 +855,7 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
 
     /**
      * Sets a property on this candidate.
-     * 
+     *
      * @param key
      * @param value
      */
@@ -862,7 +865,7 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
 
     /**
      * Returns a value matching the given key in the property map, if it exists.
-     * 
+     *
      * @param key
      * @return value
      */

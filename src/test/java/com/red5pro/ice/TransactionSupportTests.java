@@ -167,13 +167,11 @@ public class TransactionSupportTests extends TestCase {
         //defaults.
         if (oldRetransValue != null)
             System.getProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS, oldRetransValue);
-        else
-            System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
+        else System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
 
         if (oldMaxWaitValue != null)
             System.getProperty(StackProperties.MAX_CTRAN_RETRANS_TIMER, oldRetransValue);
-        else
-            System.clearProperty(StackProperties.MAX_CTRAN_RETRANS_TIMER);
+        else System.clearProperty(StackProperties.MAX_CTRAN_RETRANS_TIMER);
     }
 
     /**
@@ -202,8 +200,7 @@ public class TransactionSupportTests extends TestCase {
         //defaults.
         if (oldRetransValue != null)
             System.getProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS, oldRetransValue);
-        else
-            System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
+        else System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
     }
 
     /**
@@ -239,14 +236,14 @@ public class TransactionSupportTests extends TestCase {
         Thread.sleep(500);
 
         //verify that we received a fair number of retransmitted responses.
-        assertTrue("There were too few retransmissions of a binding response: " + responseCollector.receivedResponses.size(), responseCollector.receivedResponses.size() < 3);
+        assertTrue("There were too few retransmissions of a binding response: " + responseCollector.receivedResponses.size(),
+                responseCollector.receivedResponses.size() < 3);
 
         //restore the retransmissions prop in case others are counting on
         //defaults.
         if (oldRetransValue != null)
             System.getProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS, oldRetransValue);
-        else
-            System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
+        else System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
 
         System.clearProperty(StackProperties.MAX_CTRAN_RETRANS_TIMER);
     }
@@ -282,7 +279,8 @@ public class TransactionSupportTests extends TestCase {
         StunMessageEvent evt2 = reqs2.get(0);
 
         logger.info("txid: {} txid: {}", evt1.getMessage().getTransactionID(), evt2.getMessage().getTransactionID());
-        assertFalse("Consecutive requests were assigned the same transaction id", Arrays.equals(evt1.getMessage().getTransactionID(), evt2.getMessage().getTransactionID()));
+        assertFalse("Consecutive requests were assigned the same transaction id",
+                Arrays.equals(evt1.getMessage().getTransactionID(), evt2.getMessage().getTransactionID()));
     }
 
     /**
@@ -452,8 +450,7 @@ public class TransactionSupportTests extends TestCase {
                 receivedResponse = "unreachable";
             else if (event instanceof StunTimeoutEvent)
                 receivedResponse = "timeout";
-            else
-                receivedResponse = "failure";
+            else receivedResponse = "failure";
             receivedResponses.add(receivedResponse);
         }
 

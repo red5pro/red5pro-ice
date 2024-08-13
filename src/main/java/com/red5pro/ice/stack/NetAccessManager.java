@@ -19,7 +19,7 @@ import com.red5pro.ice.TransportAddress;
 /**
  * Manages Connectors and MessageProcessor pooling. This class serves as a layer that masks network primitives and provides equivalent STUN
  * abstractions. Instances that operate with the NetAccessManager are only supposed to understand STUN talk and shouldn't be aware of datagrams sockets, etc.
- * 
+ *
  * @author Emil Ivov
  * @author Aakash Garg
  * @author Boris Grozev
@@ -31,8 +31,8 @@ public class NetAccessManager {
 
     private final static boolean isTrace = logger.isTraceEnabled(), isDebug = logger.isDebugEnabled();
 
-    /** 
-     * Set of Connectors for this access manager. 
+    /**
+     * Set of Connectors for this access manager.
      */
     private final ConcurrentSkipListSet<Connector> connectors = new ConcurrentSkipListSet<>();
 
@@ -77,7 +77,7 @@ public class NetAccessManager {
      *
      * @param socket the socket that the access point should use
      * @param remoteAddress the remote address the {@link Connector} if its TCP or null if its UDP
-     * @throws IOException 
+     * @throws IOException
      */
     public void addSocket(IceSocketWrapper socket, TransportAddress remoteAddress) {
         logger.debug("addSocket: {} remote address: {}", socket, remoteAddress);
@@ -117,8 +117,9 @@ public class NetAccessManager {
         final boolean isUdp = (Transport.UDP == localAddress.getTransport());
         AtomicReference<Connector> connector = new AtomicReference<>();
         connectors.removeIf(c -> {
-            if (c.getListenAddress().equals(localAddress) && (isUdp || (remoteAddress == null || remoteAddress.equals(c.getRemoteAddress())))) {
-                connector.set(c);                
+            if (c.getListenAddress().equals(localAddress)
+                    && (isUdp || (remoteAddress == null || remoteAddress.equals(c.getRemoteAddress())))) {
+                connector.set(c);
                 return true;
             }
             return false;
@@ -198,7 +199,8 @@ public class NetAccessManager {
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      * @throws IOException  if an error occurs while sending message bytes through the network socket
      */
-    void sendMessage(Message stunMessage, TransportAddress srcAddr, TransportAddress remoteAddr) throws IllegalArgumentException, IOException {
+    void sendMessage(Message stunMessage, TransportAddress srcAddr, TransportAddress remoteAddr)
+            throws IllegalArgumentException, IOException {
         sendMessage(stunMessage.encode(stunStack), srcAddr, remoteAddr);
     }
 
@@ -210,9 +212,10 @@ public class NetAccessManager {
      * @param remoteAddr the destination of the message
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      * @throws IOException  if an error occurs while sending message bytes through the network socket
-     * @throws StunException 
+     * @throws StunException
      */
-    void sendMessage(ChannelData channelData, TransportAddress srcAddr, TransportAddress remoteAddr) throws IllegalArgumentException, IOException, StunException {
+    void sendMessage(ChannelData channelData, TransportAddress srcAddr, TransportAddress remoteAddr)
+            throws IllegalArgumentException, IOException, StunException {
         boolean pad = srcAddr.getTransport() == Transport.TCP || srcAddr.getTransport() == Transport.TLS;
         sendMessage(channelData.encode(pad), srcAddr, remoteAddr);
     }
@@ -226,7 +229,8 @@ public class NetAccessManager {
      * @throws IllegalArgumentException if the descriptor references an access point that had not been installed
      * @throws IOException if an error occurs while sending message bytes through the network socket
      */
-    void sendMessage(byte[] bytes, TransportAddress localAddress, TransportAddress remoteAddress) throws IllegalArgumentException, IOException {
+    void sendMessage(byte[] bytes, TransportAddress localAddress, TransportAddress remoteAddress)
+            throws IllegalArgumentException, IOException {
         Connector connector = getConnector(localAddress, remoteAddress);
         if (connector == null) {
             throw new IllegalArgumentException("No connector for " + localAddress + "->" + remoteAddress);

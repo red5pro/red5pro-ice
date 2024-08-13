@@ -9,9 +9,7 @@ import com.red5pro.ice.StunException;
  *
  * @author Aakash Garg
  */
-public class ConnectionIdAttribute
-    extends Attribute
-{
+public class ConnectionIdAttribute extends Attribute {
 
     /**
      * The length of the data contained in this attribute.
@@ -22,13 +20,12 @@ public class ConnectionIdAttribute
      * The connection Id value.
      */
     private int connectionIdValue;
-     
+
     /**
      * Constructor.
      */
-    protected ConnectionIdAttribute() 
-    {
-	    super(Attribute.Type.CONNECTION_ID);
+    protected ConnectionIdAttribute() {
+        super(Attribute.Type.CONNECTION_ID);
     }
 
     /**
@@ -36,9 +33,8 @@ public class ConnectionIdAttribute
      * @return the length of this attribute value (4 bytes).
      */
     @Override
-    public int getDataLength() 
-    {
-	    return DATA_LENGTH;
+    public int getDataLength() {
+        return DATA_LENGTH;
     }
 
     /**
@@ -48,20 +44,17 @@ public class ConnectionIdAttribute
      * @return true if the attributes are equal and false otherwise.
      */
     @Override
-    public boolean equals(Object obj) 
-    {
-	    if (! (obj instanceof ConnectionIdAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof ConnectionIdAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         ConnectionIdAttribute att = (ConnectionIdAttribute) obj;
-        if (att.getAttributeType() != getAttributeType()
-                || att.getDataLength() != getDataLength()
-                /* compare data */
-                || att.connectionIdValue != this.connectionIdValue
-           )
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+        /* compare data */
+                || att.connectionIdValue != this.connectionIdValue)
             return false;
 
         return true;
@@ -72,17 +65,16 @@ public class ConnectionIdAttribute
     * @return a binary representation of this attribute.
     */
     @Override
-    public byte[] encode() 
-    {
-	    byte binValue[] = new byte[HEADER_LENGTH + DATA_LENGTH];
+    public byte[] encode() {
+        byte binValue[] = new byte[HEADER_LENGTH + DATA_LENGTH];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
         //Data
         binValue[4] = (byte) (connectionIdValue >> 24);
         binValue[5] = (byte) ((connectionIdValue & 0x00ff0000) >> 16);
@@ -92,7 +84,7 @@ public class ConnectionIdAttribute
         return binValue;
     }
 
-   /**
+    /**
     * Sets this attribute's fields according to attributeValue array.
     * @param attributeValue a binary array containing this attribute's field
     *                       values and NOT containing the attribute header.
@@ -103,42 +95,34 @@ public class ConnectionIdAttribute
     * @throws StunException if attributeValue contains invalid data.
     */
     @Override
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length) 
-	    throws StunException
-    {
-	    if(length != DATA_LENGTH)
-        {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
+        if (length != DATA_LENGTH) {
             throw new StunException("length invalid: " + length);
         }
 
         connectionIdValue = attributeValue[offset] & 0xff;
 
-        connectionIdValue = connectionIdValue << 8 |
-            (attributeValue[offset+1] & 0xff);
+        connectionIdValue = connectionIdValue << 8 | (attributeValue[offset + 1] & 0xff);
 
-        connectionIdValue = connectionIdValue << 8 |
-            (attributeValue[offset+2] & 0xff);
+        connectionIdValue = connectionIdValue << 8 | (attributeValue[offset + 2] & 0xff);
 
-        connectionIdValue = connectionIdValue << 8 |
-            (attributeValue[offset+3] & 0xff);
+        connectionIdValue = connectionIdValue << 8 | (attributeValue[offset + 3] & 0xff);
     }
 
     /**
      * Gets the Connection-Id Value
      * @return Connection-Id Value
      */
-    public int getConnectionIdValue() 
-    {
+    public int getConnectionIdValue() {
         return connectionIdValue;
     }
-    
+
     /**
      * Sets the Connection-Id Value
      * @param connectionIdValue the connection Id value.
      */
-    public void setConnectionIdValue(int connectionIdValue) 
-    {	
-	    this.connectionIdValue = connectionIdValue;
+    public void setConnectionIdValue(int connectionIdValue) {
+        this.connectionIdValue = connectionIdValue;
     }
 
 }

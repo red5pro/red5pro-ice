@@ -7,7 +7,7 @@ import org.apache.mina.core.buffer.IoBuffer;
 import com.red5pro.ice.TransportAddress;
 
 /**
- * The class represents a binary STUN message as well as the address and port of the host that sent it and the address 
+ * The class represents a binary STUN message as well as the address and port of the host that sent it and the address
  * and port where it was received (locally).
  *
  * @author Emil Ivov
@@ -81,7 +81,7 @@ public class RawMessage {
 
     /**
      * Returns an IoBuffer wrapping the message bytes. The message bytes are not copied, so any changes will be reflected in both objects.
-     * 
+     *
      * @return IoBuffer
      */
     public IoBuffer toIoBuffer() {
@@ -125,7 +125,7 @@ public class RawMessage {
     public static RawMessage build(byte[] messageBytes, SocketAddress remoteAddress, SocketAddress localAddress) {
         return RawMessage.build(messageBytes, (TransportAddress) remoteAddress, (TransportAddress) localAddress, true);
     }
-    
+
     /**
      * Use builder pattern to allow creation of immutable RawMessage instances, from outside the current package.
      *

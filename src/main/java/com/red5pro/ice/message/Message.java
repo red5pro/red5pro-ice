@@ -245,7 +245,7 @@ public abstract class Message {
     public static final char CONNECTION_BIND_SUCCESS_RESPONSE = (TURN_METHOD_CONNECTION_BIND | STUN_SUCCESS_RESP);
 
     /**
-     * TURN Connection Bind error code. 
+     * TURN Connection Bind error code.
      */
     public static final char CONNECTION_BIND_ERROR_RESPONSE = (TURN_METHOD_CONNECTION_BIND | STUN_ERROR_RESP);
 
@@ -306,23 +306,23 @@ public abstract class Message {
      * <pre>
      *                                         Binding  Shared  Shared  Shared
      *                       Binding  Binding  Error    Secret  Secret  Secret
-     *   Att.                Req.     Resp.    Resp.    Req.    Resp.   Error 
-     *                                                                  Resp. 
+     *   Att.                Req.     Resp.    Resp.    Req.    Resp.   Error
+     *                                                                  Resp.
      *   _____________________________________________________________________
-     *   MAPPED-ADDRESS      N/A      M        N/A      N/A     N/A     N/A   
-     *   RESPONSE-ADDRESS    O        N/A      N/A      N/A     N/A     N/A   
-     *   CHANGE-REQUEST      O        N/A      N/A      N/A     N/A     N/A   
-     *   SOURCE-ADDRESS      N/A      M        N/A      N/A     N/A     N/A   
-     *   CHANGED-ADDRESS     N/A      M        N/A      N/A     N/A     N/A   
-     *   USERNAME            O        N/A      N/A      N/A     M       N/A   
-     *   PASSWORD            N/A      N/A      N/A      N/A     M       N/A   
-     *   MESSAGE-INTEGRITY   O        O        N/A      N/A     N/A     N/A   
-     *   ERROR-CODE          N/A      N/A      M        N/A     N/A     M     
-     *   UNKNOWN-ATTRIBUTES  N/A      N/A      C        N/A     N/A     C     
-     *   REFLECTED-FROM      N/A      C        N/A      N/A     N/A     N/A   
-     *   XOR-MAPPED-ADDRESS  N/A      M        N/A      N/A     N/A     N/A   
-     *   XOR-ONLY            O        N/A      N/A      N/A     N/A     N/A   
-     *   SOFTWARE            N/A      O        O        N/A     O       O     
+     *   MAPPED-ADDRESS      N/A      M        N/A      N/A     N/A     N/A
+     *   RESPONSE-ADDRESS    O        N/A      N/A      N/A     N/A     N/A
+     *   CHANGE-REQUEST      O        N/A      N/A      N/A     N/A     N/A
+     *   SOURCE-ADDRESS      N/A      M        N/A      N/A     N/A     N/A
+     *   CHANGED-ADDRESS     N/A      M        N/A      N/A     N/A     N/A
+     *   USERNAME            O        N/A      N/A      N/A     M       N/A
+     *   PASSWORD            N/A      N/A      N/A      N/A     M       N/A
+     *   MESSAGE-INTEGRITY   O        O        N/A      N/A     N/A     N/A
+     *   ERROR-CODE          N/A      N/A      M        N/A     N/A     M
+     *   UNKNOWN-ATTRIBUTES  N/A      N/A      C        N/A     N/A     C
+     *   REFLECTED-FROM      N/A      C        N/A      N/A     N/A     N/A
+     *   XOR-MAPPED-ADDRESS  N/A      M        N/A      N/A     N/A     N/A
+     *   XOR-ONLY            O        N/A      N/A      N/A     N/A     N/A
+     *   SOFTWARE            N/A      O        O        N/A     O       O
      * </pre>
      */
     public static final byte N_A = 0;
@@ -575,7 +575,7 @@ public abstract class Message {
 
     /**
      * Returns whether or not any of the given attributes exist in the message.
-     * 
+     *
      * @param attrs Set of Attribute.Type to search for
      * @return true if any attribute types match and false otherwise
      */
@@ -590,7 +590,7 @@ public abstract class Message {
 
     /**
      * Returns whether or not all of the given attributes exist in the message.
-     * 
+     *
      * @param attrs Set of Attribute.Type to search for
      * @return true if all attribute types match and false otherwise
      */
@@ -610,7 +610,7 @@ public abstract class Message {
 
     /**
      * Returns whether or not none of the given attributes exist in the message.
-     * 
+     *
      * @param attrs Set of Attribute.Type to search for
      * @return true if none attribute types match and false otherwise
      */
@@ -659,7 +659,8 @@ public abstract class Message {
      * @throws StunException ILLEGAL_ARGUMENT if the transaction id is not valid
      */
     public void setTransactionID(byte[] tranID) throws StunException {
-        if (tranID == null || (tranID.length != TransactionID.RFC5389_TRANSACTION_ID_LENGTH && tranID.length != TransactionID.RFC3489_TRANSACTION_ID_LENGTH)) {
+        if (tranID == null || (tranID.length != TransactionID.RFC5389_TRANSACTION_ID_LENGTH
+                && tranID.length != TransactionID.RFC3489_TRANSACTION_ID_LENGTH)) {
             throw new StunException(StunException.ILLEGAL_ARGUMENT, "Invalid transaction id length");
         }
         int tranIDLength = tranID.length;
@@ -844,7 +845,7 @@ public abstract class Message {
 
     /**
      * Constructs a message from its binary representation.
-     * 
+     *
      * @param binMessage the binary array that contains the encoded message
      * @param offset the index where the message starts
      * @param arrayLen the length of the message
@@ -854,7 +855,8 @@ public abstract class Message {
      */
     public static Message decode(byte[] binMessage, int offset, int arrayLen) throws StunException {
         if (logger.isDebugEnabled()) {
-            logger.debug("decode - offset: {} length: {}\n{}", offset, arrayLen, Utils.toHexString(Arrays.copyOfRange(binMessage, offset, (offset + arrayLen))));
+            logger.debug("decode - offset: {} length: {}\n{}", offset, arrayLen,
+                    Utils.toHexString(Arrays.copyOfRange(binMessage, offset, (offset + arrayLen))));
         }
         int originalOffset = offset;
         arrayLen = Math.min(binMessage.length, arrayLen);
@@ -880,7 +882,9 @@ public abstract class Message {
         boolean rfc3489Compat = !Arrays.equals(MAGIC_COOKIE, cookie);
         int transactionIdLength = rfc3489Compat ? TransactionID.RFC3489_TRANSACTION_ID_LENGTH : TransactionID.RFC5389_TRANSACTION_ID_LENGTH;
         if (arrayLen - offset - transactionIdLength < length) {
-            throw new StunException(StunException.ILLEGAL_ARGUMENT, "The given binary array does not seem to contain a whole StunMessage: given " + arrayLen + " bytes of " + message.getName() + " but expecting " + (offset + transactionIdLength + length));
+            throw new StunException(StunException.ILLEGAL_ARGUMENT,
+                    "The given binary array does not seem to contain a whole StunMessage: given " + arrayLen + " bytes of "
+                            + message.getName() + " but expecting " + (offset + transactionIdLength + length));
         }
         try {
             byte[] tranID = new byte[transactionIdLength];
@@ -891,7 +895,8 @@ public abstract class Message {
             }
             message.setTransactionID(tranID);
         } catch (StunException exc) {
-            throw new StunException(StunException.ILLEGAL_ARGUMENT, "The given binary array does not seem to contain a whole StunMessage", exc);
+            throw new StunException(StunException.ILLEGAL_ARGUMENT, "The given binary array does not seem to contain a whole StunMessage",
+                    exc);
         }
         // update offset to just beyond transaction id
         offset += transactionIdLength;
@@ -920,7 +925,8 @@ public abstract class Message {
      * caused us to discard the whole message (e.g. an invalid checksum or
      * username)
      */
-    private static void performAttributeSpecificActions(Attribute attribute, byte[] binMessage, int offset, int msgLen) throws StunException {
+    private static void performAttributeSpecificActions(Attribute attribute, byte[] binMessage, int offset, int msgLen)
+            throws StunException {
         //check finger print CRC
         if (attribute instanceof FingerprintAttribute) {
             if (!validateFingerprint((FingerprintAttribute) attribute, binMessage, offset, msgLen)) {
@@ -952,7 +958,8 @@ public abstract class Message {
         //CRC validation.
         if (!Arrays.equals(incomingCrcBytes, realCrcBytes)) {
             if (logger.isDebugEnabled()) {
-                logger.debug("An incoming message arrived with a wrong FINGERPRINT attribute value. CRC Was:" + Arrays.toString(incomingCrcBytes) + ". Should have been:" + Arrays.toString(realCrcBytes) + ". Will ignore.");
+                logger.debug("An incoming message arrived with a wrong FINGERPRINT attribute value. CRC Was:"
+                        + Arrays.toString(incomingCrcBytes) + ". Should have been:" + Arrays.toString(realCrcBytes) + ". Will ignore.");
             }
             return false;
         }

@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 public abstract class LocalCandidate extends Candidate<LocalCandidate> {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
-    
+
     /**
      * The type of method used to discover this candidate ("host", "upnp", "stun peer reflexive", "stun server reflexive", "turn relayed", "google turn
      * relayed", "google tcp turn relayed" or "jingle node").
@@ -29,7 +29,7 @@ public abstract class LocalCandidate extends Candidate<LocalCandidate> {
      * Whether this LocalCandidate uses SSL.
      */
     private boolean isSSL;
-    
+
     /**
      * Creates a LocalCandidate instance for the specified transport address and properties.
      *
@@ -41,7 +41,8 @@ public abstract class LocalCandidate extends Candidate<LocalCandidate> {
      * @param relatedCandidate the relatedCandidate: null for a host candidate, the base address (host candidate) for a reflexive candidate, the mapped
      * address (the mapped address of the TURN allocate response) for a relayed candidate
      */
-    public LocalCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type, CandidateExtendedType extendedType, LocalCandidate relatedCandidate) {
+    public LocalCandidate(TransportAddress transportAddress, Component parentComponent, CandidateType type,
+            CandidateExtendedType extendedType, LocalCandidate relatedCandidate) {
         super(transportAddress, parentComponent, type, relatedCandidate);
         this.extendedType = extendedType;
     }
@@ -101,7 +102,8 @@ public abstract class LocalCandidate extends Candidate<LocalCandidate> {
         if (socket != null) {
             LocalCandidate base = getBase();
             if (logger.isDebugEnabled()) {
-                logger.debug("free! {} {} {}", (ufrag != null ? ufrag : (base.ufrag != null ? base.ufrag : "no-ufrag")), socket.getTransportAddress(), (!base.propertyMap.isEmpty() ? base.propertyMap : "no-props"));
+                logger.debug("free! {} {} {}", (ufrag != null ? ufrag : (base.ufrag != null ? base.ufrag : "no-ufrag")),
+                        socket.getTransportAddress(), (!base.propertyMap.isEmpty() ? base.propertyMap : "no-props"));
             }
             if (base == null || base == this || base.getCandidateIceSocketWrapper() != socket) {
                 // remove our socket from the stack

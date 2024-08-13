@@ -16,14 +16,11 @@ import com.red5pro.ice.StunException;
  *
  * @author Emil Ivov
  */
-public class XorOnlyAttribute
-    extends Attribute
-{
+public class XorOnlyAttribute extends Attribute {
     /**
      * Constructor.
      */
-    protected XorOnlyAttribute()
-    {
+    protected XorOnlyAttribute() {
         super(Attribute.Type.XOR_ONLY);
     }
 
@@ -37,9 +34,7 @@ public class XorOnlyAttribute
      * @param length the length of the binary array.
      * @throws StunException if attrubteValue contains invalid data.
      */
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-        throws StunException
-    {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
         //nothing to do cause we have 0 length
     }
 
@@ -48,18 +43,17 @@ public class XorOnlyAttribute
      *
      * @return a binary representation of this attribute.
      */
-    public byte[] encode()
-    {
+    public byte[] encode() {
         byte binValue[] = new byte[HEADER_LENGTH + getDataLength()];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
 
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
 
         return binValue;
     }
@@ -70,8 +64,7 @@ public class XorOnlyAttribute
      *
      * @return the length of this attribute's value.
      */
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return 0;
     }
 
@@ -83,17 +76,15 @@ public class XorOnlyAttribute
      * @return true if the attributes are equal and false otherwise.
      */
 
-    public boolean equals(Object obj)
-    {
-        if (! (obj instanceof XorOnlyAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof XorOnlyAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         XorOnlyAttribute att = (XorOnlyAttribute) obj;
-        if (att.getAttributeType() != getAttributeType()
-            || att.getDataLength() != getDataLength())
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength())
             return false;
 
         return true;

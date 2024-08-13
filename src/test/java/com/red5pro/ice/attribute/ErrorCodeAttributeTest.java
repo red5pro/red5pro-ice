@@ -36,14 +36,12 @@ public class ErrorCodeAttributeTest extends TestCase {
     /**
      * Test Attribute type
      */
-    public void testErrorCodeAttribute()
-    {
+    public void testErrorCodeAttribute() {
 
         errorCodeAttribute = new ErrorCodeAttribute();
 
-        assertEquals("ErrorCodeAttribute() constructed an attribute with an invalid type",
-                     Attribute.Type.ERROR_CODE,
-                     errorCodeAttribute.getAttributeType());
+        assertEquals("ErrorCodeAttribute() constructed an attribute with an invalid type", Attribute.Type.ERROR_CODE,
+                errorCodeAttribute.getAttributeType());
     }
 
     /**
@@ -51,24 +49,18 @@ public class ErrorCodeAttributeTest extends TestCase {
      *
      * @throws StunException java.lang.Exception if we fail
      */
-    public void testDecodeAttributeBody()
-        throws StunException {
+    public void testDecodeAttributeBody() throws StunException {
         byte[] attributeValue = msgFixture.errCodeTestValue;
         char offset = Attribute.HEADER_LENGTH;
-        char length = (char)(attributeValue.length - Attribute.HEADER_LENGTH);
+        char length = (char) (attributeValue.length - Attribute.HEADER_LENGTH);
         errorCodeAttribute.decodeAttributeBody(attributeValue, offset, length);
 
-        assertEquals("Error Class was not correctly decoded",
-                     MsgFixture.ERROR_CLASS,
-                     errorCodeAttribute.getErrorClass());
+        assertEquals("Error Class was not correctly decoded", MsgFixture.ERROR_CLASS, errorCodeAttribute.getErrorClass());
 
-        assertEquals("Error Number was not correctly decoded",
-                     MsgFixture.ERROR_NUMBER,
-                     errorCodeAttribute.getErrorNumber());
+        assertEquals("Error Number was not correctly decoded", MsgFixture.ERROR_NUMBER, errorCodeAttribute.getErrorNumber());
 
-        assertEquals("Reason phrase was not correctly decoded",
-                     MsgFixture.REASON_PHRASE.trim(),
-                     errorCodeAttribute.getReasonPhrase().trim());
+        assertEquals("Reason phrase was not correctly decoded", MsgFixture.REASON_PHRASE.trim(),
+                errorCodeAttribute.getReasonPhrase().trim());
 
     }
 
@@ -78,9 +70,7 @@ public class ErrorCodeAttributeTest extends TestCase {
      *
      * @throws StunException java.lang.Exception if we fail
      */
-    public void testEncode()
-        throws StunException
-    {
+    public void testEncode() throws StunException {
         byte[] expectedReturn = msgFixture.errCodeTestValue;
 
         errorCodeAttribute.setErrorClass(MsgFixture.ERROR_CLASS);
@@ -90,8 +80,7 @@ public class ErrorCodeAttributeTest extends TestCase {
 
         byte[] actualReturn = errorCodeAttribute.encode();
 
-        assertTrue("encode() did not return the expected binary array.",
-                   Arrays.equals( expectedReturn, actualReturn));
+        assertTrue("encode() did not return the expected binary array.", Arrays.equals(expectedReturn, actualReturn));
     }
 
     /**
@@ -100,16 +89,13 @@ public class ErrorCodeAttributeTest extends TestCase {
      *
      * @throws StunException java.lang.Exception if we fail
      */
-    public void testEquals()
-        throws StunException
-    {
+    public void testEquals() throws StunException {
 
         //null value test
         ErrorCodeAttribute target = null;
         boolean expectedReturn = false;
         boolean actualReturn = errorCodeAttribute.equals(target);
-        assertEquals("equals() failed against a null value target.",
-                     expectedReturn, actualReturn);
+        assertEquals("equals() failed against a null value target.", expectedReturn, actualReturn);
 
         //different objects
         target = new ErrorCodeAttribute();
@@ -118,12 +104,11 @@ public class ErrorCodeAttributeTest extends TestCase {
         target.setErrorClass(MsgFixture.ERROR_CLASS);
         target.setErrorNumber(MsgFixture.ERROR_NUMBER);
 
-        errorCodeAttribute.setErrorClass((byte)(MsgFixture.ERROR_CLASS+1));
-        errorCodeAttribute.setErrorNumber((byte)(MsgFixture.ERROR_NUMBER+1));
+        errorCodeAttribute.setErrorClass((byte) (MsgFixture.ERROR_CLASS + 1));
+        errorCodeAttribute.setErrorNumber((byte) (MsgFixture.ERROR_NUMBER + 1));
 
         actualReturn = errorCodeAttribute.equals(target);
-        assertEquals("equals() failed against a not equal target.",
-                     expectedReturn, actualReturn);
+        assertEquals("equals() failed against a not equal target.", expectedReturn, actualReturn);
 
         //different objects
         target = new ErrorCodeAttribute();
@@ -137,8 +122,7 @@ public class ErrorCodeAttributeTest extends TestCase {
         errorCodeAttribute.setErrorNumber(MsgFixture.ERROR_NUMBER);
 
         actualReturn = errorCodeAttribute.equals(target);
-        assertEquals("equals() failed against a not equal target.",
-                     expectedReturn, actualReturn);
+        assertEquals("equals() failed against a not equal target.", expectedReturn, actualReturn);
 
 
     }
@@ -148,11 +132,8 @@ public class ErrorCodeAttributeTest extends TestCase {
      *
      * @throws StunException java.lang.Exception if we fail
      */
-    public void testGetDataLength()
-        throws StunException
-    {
-        int expectedReturn = MsgFixture.REASON_PHRASE.getBytes().length
-                            + 4; //error code specific header
+    public void testGetDataLength() throws StunException {
+        int expectedReturn = MsgFixture.REASON_PHRASE.getBytes().length + 4; //error code specific header
 
         errorCodeAttribute.setErrorClass(MsgFixture.ERROR_CLASS);
         errorCodeAttribute.setErrorNumber(MsgFixture.ERROR_NUMBER);
@@ -167,11 +148,8 @@ public class ErrorCodeAttributeTest extends TestCase {
      *
      * @throws StunException java.lang.Exception if we fail
      */
-    public void testGetErrorCode()
-        throws StunException
-    {
-        char expectedReturn = (char)(100*MsgFixture.ERROR_CLASS
-                                     + MsgFixture.ERROR_NUMBER);
+    public void testGetErrorCode() throws StunException {
+        char expectedReturn = (char) (100 * MsgFixture.ERROR_CLASS + MsgFixture.ERROR_NUMBER);
 
         errorCodeAttribute.setErrorClass(MsgFixture.ERROR_CLASS);
         errorCodeAttribute.setErrorNumber(MsgFixture.ERROR_NUMBER);
@@ -196,15 +174,13 @@ public class ErrorCodeAttributeTest extends TestCase {
      * @throws StunException java.lang.Exception if we fail
      */
     public void testSetErrorCode() throws StunException {
-        char errorCode = (char)(MsgFixture.ERROR_CLASS*100 + MsgFixture.ERROR_NUMBER);
+        char errorCode = (char) (MsgFixture.ERROR_CLASS * 100 + MsgFixture.ERROR_NUMBER);
         errorCodeAttribute.setErrorCode(errorCode);
 
-        assertEquals("An error class was not properly set after decoding an error code.",
-                     (int)MsgFixture.ERROR_CLASS,
-                     (int)errorCodeAttribute.getErrorClass());
-        assertEquals("An error number was not properly set after decoding an error code.",
-                     (int)MsgFixture.ERROR_NUMBER,
-                     (int)errorCodeAttribute.getErrorNumber());
+        assertEquals("An error class was not properly set after decoding an error code.", (int) MsgFixture.ERROR_CLASS,
+                (int) errorCodeAttribute.getErrorClass());
+        assertEquals("An error number was not properly set after decoding an error code.", (int) MsgFixture.ERROR_NUMBER,
+                (int) errorCodeAttribute.getErrorNumber());
     }
 
 

@@ -50,7 +50,7 @@ public class IceTransportTest {
     private static String GOOGLE_STUN = "stun1.l.google.com";
 
     private static int GOOGLE_STUN_PORT = 19302;
-    
+
     @Test
     public void testUDPWithGoogleStun() {
         // udp for this test
@@ -128,7 +128,8 @@ public class IceTransportTest {
      * @throws IOException
      * @throws InterruptedException
      */
-    private String resolvePublicIP(TransportAddress localTransportAddress, TransportAddress stunTransportAddress) throws IOException, InterruptedException {
+    private String resolvePublicIP(TransportAddress localTransportAddress, TransportAddress stunTransportAddress)
+            throws IOException, InterruptedException {
         String publicIP = null;
         SynchronousQueue<Response> que = new SynchronousQueue<>();
         // collector for responses
@@ -240,8 +241,8 @@ public class IceTransportTest {
         stunStack.shutDown();
         log.info("Public IP: {}", publicIP);
         return publicIP;
-    }    
- 
+    }
+
     public static String resolveLocalIP() {
         String ipAddress = null;
         try {
@@ -270,7 +271,7 @@ public class IceTransportTest {
 
     /**
      * Resolves an IP with a given URL.
-     * 
+     *
      * @param url location of IP resolver service
      * @return IP address or null if some failure occurs
      */
@@ -303,6 +304,6 @@ public class IceTransportTest {
             }
         }
         return ipAddress;
-    }    
+    }
 
 }

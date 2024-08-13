@@ -71,7 +71,7 @@ public class TransportAddress extends InetSocketAddress {
     public TransportAddress(InetSocketAddress address, Transport transport) {
         this(address.getAddress(), address.getPort(), transport);
     }
-    
+
     /**
      * Creates an address instance from a host name and a port number.
      * <p>
@@ -104,7 +104,7 @@ public class TransportAddress extends InetSocketAddress {
     public byte[] getAddressBytes() {
         return getAddress().getAddress();
     }
-    
+
     /**
      * Constructs a string representation of this InetSocketAddress. This String
      * is constructed by calling toString() on the InetAddress and concatenating

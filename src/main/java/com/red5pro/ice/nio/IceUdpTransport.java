@@ -22,7 +22,7 @@ import com.red5pro.ice.stack.StunStack;
 
 /**
  * IceTransport for UDP connections.
- * 
+ *
  * @author Paul Gregoire
  */
 public class IceUdpTransport extends IceTransport {
@@ -31,7 +31,7 @@ public class IceUdpTransport extends IceTransport {
      * Recycler's session map.
      */
     private ConcurrentMap<String, IoSession> sessions = new ConcurrentHashMap<>();
-    
+
     // track sequence to ensure we don't nack those that are too old
     private ConcurrentLinkedDeque<ExpirableAddressEntry> recentBindingsQueue = new ConcurrentLinkedDeque<>();
 
@@ -105,7 +105,7 @@ public class IceUdpTransport extends IceTransport {
 
     /**
      * Returns a static instance of this transport.
-     * 
+     *
      * @param id transport / acceptor identifier
      * @return IceTransport
      */
@@ -221,7 +221,7 @@ public class IceUdpTransport extends IceTransport {
 
     /**
      * Adds a socket binding to the acceptor.
-     * 
+     *
      * @param addr
      * @return true if successful and false otherwise
      */
@@ -258,7 +258,7 @@ public class IceUdpTransport extends IceTransport {
 
     /**
      * Create a new IoSession for the given IceSocketWrapper and remote address.
-     * 
+     *
      * @param socketWrapper
      * @param destAddress remote address
      * @return IoSession or null if creation fails
@@ -283,7 +283,7 @@ public class IceUdpTransport extends IceTransport {
 
     /**
      * Returns the first session matching the given local address and port.
-     * 
+     *
      * @param localAddress
      * @return IoSession if match is found and null if not found
      */
@@ -302,14 +302,15 @@ public class IceUdpTransport extends IceTransport {
 
     /**
      * Returns a session for the requested remote address.
-     * 
+     *
      * @param remoteAddress
      * @return IoSession matching remote address or null if its not found
      */
     public IoSession getSessionByRemote(SocketAddress remoteAddress) {
         IoSession sess = null;
         // this is expected to return an existing session for the remote address
-        Optional<IoSession> opt = sessions.values().stream().filter(session -> session.getRemoteAddress().equals(remoteAddress)).findFirst();
+        Optional<IoSession> opt = sessions.values().stream().filter(session -> session.getRemoteAddress().equals(remoteAddress))
+                .findFirst();
         if (opt.isPresent()) {
             sess = opt.get();
             return sess;

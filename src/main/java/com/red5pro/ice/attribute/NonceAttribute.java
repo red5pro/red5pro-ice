@@ -10,8 +10,7 @@ import com.red5pro.ice.StunException;
  *
  * @author Sebastien Vincent
  */
-public class NonceAttribute extends Attribute
-{
+public class NonceAttribute extends Attribute {
 
     /**
      * Nonce value.
@@ -21,8 +20,7 @@ public class NonceAttribute extends Attribute
     /**
      * Constructor.
      */
-    NonceAttribute()
-    {
+    NonceAttribute() {
         super(Attribute.Type.NONCE);
     }
 
@@ -36,9 +34,7 @@ public class NonceAttribute extends Attribute
      * @param length the length of the binary array.
      * @throws StunException if attributeValue contains invalid data.
      */
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-        throws StunException
-    {
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
         nonce = new byte[length];
         System.arraycopy(attributeValue, offset, nonce, 0, length);
     }
@@ -47,22 +43,20 @@ public class NonceAttribute extends Attribute
      * Returns a binary representation of this attribute.
      * @return a binary representation of this attribute.
      */
-    public byte[] encode()
-    {
-        byte binValue[]
-            = new byte[HEADER_LENGTH + getDataLength() + (getDataLength() % 4)];
+    public byte[] encode() {
+        byte binValue[] = new byte[HEADER_LENGTH + getDataLength() + (getDataLength() % 4)];
 
         //Type
         int type = getAttributeType().getType();
-        binValue[0] = (byte)(type >> 8);
-        binValue[1] = (byte)(type & 0x00FF);
+        binValue[0] = (byte) (type >> 8);
+        binValue[1] = (byte) (type & 0x00FF);
 
         //Length
-        binValue[2] = (byte)(getDataLength() >> 8);
-        binValue[3] = (byte)(getDataLength() & 0x00FF);
+        binValue[2] = (byte) (getDataLength() >> 8);
+        binValue[3] = (byte) (getDataLength() & 0x00FF);
 
         /* nonce */
-        System.arraycopy(nonce, 0, binValue, 4, (int)getDataLength());
+        System.arraycopy(nonce, 0, binValue, 4, (int) getDataLength());
 
         return binValue;
     }
@@ -71,8 +65,7 @@ public class NonceAttribute extends Attribute
      * Returns the length of this attribute's body.
      * @return the length of this attribute's value.
      */
-    public int getDataLength()
-    {
+    public int getDataLength() {
         return nonce.length;
     }
 
@@ -81,8 +74,7 @@ public class NonceAttribute extends Attribute
      * attribute.
      * @return the binary array containing the nonce.
      */
-    public byte[] getNonce()
-    {
+    public byte[] getNonce() {
         return (nonce == null) ? null : nonce.clone();
     }
 
@@ -91,8 +83,7 @@ public class NonceAttribute extends Attribute
      * attribute.
      * @param nonce the binary array containing the nonce.
      */
-    public void setNonce(byte[] nonce)
-    {
+    public void setNonce(byte[] nonce) {
         this.nonce = (nonce == null) ? null : nonce.clone();
     }
 
@@ -102,18 +93,14 @@ public class NonceAttribute extends Attribute
      * @param obj the object to compare this attribute with.
      * @return true if the attributes are equal and false otherwise.
      */
-    public boolean equals(Object obj)
-    {
+    public boolean equals(Object obj) {
         if (obj == this)
             return true;
-        if (! (obj instanceof NonceAttribute))
+        if (!(obj instanceof NonceAttribute))
             return false;
 
         NonceAttribute att = (NonceAttribute) obj;
 
-        return
-            (att.getAttributeType() == getAttributeType()
-                && att.getDataLength() == getDataLength()
-                && Arrays.equals(att.nonce, nonce));
+        return (att.getAttributeType() == getAttributeType() && att.getDataLength() == getDataLength() && Arrays.equals(att.nonce, nonce));
     }
 }

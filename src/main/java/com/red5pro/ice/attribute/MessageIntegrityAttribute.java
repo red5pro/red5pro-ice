@@ -278,7 +278,8 @@ public class MessageIntegrityAttribute extends Attribute implements ContentDepen
             return true;
         }
         MessageIntegrityAttribute att = (MessageIntegrityAttribute) obj;
-        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength() || !Arrays.equals(att.hmacSha1Content, hmacSha1Content)) {
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+                || !Arrays.equals(att.hmacSha1Content, hmacSha1Content)) {
             return false;
         }
         return true;

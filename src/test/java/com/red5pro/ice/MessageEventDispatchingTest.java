@@ -84,7 +84,7 @@ public class MessageEventDispatchingTest extends TestCase {
 
     //static String IPAddress = "fe80::995e:3662:2b68:2410";
     static String IPAddress = "10.0.0.35";
-    
+
     /**
      * junit setup method.
      *
@@ -150,14 +150,14 @@ public class MessageEventDispatchingTest extends TestCase {
 
         assertEquals("No timeout was produced upon expiration of a client transaction", responseCollector.receivedResponses.size(), 1);
 
-        assertEquals("No timeout was produced upon expiration of a client transaction", responseCollector.receivedResponses.get(0), "timeout");
+        assertEquals("No timeout was produced upon expiration of a client transaction", responseCollector.receivedResponses.get(0),
+                "timeout");
 
         //restore the retransmissions prop in case others are counting on
         //defaults.
         if (oldRetransValue != null)
             System.getProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS, oldRetransValue);
-        else
-            System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
+        else System.clearProperty(StackProperties.MAX_CTRAN_RETRANSMISSIONS);
     }
 
     /**
@@ -285,8 +285,7 @@ public class MessageEventDispatchingTest extends TestCase {
                 receivedResponse = "unreachable";
             else if (event instanceof StunTimeoutEvent)
                 receivedResponse = "timeout";
-            else
-                receivedResponse = "failure";
+            else receivedResponse = "failure";
             receivedResponses.add(receivedResponse);
             notifyAll();
         }

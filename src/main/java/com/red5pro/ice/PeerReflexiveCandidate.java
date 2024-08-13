@@ -28,7 +28,8 @@ public class PeerReflexiveCandidate extends LocalCandidate {
      * @param priority the priority of the candidate
      */
     public PeerReflexiveCandidate(TransportAddress transportAddress, Component parentComponent, LocalCandidate base, long priority) {
-        super(transportAddress, parentComponent, CandidateType.PEER_REFLEXIVE_CANDIDATE, CandidateExtendedType.STUN_PEER_REFLEXIVE_CANDIDATE, base);
+        super(transportAddress, parentComponent, CandidateType.PEER_REFLEXIVE_CANDIDATE,
+                CandidateExtendedType.STUN_PEER_REFLEXIVE_CANDIDATE, base);
         super.setBase(base);
         super.priority = priority;
         if (transportAddress.getTransport() != Transport.UDP) {

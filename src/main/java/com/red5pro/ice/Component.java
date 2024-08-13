@@ -179,7 +179,8 @@ public class Component implements PropertyChangeListener {
         // compute priority
         candidate.computePriority();
         // check if we already have such a candidate (redundant)
-        Optional<LocalCandidate> existingCandidate = localCandidates.stream().filter(existing -> (existing.toShortString().equals(candidate.toShortString()))).findFirst();
+        Optional<LocalCandidate> existingCandidate = localCandidates.stream()
+                .filter(existing -> (existing.toShortString().equals(candidate.toShortString()))).findFirst();
         if (existingCandidate.isPresent()) {
             logger.debug("Candidate entry already exists - {} {}", candidate, existingCandidate.get());
         } else {
@@ -193,7 +194,7 @@ public class Component implements PropertyChangeListener {
      * <pre>
      *     component.removeLocalCandidateByType(EnumSet.of(CandidateType.PEER_REFLEXIVE_CANDIDATE, CandidateType.SERVER_REFLEXIVE_CANDIDATE));
      * </pre>
-     * 
+     *
      * @param candidateTypes EnumSet of CandidateType to match
      */
     public void removeLocalCandidateByType(EnumSet<CandidateType> candidateTypes) {
@@ -208,14 +209,15 @@ public class Component implements PropertyChangeListener {
             }
         });
     }
-    
-   /**
+
+    /**
     * Removes local candidates matching the supplied transport.
-    * 
+    *
     * @param transport Transport to match
     */
-   public void removeLocalCandidatesByTransport(Transport transport) {
-        List<LocalCandidate> removals = localCandidates.stream().filter(candidate -> transport.equals(candidate.getTransport())).collect(Collectors.toList());
+    public void removeLocalCandidatesByTransport(Transport transport) {
+        List<LocalCandidate> removals = localCandidates.stream().filter(candidate -> transport.equals(candidate.getTransport()))
+                .collect(Collectors.toList());
         // remove them the list
         localCandidates.removeAll(removals);
         // free them
@@ -223,11 +225,11 @@ public class Component implements PropertyChangeListener {
             // free the candidate; this may also close the candidates socket
             free(candidate);
         });
-   }
+    }
 
-   /**
+    /**
     * Removes a local candidate.
-    * 
+    *
     * @param candidate Candidate to remove
     */
     public void removeLocalCandidate(LocalCandidate candidate) {
@@ -283,7 +285,8 @@ public class Component implements PropertyChangeListener {
             logger.debug("Skipping remote candidate with private IP address: {}", candidate);
         } else {
             // check if we already have such a candidate (redundant)
-            Optional<RemoteCandidate> existingCandidate = remoteCandidates.stream().filter(existing -> (existing.toShortString().equals(candidate.toShortString()))).findFirst();
+            Optional<RemoteCandidate> existingCandidate = remoteCandidates.stream()
+                    .filter(existing -> (existing.toShortString().equals(candidate.toShortString()))).findFirst();
             if (existingCandidate.isPresent()) {
                 logger.debug("Candidate entry already exists - {} {}", candidate, existingCandidate.get());
             } else {
@@ -570,7 +573,9 @@ public class Component implements PropertyChangeListener {
         // behavior and return the first candidate matching `address` regardless of `base`.
         for (LocalCandidate localCandidate : localCandidates) {
             if (localCandidate.getTransportAddress().equals(localAddress)) {
-                logger.warn("Returning a candidate matching the address, while no candidates match both address ({}) and base ({}): {} with base {}", localAddress, base, localCandidate, localCandidate.getBase());
+                logger.warn(
+                        "Returning a candidate matching the address, while no candidates match both address ({}) and base ({}): {} with base {}",
+                        localAddress, base, localCandidate, localCandidate.getBase());
                 return localCandidate;
             }
         }
@@ -637,7 +642,7 @@ public class Component implements PropertyChangeListener {
 
     /**
      * Returns the socket for the specified transport.
-     * 
+     *
      * @param transport
      * @return
      */

@@ -7,7 +7,7 @@ import java.nio.charset.Charset;
 import com.red5pro.ice.harvest.TurnCandidateHarvester;
 
 /**
- * Implements a {@link DataFilter} which allows demultiplexing HTTP(S). 
+ * Implements a {@link DataFilter} which allows demultiplexing HTTP(S).
  * Accepts HTTP, SSL v2, and TLS. Rejects Google TURN SSLTCP.
  *
  * @author Lyubomir Marinov
@@ -40,12 +40,13 @@ public class HttpDemuxFilter implements DataFilter {
     /**
      * The HTTP request methods recognized by the class {@code HttpDemuxFilter}.
      */
-    private static String[] REQUEST_METHOD_STRINGS = { "CONNECT", "DELETE", "GET", "HEAD", "MOVE", "OPTIONS", "PATCH", "POST", "PRI", "PROXY", "PUT", "TRACE" };
+    private static String[] REQUEST_METHOD_STRINGS = { "CONNECT", "DELETE", "GET", "HEAD", "MOVE", "OPTIONS", "PATCH", "POST", "PRI",
+            "PROXY", "PUT", "TRACE" };
 
     /**
      * The minimum number of bytes required by the class {@code HttpDemuxFilter}
      * in order to declare that (the data of) a specific {@link DatagramPacket}
-     * represents TLS. 
+     * represents TLS.
      */
     public static final int TLS_MIN_LENGTH = 11;
 
@@ -118,7 +119,8 @@ public class HttpDemuxFilter implements DataFilter {
             if (http) {
                 // Request-Line = Method SP Request-URI SP HTTP-Version CRLF
                 // HTTP-Version = "HTTP" "/" 1*DIGIT "." 1*DIGIT
-                if (b0 >= REQUEST_METHOD_MIN_CHAR && b0 <= REQUEST_METHOD_MAX_CHAR && buf.length >= REQUEST_METHOD_MAX_LENGTH + 1 /* SP */) {
+                if (b0 >= REQUEST_METHOD_MIN_CHAR && b0 <= REQUEST_METHOD_MAX_CHAR
+                        && buf.length >= REQUEST_METHOD_MAX_LENGTH + 1 /* SP */) {
                     // Match a supported HTTP request method.
                     for (byte[] bytes : REQUEST_METHOD_BYTES) {
                         int length = bytes.length;
@@ -156,7 +158,8 @@ public class HttpDemuxFilter implements DataFilter {
                 if (buf.length >= TLS_MIN_LENGTH && /* major */(0xFF & buf[off + 1]) == 3) {
                     int minor = 0xFF & buf[off + 2];
 
-                    if (1 <= minor && minor <= 3 && /* msg_type */(0xFF & buf[off + 5]) == /* client_hello */1 && /* major */(0xFF & buf[off + 9]) == 3) {
+                    if (1 <= minor && minor <= 3 && /* msg_type */(0xFF & buf[off + 5]) == /* client_hello */1
+                            && /* major */(0xFF & buf[off + 9]) == 3) {
                         minor = 0xFF & buf[off + 10];
                         if (1 <= minor && minor <= 3)
                             accept = true;
@@ -173,7 +176,8 @@ public class HttpDemuxFilter implements DataFilter {
                 // 2 bytes  uint15 length
                 // 1 byte   uint8 msg_type = 1
                 // 2 bytes  Version version
-                if (buf.length > 5 && buf.length >= googleTurnSslTcp.length && /* msg_type */(0xFF & buf[off + 2]) == 1 && /* major */(0xFF & buf[off + 3]) == 3) {
+                if (buf.length > 5 && buf.length >= googleTurnSslTcp.length && /* msg_type */(0xFF & buf[off + 2]) == 1
+                        && /* major */(0xFF & buf[off + 3]) == 3) {
                     int minor = 0xFF & buf[off + 4];
 
                     if (1 <= minor && minor <= 3) {

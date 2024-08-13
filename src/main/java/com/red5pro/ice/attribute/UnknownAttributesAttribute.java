@@ -1,4 +1,4 @@
- /* See LICENSE.md for license information */
+/* See LICENSE.md for license information */
 package com.red5pro.ice.attribute;
 
 import java.util.Iterator;
@@ -28,8 +28,7 @@ import com.red5pro.ice.StunException;
  *
  * @author Emil Ivov
  */
-public class UnknownAttributesAttribute extends Attribute
-{
+public class UnknownAttributesAttribute extends Attribute {
 
     /**
      * A list of attribute types that were not understood by the server.
@@ -39,23 +38,21 @@ public class UnknownAttributesAttribute extends Attribute
     /**
      * Constructor.
      */
-    UnknownAttributesAttribute()
-    {
+    UnknownAttributesAttribute() {
         super(Attribute.Type.UNKNOWN_ATTRIBUTES);
     }
 
-   /**
+    /**
     * Returns the length (in bytes) of this attribute's body.
     * If the number of unknown attributes is an odd number, one of the
     * attributes MUST be repeated in the list, so that the total length of
     * the list is a multiple of 4 bytes.
     * @return the length of this attribute's value (a multiple of 4).
     */
-    public int getDataLength()
-    {
+    public int getDataLength() {
         int len = unknownAttributes.size();
 
-        if( (len % 2 ) != 0 )
+        if ((len % 2) != 0)
             len++;
 
         return (len * 2);
@@ -66,11 +63,10 @@ public class UnknownAttributesAttribute extends Attribute
      * @param attributeID the id of an attribute to be listed as unknown in this
      * attribute
      */
-    public void addAttributeID(int attributeID)
-    {
+    public void addAttributeID(int attributeID) {
         //some attributes may be repeated for padding
         //(packet length should be divisible by 4)
-        if(!contains(attributeID))
+        if (!contains(attributeID))
             unknownAttributes.add(attributeID);
     }
 
@@ -79,8 +75,7 @@ public class UnknownAttributesAttribute extends Attribute
      * @param attributeID the attribute id to look for.
      * @return true if this attribute contains the specified attribute id.
      */
-    public boolean contains(int attributeID)
-    {
+    public boolean contains(int attributeID) {
         return unknownAttributes.contains(attributeID);
     }
 
@@ -90,8 +85,7 @@ public class UnknownAttributesAttribute extends Attribute
      * @return an iterator over the list of attribute IDs contained by this
      * attribute.
      */
-    public Iterator<Integer> getAttributes()
-    {
+    public Iterator<Integer> getAttributes() {
         return unknownAttributes.iterator();
     }
 
@@ -99,8 +93,7 @@ public class UnknownAttributesAttribute extends Attribute
      * Returns the number of attribute IDs contained by this class.
      * @return the number of attribute IDs contained by this class.
      */
-    public int getAttributeCount()
-    {
+    public int getAttributeCount() {
         return unknownAttributes.size();
     }
 
@@ -109,8 +102,7 @@ public class UnknownAttributesAttribute extends Attribute
      * @param index the index of the attribute id to return.
      * @return the attribute id with index i.
      */
-    public int getAttribute(int index)
-    {
+    public int getAttribute(int index) {
         return unknownAttributes.get(index);
     }
 
@@ -118,37 +110,34 @@ public class UnknownAttributesAttribute extends Attribute
      * Returns a binary representation of this attribute.
      * @return a binary representation of this attribute.
      */
-    public byte[] encode()
-    {
+    public byte[] encode() {
         byte binValue[] = new byte[getDataLength() + HEADER_LENGTH];
-        int  offset     = 0;
+        int offset = 0;
 
         //Type
         int type = getAttributeType().getType();
-        binValue[offset++] = (byte)(type >> 8);
-        binValue[offset++] = (byte)(type & 0x00FF);
+        binValue[offset++] = (byte) (type >> 8);
+        binValue[offset++] = (byte) (type & 0x00FF);
 
         //Length
         binValue[offset++] = (byte) (getDataLength() >> 8);
         binValue[offset++] = (byte) (getDataLength() & 0x00FF);
 
         Iterator<Integer> attributes = getAttributes();
-        while (attributes.hasNext())
-        {
+        while (attributes.hasNext()) {
             int att = attributes.next();
-            binValue[offset++] = (byte)(att >> 8);
-            binValue[offset++] = (byte)(att & 0x00FF);
+            binValue[offset++] = (byte) (att >> 8);
+            binValue[offset++] = (byte) (att & 0x00FF);
         }
 
-       // If the number of unknown attributes is an odd number, one of the
-       // attributes MUST be repeated in the list, so that the total length of
-       // the list is a multiple of 4 bytes.
-       if(offset < binValue.length)
-       {
-           int att = getAttribute(0);
-           binValue[offset++] = (byte) (att >> 8);
-           binValue[offset++] = (byte) (att & 0x00FF);
-       }
+        // If the number of unknown attributes is an odd number, one of the
+        // attributes MUST be repeated in the list, so that the total length of
+        // the list is a multiple of 4 bytes.
+        if (offset < binValue.length) {
+            int att = getAttribute(0);
+            binValue[offset++] = (byte) (att >> 8);
+            binValue[offset++] = (byte) (att & 0x00FF);
+        }
 
         return binValue;
     }
@@ -160,19 +149,16 @@ public class UnknownAttributesAttribute extends Attribute
      * @param obj the object to compare this attribute with.
      * @return true if the attributes are equal and false otherwise.
      */
-    public boolean equals(Object obj)
-    {
-        if (! (obj instanceof UnknownAttributesAttribute))
+    public boolean equals(Object obj) {
+        if (!(obj instanceof UnknownAttributesAttribute))
             return false;
 
         if (obj == this)
             return true;
 
         UnknownAttributesAttribute att = (UnknownAttributesAttribute) obj;
-        if (att.getAttributeType() != getAttributeType()
-            || att.getDataLength() != getDataLength()
-            || !unknownAttributes.equals(att.unknownAttributes)
-        )
+        if (att.getAttributeType() != getAttributeType() || att.getDataLength() != getDataLength()
+                || !unknownAttributes.equals(att.unknownAttributes))
             return false;
 
         return true;
@@ -189,18 +175,12 @@ public class UnknownAttributesAttribute extends Attribute
      * @param length the length of the binary array.
      * @throws StunException if attrubteValue contains invalid data.
      */
-    void decodeAttributeBody(byte[] attributeValue, int offset, int length)
-    throws StunException
-    {
-        if( (length % 2 ) != 0)
-            throw new StunException("Attribute IDs are 2 bytes long and the "
-                                    + "passed binary array has an odd length " +
-                                            "value.");
+    void decodeAttributeBody(byte[] attributeValue, int offset, int length) throws StunException {
+        if ((length % 2) != 0)
+            throw new StunException("Attribute IDs are 2 bytes long and the " + "passed binary array has an odd length " + "value.");
         int originalOffset = offset;
-        for(int i = offset; i < originalOffset + length; i += 2)
-        {
-            int attributeID = (((attributeValue[offset++] & 0xFF) << 8)
-                | (attributeValue[offset++] & 0xFF));
+        for (int i = offset; i < originalOffset + length; i += 2) {
+            int attributeID = (((attributeValue[offset++] & 0xFF) << 8) | (attributeValue[offset++] & 0xFF));
             addAttributeID(attributeID);
         }
     }

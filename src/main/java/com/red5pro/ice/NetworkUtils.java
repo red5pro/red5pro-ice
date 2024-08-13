@@ -1,10 +1,13 @@
 /* See LICENSE.md for license information */
 package com.red5pro.ice;
 
-import java.lang.reflect.*;
-import java.net.*;
+import java.lang.reflect.Method;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.Enumeration;
-import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,11 +68,6 @@ public class NetworkUtils {
     public static final int MIN_PORT_NUMBER = 1024;
 
     /**
-     * The random port number generator that we use in getRandomPortNumer()
-     */
-    private static Random portNumberGenerator = new Random();
-
-    /**
      * Determines whether the address is the result of windows auto configuration.
      * (i.e. One that is in the 169.254.0.0 network)
      * @param add the address to inspect
@@ -97,7 +95,7 @@ public class NetworkUtils {
      * @return a random int in the interval [min, max].
      */
     public static int getRandomPortNumber(int min, int max) {
-        return portNumberGenerator.nextInt(max - min) + min;
+        return Agent.random.nextInt(max - min) + min;
     }
 
     /**
@@ -443,7 +441,9 @@ public class NetworkUtils {
             return false;
         }
 
-        if ((address[0] == 0x00) && (address[1] == 0x00) && (address[2] == 0x00) && (address[3] == 0x00) && (address[4] == 0x00) && (address[5] == 0x00) && (address[6] == 0x00) && (address[7] == 0x00) && (address[8] == 0x00) && (address[9] == 0x00) && (address[10] == (byte) 0xff) && (address[11] == (byte) 0xff)) {
+        if ((address[0] == 0x00) && (address[1] == 0x00) && (address[2] == 0x00) && (address[3] == 0x00) && (address[4] == 0x00)
+                && (address[5] == 0x00) && (address[6] == 0x00) && (address[7] == 0x00) && (address[8] == 0x00) && (address[9] == 0x00)
+                && (address[10] == (byte) 0xff) && (address[11] == (byte) 0xff)) {
             return true;
         }
 
@@ -528,8 +528,9 @@ public class NetworkUtils {
         while (ifaces.hasMoreElements()) {
             Enumeration<InetAddress> addrs = ifaces.nextElement().getInetAddresses();
             while (addrs.hasMoreElements()) {
-                if (addrs.nextElement() instanceof Inet6Address){
-                    return IN6_ADDR_ANY;}
+                if (addrs.nextElement() instanceof Inet6Address) {
+                    return IN6_ADDR_ANY;
+                }
             }
         }
         return IN4_ADDR_ANY;
@@ -627,7 +628,7 @@ public class NetworkUtils {
      */
     public static String stripScopeID(String ipv6Address) {
         int scopeStart = ipv6Address.indexOf('%');
-        if (scopeStart == -1){
+        if (scopeStart == -1) {
             return ipv6Address;
         }
         ipv6Address = ipv6Address.substring(0, scopeStart);

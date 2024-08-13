@@ -41,7 +41,7 @@ import com.red5pro.ice.TransportAddress;
  * @author Boris Grozev
  */
 public class SinglePortUdpHarvester extends AbstractUdpListener implements CandidateHarvester {
- 
+
     private static final Logger logger = LoggerFactory.getLogger(SinglePortUdpHarvester.class);
 
     /**

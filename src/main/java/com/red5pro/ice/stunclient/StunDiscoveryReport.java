@@ -110,7 +110,8 @@ public class StunDiscoveryReport {
 
         StunDiscoveryReport target = (StunDiscoveryReport) obj;
 
-        return (target.getNatType() == getNatType() && (getPublicAddress() == null && target.getPublicAddress() == null || target.getPublicAddress().equals(getPublicAddress())));
+        return (target.getNatType() == getNatType() && (getPublicAddress() == null && target.getPublicAddress() == null
+                || target.getPublicAddress().equals(getPublicAddress())));
     }
 
     /**

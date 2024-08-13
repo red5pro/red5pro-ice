@@ -79,12 +79,15 @@ public class MappingCandidateHarvester extends AbstractCandidateHarvester {
         // Report the LocalCandidates gathered by this CandidateHarvester so that the harvest is sure to be considered successful.
         Collection<LocalCandidate> candidates = new HashSet<>();
         for (Candidate<?> cand : component.getLocalCandidates()) {
-            if (!(cand instanceof HostCandidate) || !cand.getTransportAddress().getHostAddress().equals(face.getHostAddress()) || cand.getTransport() != face.getTransport()) {
+            if (!(cand instanceof HostCandidate) || !cand.getTransportAddress().getHostAddress().equals(face.getHostAddress())
+                    || cand.getTransport() != face.getTransport()) {
                 continue;
             }
             HostCandidate hostCandidate = (HostCandidate) cand;
-            TransportAddress mappedAddress = new TransportAddress(mask.getHostAddress(), hostCandidate.getHostAddress().getPort(), hostCandidate.getHostAddress().getTransport());
-            ServerReflexiveCandidate mappedCandidate = new ServerReflexiveCandidate(mappedAddress, hostCandidate, hostCandidate.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
+            TransportAddress mappedAddress = new TransportAddress(mask.getHostAddress(), hostCandidate.getHostAddress().getPort(),
+                    hostCandidate.getHostAddress().getTransport());
+            ServerReflexiveCandidate mappedCandidate = new ServerReflexiveCandidate(mappedAddress, hostCandidate,
+                    hostCandidate.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
             if (hostCandidate.isSSL()) {
                 mappedCandidate.setSSL(true);
             }
@@ -111,7 +114,7 @@ public class MappingCandidateHarvester extends AbstractCandidateHarvester {
     public TransportAddress getFace() {
         return face;
     }
-    
+
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -147,6 +150,7 @@ public class MappingCandidateHarvester extends AbstractCandidateHarvester {
     public String toString() {
         TransportAddress face = getFace();
         TransportAddress mask = getMask();
-        return this.getClass().getName() + ", face=" + (face == null ? "null" : face.getAddress()) + ", mask=" + (mask == null ? "null" : mask.getAddress());
+        return this.getClass().getName() + ", face=" + (face == null ? "null" : face.getAddress()) + ", mask="
+                + (mask == null ? "null" : mask.getAddress());
     }
 }

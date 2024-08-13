@@ -348,7 +348,8 @@ public class StunStack implements MessageEventHandler {
      * @throws IOException  if an error occurs while sending message bytes through the network socket
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      */
-    public TransactionID sendRequest(Request request, TransportAddress sendTo, TransportAddress sendThrough, ResponseCollector collector) throws IOException, IllegalArgumentException {
+    public TransactionID sendRequest(Request request, TransportAddress sendTo, TransportAddress sendThrough, ResponseCollector collector)
+            throws IOException, IllegalArgumentException {
         return sendRequest(request, sendTo, sendThrough, collector, TransactionID.createNewTransactionID());
     }
 
@@ -364,13 +365,14 @@ public class StunStack implements MessageEventHandler {
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      * @throws IOException  if an error occurs while sending message bytes through the network socket
      */
-    public TransactionID sendRequest(Request request, TransportAddress sendTo, TransportAddress sendThrough, ResponseCollector collector, TransactionID transactionID) throws IllegalArgumentException, IOException {
+    public TransactionID sendRequest(Request request, TransportAddress sendTo, TransportAddress sendThrough, ResponseCollector collector,
+            TransactionID transactionID) throws IllegalArgumentException, IOException {
         return sendRequest(request, sendTo, sendThrough, collector, transactionID, -1, -1, -1);
     }
 
     /**
      * Sends the specified request through the specified access point, and registers the specified ResponseCollector for later notification.
-     * 
+     *
      * @param  request     the request to send
      * @param  sendTo      the destination address of the request
      * @param  sendThrough the local address to use when sending the request
@@ -385,7 +387,9 @@ public class StunStack implements MessageEventHandler {
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed
      * @throws IOException  if an error occurs while sending message bytes through the network socket
      */
-    public TransactionID sendRequest(Request request, TransportAddress sendTo, TransportAddress sendThrough, ResponseCollector collector, TransactionID transactionID, int originalWaitInterval, int maxWaitInterval, int maxRetransmissions) throws IllegalArgumentException, IOException {
+    public TransactionID sendRequest(Request request, TransportAddress sendTo, TransportAddress sendThrough, ResponseCollector collector,
+            TransactionID transactionID, int originalWaitInterval, int maxWaitInterval, int maxRetransmissions)
+            throws IllegalArgumentException, IOException {
         if (logger.isDebugEnabled()) {
             logger.debug("sendRequest: {} to: {} thru: {}", request, sendTo, sendThrough);
             request.getAttributes().forEach(attr -> {
@@ -419,13 +423,16 @@ public class StunStack implements MessageEventHandler {
      * @throws IllegalArgumentException if the apDescriptor references an access point that had not been installed,
      * @throws StunException if message encoding fails
      */
-    public void sendResponse(byte[] transactionID, Response response, TransportAddress sendThrough, TransportAddress sendTo) throws StunException, IOException, IllegalArgumentException {
+    public void sendResponse(byte[] transactionID, Response response, TransportAddress sendThrough, TransportAddress sendTo)
+            throws StunException, IOException, IllegalArgumentException {
         TransactionID tid = TransactionID.createTransactionID(this, transactionID);
         StunServerTransaction sTran = getServerTransaction(tid);
         if (sTran == null) {
-            throw new StunException(StunException.TRANSACTION_DOES_NOT_EXIST, "The transaction specified in the response (tid=" + tid.toString() + ") object does not exist.");
+            throw new StunException(StunException.TRANSACTION_DOES_NOT_EXIST,
+                    "The transaction specified in the response (tid=" + tid.toString() + ") object does not exist.");
         } else if (sTran.isRetransmitting()) {
-            throw new StunException(StunException.TRANSACTION_ALREADY_ANSWERED, "The transaction specified in the response (tid=" + tid.toString() + ") has already seen a previous response. Response was:\n" + sTran.getResponse());
+            throw new StunException(StunException.TRANSACTION_ALREADY_ANSWERED, "The transaction specified in the response (tid="
+                    + tid.toString() + ") has already seen a previous response. Response was:\n" + sTran.getResponse());
         } else {
             sTran.sendResponse(response, sendThrough, sendTo);
         }
@@ -459,7 +466,7 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Sets the listener that should be notified when a new Request is received.
-     * 
+     *
      * @param requestListener the listener interested in incoming requests
      */
     public void addRequestListener(RequestListener requestListener) {
@@ -565,7 +572,8 @@ public class StunStack implements MessageEventHandler {
                     return;
                 }
             } else {
-                logger.trace("Creating new server transaction for: {}. Local: {} remote: {}", serverTid, ev.getLocalAddress(), ev.getRemoteAddress());
+                logger.trace("Creating new server transaction for: {}. Local: {} remote: {}", serverTid, ev.getLocalAddress(),
+                        ev.getRemoteAddress());
                 sTran = new StunServerTransaction(this, serverTid, ev.getLocalAddress(), ev.getRemoteAddress());
                 // if there is an OOM error here, it will lead to NetAccessManager.handleFatalError that will stop the
                 // MessageProcessor thread and restart it that will lead again to an OOM error and so on... So stop here right now
@@ -593,7 +601,9 @@ public class StunStack implements MessageEventHandler {
             } catch (Throwable t) {
                 logger.warn("Received an invalid request", t);
                 Throwable cause = t.getCause();
-                if (((t instanceof StunException) && ((StunException) t).getID() == StunException.TRANSACTION_ALREADY_ANSWERED) || ((cause instanceof StunException) && ((StunException) cause).getID() == StunException.TRANSACTION_ALREADY_ANSWERED)) {
+                if (((t instanceof StunException) && ((StunException) t).getID() == StunException.TRANSACTION_ALREADY_ANSWERED)
+                        || ((cause instanceof StunException)
+                                && ((StunException) cause).getID() == StunException.TRANSACTION_ALREADY_ANSWERED)) {
                     // do not try to send an error response since we will
                     // get another TRANSACTION_ALREADY_ANSWERED
                     return;
@@ -602,7 +612,8 @@ public class StunStack implements MessageEventHandler {
                 if (t instanceof IllegalArgumentException) {
                     error = createCorrespondingErrorResponse(msg.getMessageType(), ErrorCodeAttribute.BAD_REQUEST, t.getMessage());
                 } else {
-                    error = createCorrespondingErrorResponse(msg.getMessageType(), ErrorCodeAttribute.SERVER_ERROR, "Oops! Something went wrong on our side :(");
+                    error = createCorrespondingErrorResponse(msg.getMessageType(), ErrorCodeAttribute.SERVER_ERROR,
+                            "Oops! Something went wrong on our side :(");
                 }
                 try {
                     sendResponse(serverTid.getBytes(), error, ev.getLocalAddress(), ev.getRemoteAddress());
@@ -625,7 +636,8 @@ public class StunStack implements MessageEventHandler {
                 tran.handleResponse(ev);
             } else {
                 //do nothing - just drop the phantom response.
-                logger.debug("Dropped response - no matching client tran found for tid {}\nall tids in stock were {}", tid, clientTransactions.keySet());
+                logger.debug("Dropped response - no matching client tran found for tid {}\nall tids in stock were {}", tid,
+                        clientTransactions.keySet());
             }
         } else if (msg instanceof Indication) {
             eventDispatcher.fireMessageEvent(ev);
@@ -634,7 +646,7 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Used to set preference for IPv6 addresses over IPv4.
-     * 
+     *
      * @param useIPv6 if true IPv6 addresses will be preferred over IPv4
      */
     public void useIPv6Binding(boolean useIPv6) {
@@ -643,7 +655,7 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Used to ensure both IP versions are allowed.
-     * 
+     *
      * @param useAllBinding if true both IPv6 and IPv4 addresses will be allowed
      */
     public void useAllBinding(Boolean useAllBinding) {
@@ -721,7 +733,8 @@ public class StunStack implements MessageEventHandler {
         if (unameAttr != null) {
             username = LongTermCredential.toString(unameAttr.getUsername());
             if (!validateUsername(username)) {
-                Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNAUTHORIZED, "unknown user " + username);
+                Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNAUTHORIZED,
+                        "unknown user " + username);
                 sendResponse(request.getTransactionID(), error, evt.getLocalAddress(), evt.getRemoteAddress());
                 throw new IllegalArgumentException("Non-recognized username: " + username);
             }
@@ -732,18 +745,21 @@ public class StunStack implements MessageEventHandler {
         if (msgIntAttr != null) {
             //we should complain if we have msg integrity and no username.
             if (unameAttr == null) {
-                Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.BAD_REQUEST, "missing username");
+                Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.BAD_REQUEST,
+                        "missing username");
                 sendResponse(request.getTransactionID(), error, evt.getLocalAddress(), evt.getRemoteAddress());
                 throw new IllegalArgumentException("Missing USERNAME in the presence of MESSAGE-INTEGRITY: ");
             }
             if (!validateMessageIntegrity(msgIntAttr, username, true, evt.getRawMessage())) {
-                Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNAUTHORIZED, "Wrong MESSAGE-INTEGRITY value");
+                Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNAUTHORIZED,
+                        "Wrong MESSAGE-INTEGRITY value");
                 sendResponse(request.getTransactionID(), error, evt.getLocalAddress(), evt.getRemoteAddress());
                 throw new IllegalArgumentException("Wrong MESSAGE-INTEGRITY value");
             }
         } else if (messageIntegrityRequired) {
             // no message integrity
-            Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNAUTHORIZED, "Missing MESSAGE-INTEGRITY.");
+            Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNAUTHORIZED,
+                    "Missing MESSAGE-INTEGRITY.");
             sendResponse(request.getTransactionID(), error, evt.getLocalAddress(), evt.getRemoteAddress());
             throw new IllegalArgumentException("Missing MESSAGE-INTEGRITY");
         }
@@ -751,12 +767,14 @@ public class StunStack implements MessageEventHandler {
         List<Attribute> allAttributes = request.getAttributes();
         StringBuilder sBuff = new StringBuilder();
         for (Attribute attr : allAttributes) {
-            if (attr instanceof OptionalAttribute && attr.getAttributeType().getType() < Attribute.Type.UNKNOWN_OPTIONAL_ATTRIBUTE.getType()) {
+            if (attr instanceof OptionalAttribute
+                    && attr.getAttributeType().getType() < Attribute.Type.UNKNOWN_OPTIONAL_ATTRIBUTE.getType()) {
                 sBuff.append(attr.getAttributeType());
             }
         }
         if (sBuff.length() > 0) {
-            Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNKNOWN_ATTRIBUTE, "unknown attribute ", sBuff.toString().toCharArray());
+            Response error = createCorrespondingErrorResponse(request.getMessageType(), ErrorCodeAttribute.UNKNOWN_ATTRIBUTE,
+                    "unknown attribute ", sBuff.toString().toCharArray());
             sendResponse(request.getTransactionID(), error, evt.getLocalAddress(), evt.getRemoteAddress());
             throw new IllegalArgumentException("Unknown attribute(s)");
         }
@@ -773,9 +791,13 @@ public class StunStack implements MessageEventHandler {
      * @param message the message whose SHA1 checksum we'd need to recalculate
      * @return true if msgInt contains a valid SHA1 value and false otherwise
      */
-    public boolean validateMessageIntegrity(MessageIntegrityAttribute msgInt, String username, boolean shortTermCredentialMechanism, RawMessage message) {
+    public boolean validateMessageIntegrity(MessageIntegrityAttribute msgInt, String username, boolean shortTermCredentialMechanism,
+            RawMessage message) {
         if (logger.isTraceEnabled()) {
-            logger.trace("validateMessageIntegrity username: {} short term: {}\nMI attr data length: {} hmac content: {}\nRawMessage: {}\n{}", username, shortTermCredentialMechanism, msgInt.getDataLength(), Utils.toHexString(msgInt.getHmacSha1Content()), message.getMessageLength(), Utils.toHexString(message.getBytes()));
+            logger.trace(
+                    "validateMessageIntegrity username: {} short term: {}\nMI attr data length: {} hmac content: {}\nRawMessage: {}\n{}",
+                    username, shortTermCredentialMechanism, msgInt.getDataLength(), Utils.toHexString(msgInt.getHmacSha1Content()),
+                    message.getMessageLength(), Utils.toHexString(message.getBytes()));
         }
         if (username == null || username.length() < 1 || (shortTermCredentialMechanism && !username.contains(":"))) {
             logger.debug("Received a message with an improperly formatted username");
@@ -792,7 +814,8 @@ public class StunStack implements MessageEventHandler {
         }
         if (logger.isTraceEnabled() && shortTermCredentialMechanism) {
             // no username[1] with long term creds
-            logger.trace("Local key: {} remote key: {}", Utils.toHexString(key), Utils.toHexString(getCredentialsManager().getRemoteKey(usernameParts[1], "media-0")));
+            logger.trace("Local key: {} remote key: {}", Utils.toHexString(key),
+                    Utils.toHexString(getCredentialsManager().getRemoteKey(usernameParts[1], "media-0")));
         }
         /*
          * Now check whether the SHA1 matches. Using MessageIntegrityAttribute.calculateHmacSha1 on the bytes of the RawMessage will be incorrect if there are other Attributes
@@ -812,7 +835,8 @@ public class StunStack implements MessageEventHandler {
         }
         byte[] msgIntHmacSha1Content = msgInt.getHmacSha1Content();
         if (!Arrays.equals(expectedMsgIntHmacSha1Content, msgIntHmacSha1Content)) {
-            logger.warn("Received a message with a wrong MESSAGE-INTEGRITY signature expected:\n{}\nreceived:\n{}", Utils.toHexString(expectedMsgIntHmacSha1Content), Utils.toHexString(msgIntHmacSha1Content));
+            logger.warn("Received a message with a wrong MESSAGE-INTEGRITY signature expected:\n{}\nreceived:\n{}",
+                    Utils.toHexString(expectedMsgIntHmacSha1Content), Utils.toHexString(msgIntHmacSha1Content));
             return false;
         }
         logger.trace("Successfully verified msg integrity");
@@ -886,7 +910,7 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Returns the Error Response object with specified errorCode and reasonPhrase corresponding to input type.
-     * 
+     *
      * @param requestType the message type of Request
      * @param errorCode the errorCode for Error Response object
      * @param reasonPhrase the reasonPhrase for the Error Response object
@@ -907,7 +931,7 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Submit a task to the internal executor.
-     * 
+     *
      * @param task
      * @return Future
      */

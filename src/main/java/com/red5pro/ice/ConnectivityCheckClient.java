@@ -41,7 +41,7 @@ class ConnectivityCheckClient implements ResponseCollector {
 
     // XXX(paul) base timeout for processes within; using STUN timeout for the base to-start.
     private static long checklistTimeout = 3000L;
-    
+
     /**
      * The agent that created us.
      */
@@ -123,7 +123,8 @@ class ConnectivityCheckClient implements ResponseCollector {
         LocalCandidate localCandidate = candidatePair.getLocalCandidate();
         Indication indication = MessageFactory.createBindingIndication();
         try {
-            stunStack.sendIndication(indication, candidatePair.getRemoteCandidate().getTransportAddress(), localCandidate.getBase().getTransportAddress());
+            stunStack.sendIndication(indication, candidatePair.getRemoteCandidate().getTransportAddress(),
+                    localCandidate.getBase().getTransportAddress());
             if (logger.isTraceEnabled()) {
                 logger.trace("Sending binding indication for pair {}", candidatePair);
             }
@@ -158,8 +159,10 @@ class ConnectivityCheckClient implements ResponseCollector {
      * @return a reference to the TransactionID used in the connectivity check client transaction or null if sending the check has
      * failed for some reason.
      */
-    protected TransactionID startCheckForPair(CandidatePair candidatePair, int originalWaitInterval, int maxWaitInterval, int maxRetransmissions) {
-        logger.debug("startCheckForPair: {} wait: {} max wait: {} max retrans: {}", candidatePair.toShortString(), originalWaitInterval, maxWaitInterval, maxRetransmissions);
+    protected TransactionID startCheckForPair(CandidatePair candidatePair, int originalWaitInterval, int maxWaitInterval,
+            int maxRetransmissions) {
+        logger.debug("startCheckForPair: {} wait: {} max wait: {} max retrans: {}", candidatePair.toShortString(), originalWaitInterval,
+                maxWaitInterval, maxRetransmissions);
         long tieBreaker = parentAgent.getTieBreaker();
         LocalCandidate localCandidate = candidatePair.getLocalCandidate();
         // the priority we'd like the remote party to use for a peer reflexive candidate if one is discovered as a consequence of this check
@@ -218,7 +221,7 @@ class ConnectivityCheckClient implements ResponseCollector {
                         logger.debug("Skipping relay -> host pair");
                         candidatePair.setStateFailed();
                     } else {
-                        // before we can send to the remote end, a permission must be requested                        
+                        // before we can send to the remote end, a permission must be requested
                         RelayedCandidate relayedCandidate = (RelayedCandidate) localCandidate; // cast over to relayed type
                         // get the host candidates address so the lookup wont fail in NetAccessManager
                         TransportAddress localAddress = relayedCandidate.getTurnCandidateHarvest().hostCandidate.getTransportAddress();
@@ -233,12 +236,15 @@ class ConnectivityCheckClient implements ResponseCollector {
                         logger.debug("Adding long-term-cred attributes");
                         relayedCandidate.getTurnCandidateHarvest().getLongTermCredentialSession().addAttributes(request);
                         // send the request
-                        tran = stunStack.sendRequest(request, destAddress, localAddress, this, tran, originalWaitInterval, maxWaitInterval, maxRetransmissions);
+                        tran = stunStack.sendRequest(request, destAddress, localAddress, this, tran, originalWaitInterval, maxWaitInterval,
+                                maxRetransmissions);
                     }
                     break;
                 default:
                     // send the request
-                    tran = stunStack.sendRequest(request, remoteCandidate.getTransportAddress(), localCandidate.getBase().getTransportAddress(), this, tran, originalWaitInterval, maxWaitInterval, maxRetransmissions);
+                    tran = stunStack.sendRequest(request, remoteCandidate.getTransportAddress(),
+                            localCandidate.getBase().getTransportAddress(), this, tran, originalWaitInterval, maxWaitInterval,
+                            maxRetransmissions);
                     break;
             }
             if (logger.isTraceEnabled()) {
@@ -353,7 +359,7 @@ class ConnectivityCheckClient implements ResponseCollector {
 
     /**
      * Handles STUN success responses as per the rules in RFC 5245.
-     * 
+     *
      * @param checkedPair
      * @param request
      * @param response
@@ -369,9 +375,11 @@ class ConnectivityCheckClient implements ResponseCollector {
                 mappedAddress = new TransportAddress(mappedAddress.getAddress(), mappedAddress.getPort(), Transport.TCP);
             }
         } else {
-            XorMappedAddressAttribute mappedAddressAttr = (XorMappedAddressAttribute) response.getAttribute(Attribute.Type.XOR_MAPPED_ADDRESS);
+            XorMappedAddressAttribute mappedAddressAttr = (XorMappedAddressAttribute) response
+                    .getAttribute(Attribute.Type.XOR_MAPPED_ADDRESS);
             if (mappedAddressAttr == null) {
-                logger.warn("Pair failed (no XOR-MAPPED-ADDRESS): {}. Local ufrag {}", checkedPair.toShortString(), parentAgent.getLocalUfrag());
+                logger.warn("Pair failed (no XOR-MAPPED-ADDRESS): {}. Local ufrag {}", checkedPair.toShortString(),
+                        parentAgent.getLocalUfrag());
                 checkedPair.setStateFailed();
                 return;
             }
@@ -396,7 +404,8 @@ class ConnectivityCheckClient implements ResponseCollector {
             //o Its priority is set equal to the value of the PRIORITY attribute in the Binding request
             PriorityAttribute prioAttr = (PriorityAttribute) request.getAttribute(Attribute.Type.PRIORITY);
             long priority = prioAttr.getPriority();
-            LocalCandidate peerReflexiveCandidate = new PeerReflexiveCandidate(mappedAddress, checkedPair.getParentComponent(), checkedPair.getLocalCandidate(), priority);
+            LocalCandidate peerReflexiveCandidate = new PeerReflexiveCandidate(mappedAddress, checkedPair.getParentComponent(),
+                    checkedPair.getLocalCandidate(), priority);
             peerReflexiveCandidate.setBase(checkedPair.getLocalCandidate());
             // peer reflexive candidate is then added to the list of local candidates for the media stream, so that it would be available for updated offers.
             checkedPair.getParentComponent().addLocalCandidate(peerReflexiveCandidate);
@@ -404,15 +413,18 @@ class ConnectivityCheckClient implements ResponseCollector {
             // However, the peer reflexive candidate is not paired with other remote candidates. This is not necessary; a valid pair will be generated from it momentarily
             validLocalCandidate = peerReflexiveCandidate;
             if (checkedPair.getParentComponent().getSelectedPair() == null) {
-                logger.debug("Received a peer-reflexive candidate: {} Local ufrag: {}", peerReflexiveCandidate.getTransportAddress(), parentAgent.getLocalUfrag());
+                logger.debug("Received a peer-reflexive candidate: {} Local ufrag: {}", peerReflexiveCandidate.getTransportAddress(),
+                        parentAgent.getLocalUfrag());
             }
         }
         // check if the resulting valid pair was already in our check lists.
-        CandidatePair existingPair = parentAgent.findCandidatePair(validLocalCandidate.getTransportAddress(), validRemoteCandidate.getTransportAddress());
+        CandidatePair existingPair = parentAgent.findCandidatePair(validLocalCandidate.getTransportAddress(),
+                validRemoteCandidate.getTransportAddress());
         // RFC 5245: 7.1.3.2.2. The agent constructs a candidate pair whose local candidate equals the mapped address of the response, and whose
         // remote candidate equals the destination address to which the request was sent. This is called a valid pair, since it has been validated
         // by a STUN connectivity check.
-        CandidatePair validPair = (existingPair == null) ? parentAgent.createCandidatePair(validLocalCandidate, validRemoteCandidate) : existingPair;
+        CandidatePair validPair = (existingPair == null) ? parentAgent.createCandidatePair(validLocalCandidate, validRemoteCandidate)
+                : existingPair;
         // we synchronize here because the same pair object can be processed (in another thread) in Agent's triggerCheck. A controlled agent select
         // its pair here if the pair has useCandidateReceived as true (set in triggerCheck) or in triggerCheck if the pair state is succeeded (set
         // here). So be sure that if a binding response and a binding request (for the same check) from other peer come at the very same time, that
@@ -462,7 +474,8 @@ class ConnectivityCheckClient implements ResponseCollector {
         // check request for use-candidate attribute
         Attribute attr = request.getAttribute(Attribute.Type.USE_CANDIDATE);
         //if (validPair.getParentComponent().getSelectedPair() == null) {
-            logger.info("IsControlling: {} USE-CANDIDATE: {} Local ufrag: {}", parentAgent.isControlling(), (attr != null || checkedPair.useCandidateSent()), parentAgent.getLocalUfrag());
+        logger.info("IsControlling: {} USE-CANDIDATE: {} Local ufrag: {}", parentAgent.isControlling(),
+                (attr != null || checkedPair.useCandidateSent()), parentAgent.getLocalUfrag());
         //}
         //If the agent was a controlling agent, and it had included a USE-CANDIDATE attribute in the Binding request, the valid pair generated
         //from that check has its nominated flag set to true.
@@ -535,7 +548,8 @@ class ConnectivityCheckClient implements ResponseCollector {
             pair.getParentComponent().getParentStream().getCheckList().scheduleTriggeredCheck(pair);
         } else {
             int code = cl * 100 + co;
-            logger.info("Error response for pair: " + pair.toShortString() + ", failing.  Code = " + code + "(class=" + cl + "; number=" + co + ")");
+            logger.info("Error response for pair: " + pair.toShortString() + ", failing.  Code = " + code + "(class=" + cl + "; number="
+                    + co + ")");
             pair.setStateFailed();
         }
     }
@@ -579,7 +593,7 @@ class ConnectivityCheckClient implements ResponseCollector {
         private final CheckList checkList;
 
         private long checkStartTime;
-        
+
         /**
          * Creates a new {@link PaceMaker} for this ConnectivityCheckClient.
          *
@@ -630,8 +644,10 @@ class ConnectivityCheckClient implements ResponseCollector {
                     if (pairToCheck != null) {
                         // check for a TCP candidate with a destination port of 9 (masked) and don't attempt to connect to it!
                         RemoteCandidate remoteCandidate = pairToCheck.getRemoteCandidate();
-                        if (remoteCandidate.getTcpType() == CandidateTcpType.ACTIVE && remoteCandidate.getTransportAddress().getPort() == 9) {
-                            logger.debug("TCP remote candidate is active with masked port, skip attempt to connect directly. Type: {}", remoteCandidate.getType());
+                        if (remoteCandidate.getTcpType() == CandidateTcpType.ACTIVE
+                                && remoteCandidate.getTransportAddress().getPort() == 9) {
+                            logger.debug("TCP remote candidate is active with masked port, skip attempt to connect directly. Type: {}",
+                                    remoteCandidate.getType());
                             // we wont mark it failed, but we won't attempt to send, since we cannot connect to it
                             //pairToCheck.setStateFailed();
                             continue;

@@ -103,17 +103,18 @@ public class CandidateHarvesterSet extends AbstractSet<CandidateHarvester> {
      * @param trickleCallback the {@link TrickleCallback} that we will be feeding candidates to, or null in case the application doesn't
      * want us trickling any candidates
      */
-    private void harvest(final Iterator<CandidateHarvesterSetElement> harvesters, final List<Component> components, ExecutorService executorService, final TrickleCallback trickleCallback) {
+    private void harvest(final Iterator<CandidateHarvesterSetElement> harvesters, final List<Component> components,
+            ExecutorService executorService, final TrickleCallback trickleCallback) {
         // Start asynchronously executing the CandidateHarvester#harvest(Component) method of the harvesters.
         Map<CandidateHarvesterSetTask, Future<?>> tasks = new HashMap<>();
         while (true) {
             // Find the next CandidateHarvester which is to start gathering candidates.
             CandidateHarvesterSetElement harvester;
-                if (harvesters.hasNext()) {
-                    harvester = harvesters.next();
-                } else {
-                    break;
-                }
+            if (harvesters.hasNext()) {
+                harvester = harvesters.next();
+            } else {
+                break;
+            }
             if (!harvester.isEnabled()) {
                 continue;
             }

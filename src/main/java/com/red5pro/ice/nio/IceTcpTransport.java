@@ -19,7 +19,7 @@ import com.red5pro.ice.stack.StunStack;
 
 /**
  * IceTransport for TCP connections.
- * 
+ *
  * @author Paul Gregoire
  */
 public class IceTcpTransport extends IceTransport {
@@ -33,12 +33,13 @@ public class IceTcpTransport extends IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     private IceTcpTransport() {
-        logger.info("id: {} shared: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id, sharedAcceptor, acceptorTimeout, timeout, ioThreads);
+        logger.info("id: {} shared: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id, sharedAcceptor, acceptorTimeout, timeout,
+                ioThreads);
     }
 
     /**
      * Returns a static instance of this transport.
-     * 
+     *
      * @param id transport / acceptor identifier
      * @return IceTransport
      */
@@ -115,7 +116,7 @@ public class IceTcpTransport extends IceTransport {
             if (localSoLinger > -1) {
                 sessionConf.setSoLinger(localSoLinger);
             } else {
-                // externalized linger property for configuration            
+                // externalized linger property for configuration
                 sessionConf.setSoLinger(soLinger); // 0 = close immediately, -1 = disabled, > 0 = linger for x seconds
             }
             // TODO(paul) externalize keep-alive property for configuration
@@ -148,7 +149,7 @@ public class IceTcpTransport extends IceTransport {
 
     /**
      * Adds a socket binding to the acceptor.
-     * 
+     *
      * @param addr
      * @return true if successful and false otherwise
      */
@@ -199,7 +200,7 @@ public class IceTcpTransport extends IceTransport {
      */
     public void setSoLinger(int soLinger) {
         this.localSoLinger = soLinger;
-        // if we've been given a linger property, apply it to the socket; this assumes non-shared acceptors       
+        // if we've been given a linger property, apply it to the socket; this assumes non-shared acceptors
         ((NioSocketAcceptor) acceptor).getSessionConfig().setSoLinger(localSoLinger);
     }
 

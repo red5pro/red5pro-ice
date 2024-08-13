@@ -208,7 +208,9 @@ public class TcpHarvester extends AbstractTcpListener implements CandidateHarves
                 TransportAddress baseTransportAddress = base.getTransportAddress();
                 if (localAddress.equals(baseTransportAddress.getAddress())) {
                     InetAddress publicAddress = mapping.getKey();
-                    ServerReflexiveCandidate mappedCandidate = new ServerReflexiveCandidate(new TransportAddress(publicAddress, baseTransportAddress.getPort(), Transport.TCP), base, base.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
+                    ServerReflexiveCandidate mappedCandidate = new ServerReflexiveCandidate(
+                            new TransportAddress(publicAddress, baseTransportAddress.getPort(), Transport.TCP), base,
+                            base.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
                     if (base.isSSL()) {
                         mappedCandidate.setSSL(true);
                     }
@@ -221,7 +223,9 @@ public class TcpHarvester extends AbstractTcpListener implements CandidateHarves
         List<LocalCandidate> portMappedCandidates = new LinkedList<>();
         for (TcpHostCandidate base : hostCandidates) {
             for (Integer port : mappedPorts) {
-                ServerReflexiveCandidate portMappedCandidate = new ServerReflexiveCandidate(new TransportAddress(base.getTransportAddress().getAddress(), port, Transport.TCP), base, base.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
+                ServerReflexiveCandidate portMappedCandidate = new ServerReflexiveCandidate(
+                        new TransportAddress(base.getTransportAddress().getAddress(), port, Transport.TCP), base,
+                        base.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
                 if (base.isSSL()) {
                     portMappedCandidate.setSSL(true);
                 }
@@ -233,7 +237,9 @@ public class TcpHarvester extends AbstractTcpListener implements CandidateHarves
         for (LocalCandidate mappedCandidate : mappedCandidates) {
             TcpHostCandidate base = (TcpHostCandidate) mappedCandidate.getBase();
             for (Integer port : mappedPorts) {
-                ServerReflexiveCandidate portMappedCandidate = new ServerReflexiveCandidate(new TransportAddress(mappedCandidate.getTransportAddress().getAddress(), port, Transport.TCP), base, base.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
+                ServerReflexiveCandidate portMappedCandidate = new ServerReflexiveCandidate(
+                        new TransportAddress(mappedCandidate.getTransportAddress().getAddress(), port, Transport.TCP), base,
+                        base.getStunServerAddress(), CandidateExtendedType.STATICALLY_MAPPED_CANDIDATE);
                 if (base.isSSL()) {
                     portMappedCandidate.setSSL(true);
                 }
@@ -334,7 +340,8 @@ public class TcpHarvester extends AbstractTcpListener implements CandidateHarves
      * @throws IllegalStateException if the ICE state is incorrect, or an appropriate candidate could not be found.
      * @throws IOException if creation of some of the required socket instances failed.
      */
-    private void addSocketToComponent(Socket socket, Component component, DatagramPacket datagramPacket) throws IOException, IllegalStateException {
+    private void addSocketToComponent(Socket socket, Component component, DatagramPacket datagramPacket)
+            throws IOException, IllegalStateException {
         IceProcessingState state = component.getParentStream().getParentAgent().getState();
         if (logger.isLoggable(Level.FINE) && !IceProcessingState.WAITING.equals(state) && !IceProcessingState.RUNNING.equals(state)) {
             logger.fine("Adding a socket to an Agent in state " + state);
@@ -365,7 +372,8 @@ public class TcpHarvester extends AbstractTcpListener implements CandidateHarves
         int localPort = socket.getLocalPort();
         for (LocalCandidate candidate : component.getLocalCandidates()) {
             TransportAddress transportAddress = candidate.getTransportAddress();
-            if (candidate instanceof TcpHostCandidate && Transport.TCP.equals(transportAddress.getTransport()) && localPort == transportAddress.getPort() && localAddress.equals(transportAddress.getAddress())) {
+            if (candidate instanceof TcpHostCandidate && Transport.TCP.equals(transportAddress.getTransport())
+                    && localPort == transportAddress.getPort() && localAddress.equals(transportAddress.getAddress())) {
                 return (TcpHostCandidate) candidate;
             }
         }

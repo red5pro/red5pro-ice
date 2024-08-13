@@ -52,7 +52,8 @@ class CandidateHarvesterSetTask implements Runnable {
      * gathering.
      * CandidateHarvester#harvest(Component) first
      */
-    public CandidateHarvesterSetTask(CandidateHarvesterSetElement harvester, Collection<Component> components, TrickleCallback trickleCallback) {
+    public CandidateHarvesterSetTask(CandidateHarvesterSetElement harvester, Collection<Component> components,
+            TrickleCallback trickleCallback) {
         this.harvester = harvester;
         this.components = components;
         this.trickleCallback = trickleCallback;

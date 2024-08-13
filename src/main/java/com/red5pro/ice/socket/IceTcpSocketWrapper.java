@@ -19,14 +19,14 @@ import com.red5pro.ice.TransportAddress;
 
 /**
  * TCP implementation of the IceSocketWrapper.
- * 
+ *
  * @author Paul Gregoire
  */
 public class IceTcpSocketWrapper extends IceSocketWrapper {
 
     /**
      * Use builder to create instance.
-     * 
+     *
      * @throws IOException
      */
     IceTcpSocketWrapper(TransportAddress transportAddress) throws IOException {
@@ -112,7 +112,7 @@ public class IceTcpSocketWrapper extends IceSocketWrapper {
 
     /**
      * Pad the data for TCP per RFC 4571.
-     * 
+     *
      * @param buf non-padded source data
      * @return padded data with length
      */

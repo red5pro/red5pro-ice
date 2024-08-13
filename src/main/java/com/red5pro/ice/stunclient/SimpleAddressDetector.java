@@ -83,7 +83,7 @@ public class SimpleAddressDetector {
 
     /**
      * Creates a listening point for the specified socket and attempts to discover how its local address is NAT mapped.
-     * 
+     *
      * @param socket the socket whose address needs to be resolved
      * @return a StunAddress object containing the mapped address or null if discovery failed
      * @throws IOException if something fails along the way

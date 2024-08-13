@@ -7,8 +7,8 @@ import com.red5pro.ice.StunException;
  * After the header are 0 or more attributes.  Each attribute is TLV
  * encoded, with a 16 bit type, 16 bit length, and variable value:
  *<pre>
- *     0                   1                   2                   3   
- *     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 
+ *     0                   1                   2                   3
+ *     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *    |         Type                  |            Length             |
  *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -53,7 +53,7 @@ import com.red5pro.ice.StunException;
  *    0x8029: ICE-CONTROLLED
  *    0x802A: ICE-CONTROLLING
  * </pre>
- * 
+ *
  * @author Emil Ivov
  * @author Sebastien Vincent
  * @author Namal Senarathne

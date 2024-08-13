@@ -51,7 +51,8 @@ public class HostCandidate extends LocalCandidate {
      * @param transport transport protocol used
      */
     public HostCandidate(IceSocketWrapper socket, Component parentComponent, Transport transport) {
-        super(new TransportAddress(socket.getLocalAddress(), socket.getLocalPort(), transport), parentComponent, CandidateType.HOST_CANDIDATE, CandidateExtendedType.HOST_CANDIDATE, null);
+        super(new TransportAddress(socket.getLocalAddress(), socket.getLocalPort(), transport), parentComponent,
+                CandidateType.HOST_CANDIDATE, CandidateExtendedType.HOST_CANDIDATE, null);
         this.socket = socket;
         setBase(this);
     }

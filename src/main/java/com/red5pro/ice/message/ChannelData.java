@@ -47,7 +47,7 @@ public class ChannelData {
 
     /**
      * Set the channel number.
-     * 
+     *
      * @param channelNumber the channel number
      */
     public void setChannelNumber(char channelNumber) {
@@ -56,7 +56,7 @@ public class ChannelData {
 
     /**
      * Get the channel number.
-     * 
+     *
      * @return channel number
      */
     public char getChannelNumber() {
@@ -65,7 +65,7 @@ public class ChannelData {
 
     /**
      * Set the data.
-     * 
+     *
      * @param data the data
      */
     public void setData(byte data[]) {
@@ -74,7 +74,7 @@ public class ChannelData {
 
     /**
      * Get the data.
-     * 
+     *
      * @return data
      */
     public byte[] getData() {
@@ -112,7 +112,7 @@ public class ChannelData {
 
     /**
      * Returns a non padded binary representation of this message.
-     * 
+     *
      * @return a non padded binary representation of this message
      * @throws StunException if the channel number is invalid
      * @deprecated
@@ -123,7 +123,7 @@ public class ChannelData {
 
     /**
      * Returns a binary representation of this message.
-     * 
+     *
      * @param pad determine if we pad this message
      * @return a binary representation of this message
      * @throws StunException if the channel number is invalid
@@ -151,7 +151,7 @@ public class ChannelData {
 
     /**
      * Constructs a message from its binary representation.
-     * 
+     *
      * @param binMessage the binary array that contains the encoded message
      * @param offset the index where the message starts
      * @param arrayLen the length of the message
@@ -165,7 +165,7 @@ public class ChannelData {
 
     /**
      * Constructs a message from its binary representation.
-     * 
+     *
      * @param binMessage the binary array that contains the encoded message
      * @param offset the index where the message starts
      * @return a Message object constructed from the binMessage array
@@ -197,7 +197,7 @@ public class ChannelData {
 
     /**
      * Checks if the given binary message is a ChannelData Message. Every ChannelData message has first two bits as 01.
-     * 
+     *
      * @param binMessage binary message to check
      * @return true is given binary message is a ChannelData Message
      */

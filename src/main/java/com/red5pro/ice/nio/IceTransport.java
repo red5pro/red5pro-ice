@@ -21,7 +21,7 @@ import com.red5pro.ice.Transport;
 
 /**
  * IceTransport, the parent transport class.
- * 
+ *
  * @author Paul Gregoire
  */
 public abstract class IceTransport {
@@ -88,7 +88,17 @@ public abstract class IceTransport {
 
     // constants for the session map or anything else
     public enum Ice {
-        TRANSPORT, CONNECTION, STUN_STACK, DECODER, ENCODER, DECODER_STATE_KEY, CANDIDATE, TCP_BUFFER, UUID, CLOSE_ON_IDLE, ACTIVE_SESSION,
+        TRANSPORT,
+        CONNECTION,
+        STUN_STACK,
+        DECODER,
+        ENCODER,
+        DECODER_STATE_KEY,
+        CANDIDATE,
+        TCP_BUFFER,
+        UUID,
+        CLOSE_ON_IDLE,
+        ACTIVE_SESSION,
         LOCAL_TRANSPORT_ADDR, // local TransportAddress for the connected InetSocketAddress
         REMOTE_TRANSPORT_ADDR; // remote TransportAddress for the connected InetSocketAddress
     }
@@ -112,7 +122,7 @@ public abstract class IceTransport {
 
     /**
      * Returns a static instance of this transport.
-     * 
+     *
      * @param type the transport type requested, either UDP or TCP
      * @param id transport / acceptor identifier
      * @return IceTransport
@@ -127,7 +137,7 @@ public abstract class IceTransport {
 
     /**
      * Returns the acceptor if it exists and null otherwise.
-     * 
+     *
      * @return acceptor
      */
     public IoAcceptor getAcceptor() {
@@ -136,7 +146,7 @@ public abstract class IceTransport {
 
     /**
      * Adds a socket binding to the acceptor.
-     * 
+     *
      * @param addr
      * @return true if successful and false otherwise
      */
@@ -146,7 +156,7 @@ public abstract class IceTransport {
 
     /**
      * Registers a StunStack and IceSocketWrapper to the internal maps to wait for their associated IoSession creation. This causes a bind on the given local address.
-     * 
+     *
      * @param stunStack
      * @param iceSocket
      * @return true if successful and false otherwise
@@ -157,7 +167,7 @@ public abstract class IceTransport {
 
     /**
      * Removes a socket binding from the acceptor.
-     * 
+     *
      * @param addr
      * @return true if successful and false otherwise
      */
@@ -221,7 +231,7 @@ public abstract class IceTransport {
 
     /**
      * Review all ports in-use for a conflict with the given port.
-     * 
+     *
      * @param port
      * @return true if already bound and false otherwise
      */
@@ -232,7 +242,7 @@ public abstract class IceTransport {
 
     /**
      * Returns the static ProtocolCodecFilter.
-     * 
+     *
      * @return iceCodecFilter
      */
     public static ProtocolCodecFilter getProtocolcodecfilter() {
@@ -255,7 +265,7 @@ public abstract class IceTransport {
 
     /**
      * General purpose timeout value; used for connection and idle timeouts.
-     * 
+     *
      * @return timeout
      */
     public static int getTimeout() {
@@ -264,7 +274,7 @@ public abstract class IceTransport {
 
     /**
      * Set a timeout value in seconds.
-     * 
+     *
      * @param timeout seconds to elapse before timing out
      */
     public static void setTimeout(int timeout) {
@@ -280,7 +290,7 @@ public abstract class IceTransport {
 
     /**
      * Returns the IoHandler for ICE connections.
-     * 
+     *
      * @return iceHandler
      */
     public static IceHandler getIceHandler() {
@@ -289,7 +299,7 @@ public abstract class IceTransport {
 
     /**
      * Returns whether or not a shared acceptor is in-use.
-     * 
+     *
      * @return true if shared and false otherwise
      */
     public static boolean isSharedAcceptor() {
@@ -298,7 +308,7 @@ public abstract class IceTransport {
 
     /**
      * Returns the acceptor timeout.
-     * 
+     *
      * @return acceptorTimeout
      */
     public static long getAcceptorTimeout() {

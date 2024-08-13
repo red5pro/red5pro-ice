@@ -148,7 +148,8 @@ public class EventDispatcher {
      * @param listener The RequestListener to be removed
      */
     public void removeRequestListener(RequestListener listener) {
-        messageListeners.stream().filter(messageListener -> messageListener.delegate.equals(listener)).findFirst().ifPresent(this::removeMessageListener);
+        messageListeners.stream().filter(messageListener -> messageListener.delegate.equals(listener)).findFirst()
+                .ifPresent(this::removeMessageListener);
     }
 
     /**

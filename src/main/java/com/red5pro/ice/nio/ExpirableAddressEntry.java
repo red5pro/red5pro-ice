@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Immutable entry for expirable address bindings.
- * 
+ *
  * @author Paul Gregoire
  *
  */
@@ -13,7 +13,7 @@ public class ExpirableAddressEntry implements Delayed {
 
     // use the acceptor timeout as our expiration time modifier (multiply by 1k because its in seconds)
     private static final long TIMEOUT = IceTransport.getAcceptorTimeout() * 1000L;
-    
+
     private final String addressKey;
 
     private final long expirationTime;

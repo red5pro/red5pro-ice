@@ -37,7 +37,7 @@ public class RelayedCandidate extends LocalCandidate {
     private final TurnCandidateHarvest turnCandidateHarvest;
 
     /**
-     * Initializes a new RelayedCandidate which is to represent a specific TransportAddress harvested through a specific HostCandidate and a 
+     * Initializes a new RelayedCandidate which is to represent a specific TransportAddress harvested through a specific HostCandidate and a
      * TURN server with a specific TransportAddress.
      *
      * @param transportAddress the TransportAddress to be represented by the new instance
@@ -46,7 +46,9 @@ public class RelayedCandidate extends LocalCandidate {
      * to be represented by the new instance
      */
     public RelayedCandidate(TransportAddress transportAddress, TurnCandidateHarvest turnCandidateHarvest, TransportAddress mappedAddress) {
-        super(transportAddress, turnCandidateHarvest.hostCandidate.getParentComponent(), CandidateType.RELAYED_CANDIDATE, CandidateExtendedType.TURN_RELAYED_CANDIDATE, turnCandidateHarvest.hostCandidate.getParentComponent().findLocalCandidate(mappedAddress));
+        super(transportAddress, turnCandidateHarvest.hostCandidate.getParentComponent(), CandidateType.RELAYED_CANDIDATE,
+                CandidateExtendedType.TURN_RELAYED_CANDIDATE,
+                turnCandidateHarvest.hostCandidate.getParentComponent().findLocalCandidate(mappedAddress));
         this.turnCandidateHarvest = turnCandidateHarvest;
         // RFC 5245: The base of a relayed candidate is that candidate itself
         setBase(this);
@@ -79,7 +81,7 @@ public class RelayedCandidate extends LocalCandidate {
 
     /**
      * Returns the relayed candidate connection.
-     * 
+     *
      * @return RelayedCandidateConnection
      */
     public RelayedCandidateConnection getRelayedCandidateConnection() {
@@ -88,7 +90,7 @@ public class RelayedCandidate extends LocalCandidate {
 
     /**
      * Returns the TurnCandidateHarvest for this candidate.
-     * 
+     *
      * @return TurnCandidateHarvest
      */
     public TurnCandidateHarvest getTurnCandidateHarvest() {

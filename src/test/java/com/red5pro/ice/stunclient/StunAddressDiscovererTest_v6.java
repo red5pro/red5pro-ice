@@ -93,9 +93,11 @@ public class StunAddressDiscovererTest_v6 extends TestCase {
      */
     public void testRecognizeSymmetricNat() throws Exception {
         //define the server response sequence
-        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
+        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
         Response testIResponse2 = null;
-        Response testIResponse3 = MessageFactory.create3489BindingResponse(mappedClientAddressPort2, responseServerAddress, responseServerAddress);
+        Response testIResponse3 = MessageFactory.create3489BindingResponse(mappedClientAddressPort2, responseServerAddress,
+                responseServerAddress);
 
         responseServer.addMessage(testIResponse1);
         responseServer.addMessage(testIResponse2);
@@ -118,9 +120,11 @@ public class StunAddressDiscovererTest_v6 extends TestCase {
      */
     public void testRecognizePortRestrictedCone() throws Exception {
         //define the server response sequence
-        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
+        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
         Response testIResponse2 = null;
-        Response testIResponse3 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
+        Response testIResponse3 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
         Response testIResponse4 = null;
 
         responseServer.addMessage(testIResponse1);
@@ -145,10 +149,13 @@ public class StunAddressDiscovererTest_v6 extends TestCase {
      */
     public void testRecognizeRestrictedCone() throws Exception {
         //define the server response sequence
-        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
+        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
         Response testIResponse2 = null;
-        Response testIResponse3 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
-        Response testIResponse4 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
+        Response testIResponse3 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
+        Response testIResponse4 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
 
         responseServer.addMessage(testIResponse1);
         responseServer.addMessage(testIResponse2);
@@ -172,8 +179,10 @@ public class StunAddressDiscovererTest_v6 extends TestCase {
      */
     public void testRecognizeFullCone() throws Exception {
         //define the server response sequence
-        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
-        Response testIResponse2 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress, responseServerAddress);
+        Response testIResponse1 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
+        Response testIResponse2 = MessageFactory.create3489BindingResponse(mappedClientAddress, responseServerAddress,
+                responseServerAddress);
 
         responseServer.addMessage(testIResponse1);
         responseServer.addMessage(testIResponse2);

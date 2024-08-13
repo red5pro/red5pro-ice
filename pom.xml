@@ -4,7 +4,7 @@
     <groupId>com.red5pro</groupId>
     <artifactId>red5pro-ice</artifactId>
     <!-- When the version changes, update Agent.VERSION as well -->
-    <version>1.0.7</version>
+    <version>1.0.8</version>
     <packaging>jar</packaging>
     <name>red5pro-ice</name>
     <url>https://github.com/red5pro/red5pro-ice</url>
@@ -147,6 +147,30 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- Project http://code.revelc.net/formatter-maven-plugin/ -->
+            <plugin>
+                <groupId>net.revelc.code.formatter</groupId>
+                <artifactId>formatter-maven-plugin</artifactId>
+                <version>2.23.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>format</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <configFile>Red5Pro-formatter.xml</configFile>
+                    <!-- Enforce line-feed (linux,mac) line endings att -->
+                    <lineEnding>LF</lineEnding>
+                    <!-- Exclude xml and props files -->
+                    <excludes>
+                        <exclude>**/*.xml</exclude>
+                        <exclude>**/*.html</exclude>
+                        <exclude>**/*.properties</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-javadoc-plugin</artifactId>

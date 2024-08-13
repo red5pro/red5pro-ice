@@ -77,7 +77,8 @@ public class AttributeFactory {
         ErrorCodeAttribute attribute = new ErrorCodeAttribute();
         attribute.setErrorClass(errorClass);
         attribute.setErrorNumber(errorNumber);
-        attribute.setReasonPhrase(reasonPhrase == null ? ErrorCodeAttribute.getDefaultReasonPhrase(attribute.getErrorCode()) : reasonPhrase);
+        attribute
+                .setReasonPhrase(reasonPhrase == null ? ErrorCodeAttribute.getDefaultReasonPhrase(attribute.getErrorCode()) : reasonPhrase);
         return attribute;
     }
 
@@ -104,7 +105,8 @@ public class AttributeFactory {
     public static ErrorCodeAttribute createErrorCodeAttribute(char errorCode, String reasonPhrase) throws IllegalArgumentException {
         ErrorCodeAttribute attribute = new ErrorCodeAttribute();
         attribute.setErrorCode(errorCode);
-        attribute.setReasonPhrase(reasonPhrase == null ? ErrorCodeAttribute.getDefaultReasonPhrase(attribute.getErrorCode()) : reasonPhrase);
+        attribute
+                .setReasonPhrase(reasonPhrase == null ? ErrorCodeAttribute.getDefaultReasonPhrase(attribute.getErrorCode()) : reasonPhrase);
         return attribute;
     }
 
@@ -457,7 +459,7 @@ public class AttributeFactory {
 
     /**
      * Creates a new RequestedAddressFamilyAttribute of the specified family
-     * 
+     *
      * @param family address family value as specified in the RFC
      * @return the newly created RequestedAddressFamily attribute if family is IPv4/IPv6 otherwise null
      */
@@ -472,9 +474,9 @@ public class AttributeFactory {
 
     /**
      * Creates a new ConnectionIdAttribute of the specified connectionIdValue
-     * 
+     *
      * @param connectionIdValue the connection ID value.
-     * @return the newly created ConnectionId attribute. 
+     * @return the newly created ConnectionId attribute.
      */
     public static ConnectionIdAttribute createConnectionIdAttribute(int connectionIdValue) {
         ConnectionIdAttribute attribute = new ConnectionIdAttribute();
@@ -485,7 +487,7 @@ public class AttributeFactory {
     /**
      * Creates a new ConnectionIdAttribute. The connectionId value is set as the
      * hashcode value of the object.
-     * 
+     *
      * @return the newly created ConnectionId attribute.
      */
     public static ConnectionIdAttribute createConnectionIdAttribute() {

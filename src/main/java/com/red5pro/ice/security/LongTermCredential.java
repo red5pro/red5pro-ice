@@ -34,7 +34,7 @@ public class LongTermCredential {
     /**
      * Constructs a new String by decoding a specific array of bytes using the UTF-8 charset. The length of the new
      * String is a function of the charset, and hence may not be equal to the length of the byte array.
-     * 
+     *
      * @param bytes the bytes to be decoded into characters
      * @return a new String which has been decoded from the specified array of bytes using the UTF-8 charset
      */

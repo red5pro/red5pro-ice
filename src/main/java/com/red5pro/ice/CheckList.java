@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  * agent will run STUN connectivity checks for. There is one check list per in-use media stream resulting from the offer/answer exchange.
  * <br>
  * Given the asynchronous nature of ICE, be aware that a check list may be accessed from different locations.
- * 
+ *
  * @author Emil Ivov
  * @author Paul Gregoire
  */
@@ -286,14 +286,18 @@ public class CheckList extends PriorityBlockingQueue<CandidatePair> {
         Iterator<CandidatePair> pairsIter = iterator();
         while (pairsIter.hasNext()) {
             CandidatePair pair = pairsIter.next();
-            if (pair.getParentComponent() == cmp && (pair.getState() == CandidatePairState.WAITING || pair.getState() == CandidatePairState.FROZEN || (pair.getState() == CandidatePairState.IN_PROGRESS && pair.getPriority() < nominatedPair.getPriority()))) {
+            if (pair.getParentComponent() == cmp
+                    && (pair.getState() == CandidatePairState.WAITING || pair.getState() == CandidatePairState.FROZEN
+                            || (pair.getState() == CandidatePairState.IN_PROGRESS && pair.getPriority() < nominatedPair.getPriority()))) {
                 pairsIter.remove();
             }
         }
         Iterator<CandidatePair> triggeredPairsIter = triggeredCheckQueue.iterator();
         while (triggeredPairsIter.hasNext()) {
             CandidatePair pair = triggeredPairsIter.next();
-            if (pair.getParentComponent() == cmp && (pair.getState() == CandidatePairState.WAITING || pair.getState() == CandidatePairState.FROZEN || (pair.getState() == CandidatePairState.IN_PROGRESS && pair.getPriority() < nominatedPair.getPriority()))) {
+            if (pair.getParentComponent() == cmp
+                    && (pair.getState() == CandidatePairState.WAITING || pair.getState() == CandidatePairState.FROZEN
+                            || (pair.getState() == CandidatePairState.IN_PROGRESS && pair.getPriority() < nominatedPair.getPriority()))) {
                 triggeredPairsIter.remove();
             }
         }

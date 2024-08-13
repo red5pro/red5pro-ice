@@ -218,7 +218,8 @@ public class StunCandidateHarvester extends AbstractCandidateHarvester {
             if (cands == 0) {
                 logger.debug("Completed {} harvest: {}. Found 0 candidates", component.toShortString(), toString());
             } else {
-                logger.debug("Completed {} harvest: {}. Found {} candidates: {}", component.toShortString(), toString(), cands, listCandidates(candidates));
+                logger.debug("Completed {} harvest: {}. Found {} candidates: {}", component.toShortString(), toString(), cands,
+                        listCandidates(candidates));
             }
         }
         return candidates;
@@ -287,7 +288,7 @@ public class StunCandidateHarvester extends AbstractCandidateHarvester {
                         // add this socket for attachment to the session upon opening
                         handler.registerStackAndSocket(stunStack, iceSocket);
                     }
-                    // connect 
+                    // connect
                     ConnectFuture future = connector.connect(stunServer, hostAddress);
                     future.awaitUninterruptibly(500L);
                     if (future.isConnected()) {
@@ -295,11 +296,11 @@ public class StunCandidateHarvester extends AbstractCandidateHarvester {
                         if (sess != null) {
                             iceSocket.setSession(sess);
                             Component component = hostCand.getParentComponent();
-                            // create a new host candidate 
+                            // create a new host candidate
                             cand = new HostCandidate(iceSocket, component, Transport.TCP);
                             // set the tcptype (we need to know if the other end is active, but for now all the browsers appear to be
                             cand.setTcpType(CandidateTcpType.PASSIVE);
-                            stunStack.addSocket(iceSocket, iceSocket.getRemoteTransportAddress(), true); // passive == bind, active == no 
+                            stunStack.addSocket(iceSocket, iceSocket.getRemoteTransportAddress(), true); // passive == bind, active == no
                             component.getComponentSocket().addSocketWrapper(iceSocket);
                         }
                     }
