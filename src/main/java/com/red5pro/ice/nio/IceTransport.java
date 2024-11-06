@@ -47,7 +47,7 @@ public abstract class IceTransport {
     // more info: https://stackoverflow.com/questions/3757289/when-is-tcp-option-so-linger-0-required#13088864
     protected static int soLinger = StackProperties.getInt("SO_LINGER", -1);
 
-    // used for idle timeout checks, the connection timeout is currently 3s; to disable this its -1
+    // used for idle timeout checks, the connection timeout is currently 2s; to disable this its -1
     protected static int timeout = StackProperties.getInt("SO_TIMEOUT", 120);
 
     // used for binding and unbinding timeout, default 2s
@@ -162,6 +162,25 @@ public abstract class IceTransport {
      * @return true if successful and false otherwise
      */
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
+        return false;
+    }
+
+    /**
+     * Removes a socket binding from the acceptor by port.
+     *
+     * @param port
+     * @return true if successful and false otherwise
+     */
+    public boolean removeBinding(int port) {
+        if (acceptor != null) {
+            for (SocketAddress addr : acceptor.getLocalAddresses()) {
+                if (((InetSocketAddress) addr).getPort() == port) {
+                    return removeBinding(addr);
+                }
+            }
+        } else {
+            logger.warn("Acceptor is null, cannot remove binding for port: {}", port);
+        }
         return false;
     }
 

@@ -4,7 +4,7 @@
     <groupId>com.red5pro</groupId>
     <artifactId>red5pro-ice</artifactId>
     <!-- When the version changes, update Agent.VERSION as well -->
-    <version>1.0.8</version>
+    <version>1.0.9</version>
     <packaging>jar</packaging>
     <name>red5pro-ice</name>
     <url>https://github.com/red5pro/red5pro-ice</url>
@@ -22,14 +22,20 @@
     </scm>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- reduces a confusing message about the future availability of displayed plugins -->
+        <maven.plugin.validation>brief</maven.plugin.validation>
+        <!-- allows tests to be built and works in conjuction with skipTests property -->
+        <maven.test.skip>false</maven.test.skip>
+        <!-- prevents built tests from running -->
         <skipTests>true</skipTests>
-        <maven.compiler.source>1.11</maven.compiler.source>
-        <maven.compiler.target>1.11</maven.compiler.target>
-        <java.release.level>11</java.release.level>
+        <maven.compiler.verbose>false</maven.compiler.verbose>
+        <maven.compiler.release>11</maven.compiler.release>
+        <maven.build.timestamp.format>MM.dd.yyyy HH:mm</maven.build.timestamp.format>
+        <timestamp>${maven.build.timestamp}</timestamp>
         <mina.version>2.0.23</mina.version>
-        <red5pro-common.version>12.0.1.3</red5pro-common.version>
+        <red5pro-common.version>12.6.0.0</red5pro-common.version>
         <jmdns.version>3.5.8</jmdns.version>
-        <logback.version>1.2.11</logback.version>
+        <logback.version>1.5.6</logback.version>
         <junit.version>[4.13.1,)</junit.version>
     </properties>
     <!-- private location for red5pro deploy -->
@@ -92,53 +98,14 @@
         <plugins>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
-                <executions>
-                    <execution>
-                        <id>default-compile</id>
-                        <configuration>
-                            <!-- compile everything to ensure module-info contains right entries -->
-                            <release>${java.release.level}</release>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>base-compile</id>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <!-- recompile everything for target VM except the module-info.java -->
-                        <configuration>
-                            <excludes>
-                                <exclude>module-info.java</exclude>
-                            </excludes>
-                        </configuration>
-                    </execution>
-                </executions>
-                <!-- defaults for compile and testCompile -->
+                <version>3.13.0</version>
                 <configuration>
-                    <!-- Only required when JAVA_HOME isn't at least Java 9 and when haven't configured the maven-toolchains-plugin -->
-                    <jdkToolchain>
-                        <version>11</version>
-                    </jdkToolchain>
-                    <verbose>true</verbose>
-                    <release>${java.release.level}</release>
-                </configuration>
-            </plugin>
-            <plugin>
-                <!-- https://maven.apache.org/guides/mini/guide-using-toolchains.html -->
-                <artifactId>maven-toolchains-plugin</artifactId>
-                <version>3.0.0</version>
-                <configuration>
-                    <toolchains>
-                        <jdk>
-                            <version>[1.11,)</version>
-                        </jdk>
-                    </toolchains>
+                    <release>${maven.compiler.release}</release>
                 </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>3.0.1</version>
+                <version>3.3.0</version>
                 <executions>
                     <execution>
                         <id>attach-sources</id>
@@ -147,6 +114,39 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.7.0</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <show>private</show>
+                    <nohelp>true</nohelp>
+                    <failOnError>false</failOnError>
+                    <sourcepath>${basedir}/src/main/java</sourcepath>
+                    <includeDependencySources>false</includeDependencySources>
+                    <detectOfflineLinks>false</detectOfflineLinks>
+                    <javadocExecutable>${java.home}/bin/javadoc</javadocExecutable>
+                    <tags>
+                        <tag>
+                            <name>todo</name>
+                            <!-- todo tag for all places -->
+                            <placement>a</placement>
+                            <head>To do:</head>
+                        </tag>
+                    </tags>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
             </plugin>
             <!-- Project http://code.revelc.net/formatter-maven-plugin/ -->
             <plugin>
@@ -171,18 +171,6 @@
                         <exclude>**/*.properties</exclude>
                     </excludes>
                 </configuration>
-            </plugin>
-            <plugin>
-                <artifactId>maven-javadoc-plugin</artifactId>
-                <version>3.2.0</version>
-                <configuration>
-                    <show>private</show>
-                    <nohelp>true</nohelp>
-                </configuration>
-            </plugin>
-            <plugin>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.2.0</version>
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
