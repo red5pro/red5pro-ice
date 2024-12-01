@@ -15,6 +15,9 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.session.IoSessionRecycler;
 import org.apache.mina.transport.socket.DatagramSessionConfig;
 import org.apache.mina.transport.socket.nio.IceDatagramAcceptor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.socket.IceUdpSocketWrapper;
@@ -103,6 +106,8 @@ public class IceUdpTransport extends IceTransport {
         logger.info("id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout, timeout);
     }
 
+    protected static Logger log = LoggerFactory.getLogger(IceUdpTransport.class);
+
     /**
      * Returns a static instance of this transport.
      *
@@ -110,6 +115,7 @@ public class IceUdpTransport extends IceTransport {
      * @return IceTransport
      */
     public static IceUdpTransport getInstance(String id) {
+        log.info("IceUdpTransport  getInstance: {}", id);
         IceUdpTransport instance = (IceUdpTransport) transports.get(id);
         // an id of "disconnected" is a special case where the socket is not associated with an IoSession
         if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
@@ -137,6 +143,7 @@ public class IceUdpTransport extends IceTransport {
     }
 
     void createAcceptor() {
+        log.info("IceUdpTransport  createAcceptor: {}", acceptor);
         if (acceptor == null) {
             // create the nio acceptor
             //acceptor = new NioDatagramAcceptor(); // mina base acceptor
@@ -160,9 +167,11 @@ public class IceUdpTransport extends IceTransport {
 
                 @Override
                 public void sessionCreated(IoSession session) throws Exception {
-                    logger.debug("sessionCreated: {}", session);
+                    logger.info("sessionCreated: {}  for ice transport id: {}", session, id);
                     //logger.debug("sessionCreated acceptor sessions: {}", acceptor.getManagedSessions());
-                    session.setAttribute(IceTransport.Ice.UUID, id);
+                    if (!session.containsAttribute(IceTransport.Ice.UUID)) {
+                        session.setAttribute(IceTransport.Ice.UUID, id);
+                    }
                 }
 
                 @Override
@@ -210,7 +219,7 @@ public class IceUdpTransport extends IceTransport {
             acceptor.getFilterChain().addLast("protocol", iceCodecFilter);
             // add our handler
             acceptor.setHandler(iceHandler);
-            logger.info("Started socket transport");
+            logger.info("Started socket transport id: {}", id);
             if (isTrace) {
                 logger.trace("Acceptor sizes - send: {} recv: {}", sessionConf.getSendBufferSize(), sessionConf.getReadBufferSize());
             }
@@ -233,6 +242,8 @@ public class IceUdpTransport extends IceTransport {
             // add the port to the bound list
             if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
                 logger.debug("UDP binding added: {}", addr);
+            } else {
+                logger.debug("UDP binding already added: {}", addr);
             }
             // no exceptions? return true for adding the binding
             return true;
@@ -246,6 +257,9 @@ public class IceUdpTransport extends IceTransport {
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
         logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {}", stunStack, iceSocket);
         boolean result = false;
+        // Setting ID here because our 'IoServiceListener' session-created may be called AFTER ice handler is called to send resopnse.
+        // Cant find any reason we should not set id here.
+        iceSocket.setId(id);
         // add the stack and wrapper to a map which will hold them until an associated session is opened
         // when opened, the stack and wrapper will be added to the session as attributes
         iceHandler.registerStackAndSocket(stunStack, iceSocket);
@@ -264,7 +278,7 @@ public class IceUdpTransport extends IceTransport {
      * @return IoSession or null if creation fails
      */
     public IoSession createSession(IceUdpSocketWrapper socketWrapper, SocketAddress destAddress) {
-        logger.debug("createSession - wrapper: {} remote: {}", socketWrapper, destAddress);
+        logger.info("createSession tid: {} - wrapper: {} remote: {}", id, socketWrapper, destAddress);
         IoSession session = null;
         if (acceptor != null) {
             // get the local address

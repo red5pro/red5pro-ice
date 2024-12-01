@@ -145,8 +145,10 @@ public class IceHandler extends IoHandlerAdapter {
             session.setAttribute(IceTransport.Ice.STUN_STACK, stunStack);
             IceSocketWrapper iceSocket = iceSockets.get(addr);
             if (iceSocket != null) {
-                // set the acceptor / uuid on the wrapper
-                iceSocket.setId((String) session.getAttribute(IceTransport.Ice.UUID));
+                // No longer setting socket ID here because ice trasport might not have set attribute yet.
+                if (!session.containsAttribute(IceTransport.Ice.UUID)) {
+                    session.setAttribute(IceTransport.Ice.UUID, iceSocket.getId());
+                }
             }
             // XXX create socket registration
             if (transport == Transport.TCP) {

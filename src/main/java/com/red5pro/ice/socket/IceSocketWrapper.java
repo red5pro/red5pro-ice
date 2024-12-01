@@ -268,6 +268,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             // for GC
             relayedCandidateConnection = null;
             logger.trace("Exit close: {} closed: {}", this, closed);
+            //this.id = null;
         }
         // clear out raw messages lingering around at close
         try {
@@ -336,12 +337,16 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * @return UUID string for this instance or "disconnected" if not set on the session or not connected
      */
     public String getId() {
-        String id = DISCONNECTED;
+        if (this.id != null) {
+            return this.id;
+        }
+
         IoSession sess = session.get();
         if (!sess.equals(NULL_SESSION) && sess.containsAttribute(IceTransport.Ice.UUID)) {
-            return (String) sess.getAttribute(IceTransport.Ice.UUID);
+            this.id = (String) sess.getAttribute(IceTransport.Ice.UUID);
+            return this.id;
         }
-        return id;
+        return DISCONNECTED;
     }
 
     /**
@@ -569,6 +574,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * @param id
      */
     public void setId(String id) {
+        logger.debug("Setting id {}", id);
         this.id = id;
     }
 

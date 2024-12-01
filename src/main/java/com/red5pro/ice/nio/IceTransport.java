@@ -54,7 +54,7 @@ public abstract class IceTransport {
     protected static long acceptorTimeout = StackProperties.getInt("ACCEPTOR_TIMEOUT", 2);
 
     // whether or not to use a shared acceptor
-    protected static boolean sharedAcceptor = StackProperties.getBoolean("NIO_SHARED_MODE", true);
+    protected final static boolean sharedAcceptor = false;//StackProperties.getBoolean("NIO_SHARED_MODE", true);//Shared mode leaks ports and kills webrtc service.
 
     // whether or not to handle a hung acceptor aggressively
     protected static boolean aggressiveAcceptorReset = StackProperties.getBoolean("ACCEPTOR_RESET", false);
@@ -198,14 +198,17 @@ public abstract class IceTransport {
                 // remove the port from the list
                 if (boundPorts.remove(port)) {
                     logger.debug("Port removed from bound ports: {}, now removing binding: {}", port, addr);
-                    // perform the unbinding, if bound
-                    if (acceptor.getLocalAddresses().contains(addr)) {
-                        acceptor.unbind(addr); // do this only once, especially for TCP since it can block
-                        logger.debug("Binding removed: {}", addr);
-                    }
+                } else {
+                    logger.debug("Port already removed from bound ports: {}, now removing binding: {}", port, addr);
+                }
+                // perform the unbinding, if bound
+                if (acceptor.getLocalAddresses().contains(addr)) {
+                    acceptor.unbind(addr); // do this only once, especially for TCP since it can block
+                    logger.debug("Binding removed: {}", addr);
                     // no exceptions? return true for removing the binding
                     return true;
                 }
+
             } catch (Throwable t) {
                 // if aggressive acceptor handling is enabled, reset the acceptor
                 if (aggressiveAcceptorReset) {

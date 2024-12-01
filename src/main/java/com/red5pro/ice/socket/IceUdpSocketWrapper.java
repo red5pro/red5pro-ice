@@ -30,6 +30,7 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
      */
     IceUdpSocketWrapper(TransportAddress transportAddress) throws IOException {
         super(transportAddress);
+        logger.debug("IceUdpSocketWrapper  create");
     }
 
     /** {@inheritDoc} */

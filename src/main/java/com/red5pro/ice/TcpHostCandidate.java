@@ -58,7 +58,7 @@ public class TcpHostCandidate extends HostCandidate {
         TransportAddress localAddr = getTransportAddress();
         for (IceSocketWrapper socket : sockets) {
             // get the transport / acceptor id
-            String id = (String) socket.getSession().getAttribute(IceTransport.Ice.UUID);
+            String id = (String) socket.getId();
             // remove our sockets from the stack
             stunStack.removeSocket(id, localAddr, socket.getRemoteTransportAddress());
             socket.close();
