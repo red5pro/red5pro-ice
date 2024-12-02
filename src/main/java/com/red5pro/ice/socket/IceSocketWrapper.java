@@ -30,6 +30,7 @@ import com.red5pro.ice.stack.StunStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.Agent;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 
@@ -243,6 +244,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             } else {
                 logger.debug("Session null at close");
             }
+
             // get the stun stack
             StunStack stunStack = IceTransport.getIceHandler().lookupStunStack(transportAddress);
             if (stunStack == null) {
@@ -270,6 +272,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             logger.trace("Exit close: {} closed: {}", this, closed);
             //this.id = null;
         }
+
         // clear out raw messages lingering around at close
         try {
             if (rawMessageQueue != null) {

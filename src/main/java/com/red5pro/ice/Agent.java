@@ -6,6 +6,7 @@ import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.BindException;
+import java.net.InetSocketAddress;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,6 +16,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -113,6 +115,11 @@ public class Agent {
      * The Map used to store the media streams.
      */
     private final ConcurrentSkipListSet<IceMediaStream> mediaStreams = new ConcurrentSkipListSet<>();
+
+    /**
+     * List of ports given to the agent when constructing components.
+     */
+    private final ConcurrentSkipListSet<Integer> allocatedPorts = new ConcurrentSkipListSet<>();
 
     /**
      * The candidate harvester that we use to gather candidate on the local machine.
@@ -1871,6 +1878,89 @@ public class Agent {
             s = s.substring(0, max);
         }
         return s;
+    }
+
+    /**
+     * Removes a port number from the list of ports given to this agent for constructing components.
+     * @param port
+     * @return
+     */
+    public boolean removePreAllocatedPort(int port) {
+        return allocatedPorts.remove(Integer.valueOf(port));
+    }
+
+    /**
+     * Adds a port number allocated to this agent for constructing components.
+     * @param port allocated for binding to the network. Zeros are not added.
+     * @return port.
+     */
+    public int addPreAllocatedPort(int port) {
+        if (port == 0) {
+            return 0;
+        }
+        // we dont want no stinkin' zeros.
+        allocatedPorts.add(Integer.valueOf(port));
+        return port;
+    }
+
+    /**
+     * Returns a copy of currently preallocated ports.
+     * @return set unmodifiable Set
+     */
+    public Set<Integer> getPreAllocatedPorts() {
+        Set<Integer> copy = Set.copyOf(allocatedPorts);
+        return copy;
+    }
+
+    /**
+     * Releases all resources allocated by any Component with the specified port
+     * @param port
+     */
+    public void freeTransports(Transport type, int port) {
+        if (port != 0) {
+            mediaStreams.forEach(stream -> {
+                stream.getComponents().forEach(comp -> {
+                    ComponentSocket cSocket = comp.getComponentSocket();
+                    if (cSocket != null) {
+                        cSocket.close(type, port);
+                    }
+                });
+            });
+        }
+    }
+
+    public void freeTransports(int port) {
+        if (port != 0) {
+            mediaStreams.forEach(stream -> {
+                stream.getComponents().forEach(comp -> {
+                    ComponentSocket cSocket = comp.getComponentSocket();
+                    if (cSocket != null) {
+                        cSocket.close(port);
+                    }
+                });
+            });
+        }
+    }
+
+    /**
+     * Prepares this Agent for garbage collection by ending all related processes and freeing its IceMediaStreams, Components
+     * and Candidates. This method will also place the agent in the terminated state in case it wasn't already there.
+     * After the agent has been freed, the callback will be invoked.
+     * @param callBack the method to be called after the agent has been freed.
+     */
+    public void free(Callable<?> callBack) {
+
+        try {
+            free();
+        } catch (Exception e) {
+        }
+
+        try {
+            callBack.call();
+        } catch (Exception e) {
+            logger.error("Callback error on free()", e);
+        }
+
     }
 
     /**

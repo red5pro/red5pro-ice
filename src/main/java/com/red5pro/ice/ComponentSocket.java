@@ -83,6 +83,37 @@ public class ComponentSocket implements PropertyChangeListener {
         }
     }
 
+    public void close(Transport t, int port) {
+        Set<IceSocketWrapper> toClose = new HashSet<>();
+        socketWrappers.forEach(wrapper -> {
+            if (wrapper.getTransport() == t && wrapper.getLocalPort() == port) {
+                wrapper.close();
+                toClose.add(wrapper);
+
+            }
+        });
+        socketWrappers.removeAll(toClose);
+
+        if (socketWrappers.isEmpty()) {
+            close();
+        }
+    }
+
+    public void close(int port) {
+        Set<IceSocketWrapper> toClose = new HashSet<>();
+        socketWrappers.forEach(wrapper -> {
+            if (wrapper.getLocalPort() == port) {
+                wrapper.close();
+                toClose.add(wrapper);
+            }
+        });
+        socketWrappers.removeAll(toClose);
+
+        if (socketWrappers.isEmpty()) {
+            close();
+        }
+    }
+
     public void close() {
         try {
             socketWrappers.forEach(IceSocketWrapper::close);
