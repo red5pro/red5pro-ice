@@ -5,7 +5,6 @@ import java.net.SocketAddress;
 import java.util.LinkedList;
 import java.util.List;
 
-import com.red5pro.ice.nio.IceTransport;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.StunStack;
 
