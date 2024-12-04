@@ -72,7 +72,7 @@ public class ShallowStackTest extends TestCase {
     private IceSocketWrapper localSock;
 
     /**
-     * Transport type to be used for the test.
+     * Transport type to be used for the test. Default is UDP, set this to TCP for TCP testing.
      */
     static Transport selectedTransport = Transport.UDP;
 
@@ -107,7 +107,7 @@ public class ShallowStackTest extends TestCase {
         // set the port ranges
         int portBase = 50000;
         PortManager.setRtpPortBase(portBase);
-        PortManager.setRtpPortCeiling(portBase + 34);
+        PortManager.setRtpPortCeiling(portBase + 34); // 35 ports total (unless the system/service allocated some)
         // initial transport for setup is UDP
         boolean udp = selectedTransport == Transport.UDP;
         // initializes the mapping harvesters
@@ -125,7 +125,8 @@ public class ShallowStackTest extends TestCase {
         // init the stack
         stunStack = new StunStack();
         // access point
-        localAddress = new TransportAddress(IPAddress, PortManager.getRTPServerPort(udp), selectedTransport);
+        int localPort = PortManager.getRTPServerPort(udp);
+        localAddress = new TransportAddress(IPAddress, localPort, selectedTransport);
         logger.info("Server: {} Client: {}", serverPort, localAddress.getPort());
         if (selectedTransport == Transport.UDP) {
             localSock = IceSocketWrapper.build(localAddress, null);
@@ -151,9 +152,45 @@ public class ShallowStackTest extends TestCase {
         localSock.close();
         msgFixture = null;
         stunStack.shutDown();
+        // clear ports from setUp
+        PortManager.clearRTPServerPort(serverAddress.getPort());
+        PortManager.clearRTPServerPort(localAddress.getPort());
+        logger.info("Port manager allocations at tearDown: {} (should be 0)", PortManager.getCount());
         super.tearDown();
         logger.info("======================================================================================\nTorn down {}",
                 getClass().getName());
+    }
+
+    @Test
+    public void testPortExhaustion() throws Exception {
+        logger.info("\nPortExhaustion");
+        boolean udp = selectedTransport == Transport.UDP;
+        // create some agents that would exceed port range
+        int agentCount = 36;
+        final List<Agent> agents = new ArrayList<>();
+        for (int a = 0; a < agentCount; a++) {
+            Agent agent = new Agent();
+            agent.setProperty("proref", String.format("agent#%d", a));
+            try {
+                agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+                agents.add(agent);
+            } catch (Exception e) {
+                logger.warn("Exception in setupICE for: {}", agent.getProperty("proref"));
+            }
+        }
+        if (agents.size() < agentCount) {
+            logger.warn("Agent count: {} less than expected: {}", agents.size(), agentCount);
+            // for now we expect a failure since we're exceeding the port range
+            //fail("Agent count less than expected");
+        }
+        logger.info("Cleaning up agents");
+        agents.forEach(agent -> {
+            agent.free();
+            agent.getPreAllocatedPorts().forEach(port -> {
+                PortManager.clearRTPServerPort(port);
+                agent.removePreAllocatedPort(port);
+            });
+        });
     }
 
     @SuppressWarnings("incomplete-switch")
@@ -263,6 +300,10 @@ public class ShallowStackTest extends TestCase {
         logger.info("Cleaning up agents");
         agents.forEach(agent -> {
             agent.free();
+            agent.getPreAllocatedPorts().forEach(port -> {
+                PortManager.clearRTPServerPort(port);
+                agent.removePreAllocatedPort(port);
+            });
         });
         //server.shutDown();
     }

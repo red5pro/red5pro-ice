@@ -1897,7 +1897,7 @@ public class Agent {
      * @throws IllegalArgumentException if the port is already allocated or is invalid
      */
     public int addPreAllocatedPort(int port) throws IllegalArgumentException {
-        // a port of 0 is not valid
+        // a port value less than 1 is not valid valid here
         if (port > 0) {
             // we dont want no stinkin' zeros.
             if (allocatedPorts.add(port)) {
