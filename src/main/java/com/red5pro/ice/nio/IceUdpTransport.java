@@ -115,7 +115,7 @@ public class IceUdpTransport extends IceTransport {
      * @return IceTransport
      */
     public static IceUdpTransport getInstance(String id) {
-        log.info("IceUdpTransport  getInstance: {}", id);
+        log.debug("IceUdpTransport  getInstance: {}", id);
         IceUdpTransport instance = (IceUdpTransport) transports.get(id);
         // an id of "disconnected" is a special case where the socket is not associated with an IoSession
         if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
