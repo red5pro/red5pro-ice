@@ -1893,20 +1893,17 @@ public class Agent {
      * Adds a port number allocated to this agent for constructing components.
      *
      * @param port allocated for binding to the network
-     * @return port if it was added or exception
-     * @throws IllegalArgumentException if the port is already allocated or is invalid
+     * @return port whether or not its addition was successful
      */
-    public int addPreAllocatedPort(int port) throws IllegalArgumentException {
+    public int addPreAllocatedPort(int port) {
         // a port value less than 1 is not valid valid here
-        if (port > 0) {
+        if ((port > 0 && port < 65536) && allocatedPorts.add(port)) {
             // we dont want no stinkin' zeros.
-            if (allocatedPorts.add(port)) {
-                return port;
-            } else {
-                throw new IllegalArgumentException("Port " + port + " is already allocated");
-            }
+            logger.debug("Added pre-allocated port: {}", port);
+        } else {
+            logger.debug("Failed to add pre-allocated port: {} already exists? {}", port, allocatedPorts.contains(port));
         }
-        throw new IllegalArgumentException("Port " + port + " is not valid");
+        return port;
     }
 
     /**

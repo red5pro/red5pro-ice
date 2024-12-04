@@ -171,17 +171,12 @@ public class ShallowStackTest extends TestCase {
         for (int a = 0; a < agentCount; a++) {
             Agent agent = new Agent();
             agent.setProperty("proref", String.format("agent#%d", a));
-            try {
-                agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
-                agents.add(agent);
-            } catch (Exception e) {
-                logger.warn("Exception in setupICE for: {}", agent.getProperty("proref"));
-            }
+            agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+            agents.add(agent);
         }
         if (agents.size() < agentCount) {
             logger.warn("Agent count: {} less than expected: {}", agents.size(), agentCount);
-            // for now we expect a failure since we're exceeding the port range
-            //fail("Agent count less than expected");
+            fail("Agent count less than expected");
         }
         logger.info("Cleaning up agents");
         agents.forEach(agent -> {
