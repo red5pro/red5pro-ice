@@ -100,7 +100,9 @@ public abstract class IceTransport {
         CLOSE_ON_IDLE,
         ACTIVE_SESSION,
         LOCAL_TRANSPORT_ADDR, // local TransportAddress for the connected InetSocketAddress
-        REMOTE_TRANSPORT_ADDR; // remote TransportAddress for the connected InetSocketAddress
+        REMOTE_TRANSPORT_ADDR, // remote TransportAddress for the connected InetSocketAddress
+        NEGOTIATING_TRANSPORT_ADDR,
+        NEGOTIATING_ICESOCKET;
     }
 
     static {

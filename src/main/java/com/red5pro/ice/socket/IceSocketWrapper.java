@@ -8,8 +8,12 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.util.Arrays;
+import java.util.NoSuchElementException;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.mina.core.buffer.IoBuffer;
@@ -54,12 +58,16 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     // acceptor id for this socket
     protected String id;
 
+    protected AtomicInteger references = new AtomicInteger();
+
     // whether or not we've been closed
     public AtomicBoolean closed = new AtomicBoolean(false);
 
     protected final TransportAddress transportAddress;
 
-    protected TransportAddress remoteTransportAddress;
+    private AtomicReference<TransportAddress> remoteTransportAddress = new AtomicReference<>();
+
+    protected CopyOnWriteArrayList<TransportAddress> negotiatingRemoteAddresses = new CopyOnWriteArrayList<>();
 
     // whether or not we're a relay
     protected RelayedCandidateConnection relayedCandidateConnection;
@@ -209,6 +217,14 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         close(getSession());
     }
 
+    public void addRef() {
+        references.incrementAndGet();
+    }
+
+    public void releaseRef() {
+        references.decrementAndGet();
+    }
+
     /**
      * Closes the connected session as well as the acceptor, if its non-shared.
      *
@@ -216,6 +232,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      */
     public void close(IoSession sess) {
         logger.debug("Close: {}", this);
+        //logger.debug("Socket {} ref count at close {}", id, references.get());
         // flip to closed if not set already
         if (closed.compareAndSet(false, true)) {
             if (sess != null) {
@@ -253,7 +270,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             // removal from the net access manager via stun stack
             if (stunStack != null) {
                 // part of the removal process in stunstack closes the connector which closes this
-                stunStack.removeSocket(id, transportAddress, remoteTransportAddress);
+                stunStack.removeSocket(id, transportAddress, remoteTransportAddress.get());
             }
             // unbinds and closes any non-shared acceptor
             IceTransport transport = IceTransport.getInstance(transportAddress.getTransport(), id);
@@ -272,6 +289,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             logger.trace("Exit close: {} closed: {}", this, closed);
             //this.id = null;
         }
+
+        negotiatingRemoteAddresses.clear();
 
         // clear out raw messages lingering around at close
         try {
@@ -385,7 +404,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * @param newSession
      */
     public void setSession(IoSession newSession) {
-        logger.trace("setSession - addr: {} session: {} previous: {}", transportAddress, newSession, session.get());
+        logger.debug("setSession - addr: {} session: {} previous: {}", transportAddress, newSession, session.get());
         if (newSession == null || newSession.equals(NULL_SESSION)) {
             session.set(NULL_SESSION);
         } else if (session.compareAndSet(NULL_SESSION, newSession)) {
@@ -446,7 +465,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     public void setRemoteTransportAddress(TransportAddress remoteAddress) {
         // only set remote address for TCP
         if (this instanceof IceTcpSocketWrapper) {
-            remoteTransportAddress = remoteAddress;
+            remoteTransportAddress.set(remoteAddress);
         } else {
             // get the transport
             IceUdpTransport transport = IceUdpTransport.getInstance(id);
@@ -470,7 +489,32 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     }
 
     public TransportAddress getRemoteTransportAddress() {
-        return remoteTransportAddress;
+        return remoteTransportAddress.get();
+    }
+
+    public boolean negotiateRemoteAddress(TransportAddress address) {
+
+        if (this instanceof IceTcpSocketWrapper) {
+            remoteTransportAddress.compareAndSet(null, address);
+        }
+        return negotiatingRemoteAddresses.add(address);
+    }
+
+    /**
+     * Removes failed connectivity remote address.
+     * @param address
+     * @return
+     */
+    public boolean negotiationFinished(TransportAddress address) {
+        return negotiatingRemoteAddresses.remove(address);
+    }
+
+    public boolean canNegotiate(TransportAddress address) {
+        return negotiatingRemoteAddresses.contains(address);
+    }
+
+    public String getNegotiations() {
+        return negotiatingRemoteAddresses.toString();
     }
 
     /**
@@ -690,5 +734,4 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         iceSocket.setRelayedConnection(relayedCandidateConnection);
         return iceSocket;
     }
-
 }

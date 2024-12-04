@@ -66,10 +66,10 @@ public class NetAccessManager {
      *
      * @param socket the socket that the access point should use.
      */
-    public void addSocket(IceSocketWrapper socket) {
+    public void buildConnectorLink(IceSocketWrapper socket) {
         logger.debug("addSocket: {}", socket);
         // UDP connections will normally have null remote transport addresses
-        addSocket(socket, socket.getRemoteTransportAddress());
+        buildConnectorLink(socket, socket.getRemoteTransportAddress());
     }
 
     /**
@@ -79,7 +79,7 @@ public class NetAccessManager {
      * @param remoteAddress the remote address the {@link Connector} if its TCP or null if its UDP
      * @throws IOException
      */
-    public void addSocket(IceSocketWrapper socket, TransportAddress remoteAddress) {
+    public void buildConnectorLink(IceSocketWrapper socket, TransportAddress remoteAddress) {
         logger.debug("addSocket: {} remote address: {}", socket, remoteAddress);
         if (isDebug) {
             logger.debug("Existing connectors (pre-add): {}", connectors);
@@ -88,9 +88,9 @@ public class NetAccessManager {
         TransportAddress localAddress = socket.getTransportAddress();
         Optional<Connector> connector = connectors.stream().filter(c -> c.getSocket().equals(socket)).findFirst();
         if (connector.isPresent()) {
-            logger.info("Not creating a new Connector, due to existing entry for: {} -> {}", localAddress, connector);
+            logger.info("Not creating a new Connector, due to existing entry for: {} -> {}", localAddress, connector.get().toString());
             // determine if TCP and set remote if not set
-            if (socket.isTCP()) {
+            if (socket.isTCP() && connector.get().getRemoteAddress() == null) {
                 connector.get().setRemoteAddress(remoteAddress);
             }
         } else {
@@ -109,7 +109,7 @@ public class NetAccessManager {
      * @param localAddress the local address of the connector to remove.
      * @param remoteAddress the remote address of the connector to remote. Use null to match the Connector with no specified remote address.
      */
-    public Connector removeSocket(TransportAddress localAddress, TransportAddress remoteAddress) {
+    public Connector removeConnectorLink(TransportAddress localAddress, TransportAddress remoteAddress) {
         logger.debug("removeSocket: {} remote address: {}", localAddress, remoteAddress);
         if (isDebug) {
             logger.debug("Existing connectors (pre-remove): {}", connectors);
@@ -160,9 +160,14 @@ public class NetAccessManager {
                 // when both are UDP there is no need to check the remote address
                 if (isUdp && (Transport.UDP == c.getListenAddress().getTransport())) {
                     return true;
-                } else if (remoteAddress != null) { // tcp and remote address is not null
+
+                } else if (!isUdp && remoteAddress != null) { // tcp and remote address is not null
                     // if the tcp connector has a matching remote address
                     if (remoteAddress.equals(c.getRemoteAddress())) {
+                        return true;
+                    } else if (c.canNegotiate(remoteAddress)) {
+                        c.setRemoteAddress(remoteAddress);
+                        logger.debug("Found Connector  with negotiating address   {}", c.toString());
                         return true;
                     } else {
                         // if the tcp connector has no remote address set yet

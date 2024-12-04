@@ -91,11 +91,11 @@ public class IceHandler extends IoHandlerAdapter {
                     return (sessionRemoteAddress.getPort() == ((InetSocketAddress) remoteAddress).getPort() && sessionRemoteAddress
                             .getAddress().getHostAddress().equals(((InetSocketAddress) remoteAddress).getAddress().getHostAddress()));
                 } else {
-                    logger.warn("Looking up {}, Ice Socket wrapper RemoteAddress is null for {} {} {}", remoteAddress,
+                    logger.debug("Looking up {}, Ice Socket wrapper RemoteAddress is null for {} {} {}", remoteAddress,
                             entry.getLocalAddress(), entry.getLocalPort(), entry.getTransport());
                 }
             } else {
-                logger.warn("Looking up {}, IoSession is null for {} {} {}", remoteAddress, entry.getLocalAddress(), entry.getLocalPort(),
+                logger.debug("Looking up {}, IoSession is null for {} {} {}", remoteAddress, entry.getLocalAddress(), entry.getLocalPort(),
                         entry.getTransport());
             }
             return false;
@@ -145,23 +145,30 @@ public class IceHandler extends IoHandlerAdapter {
             session.setAttribute(IceTransport.Ice.STUN_STACK, stunStack);
             IceSocketWrapper iceSocket = iceSockets.get(addr);
             if (iceSocket != null) {
-                // No longer setting socket ID here because ice trasport might not have set attribute yet.
+                logger.debug("New session on Socket id: {}, session {}, current session {}", iceSocket.getId(), session,
+                        iceSocket.getSession());
+                // No longer setting socket ID here because ice transport might not have set attribute yet.
                 if (!session.containsAttribute(IceTransport.Ice.UUID)) {
                     session.setAttribute(IceTransport.Ice.UUID, iceSocket.getId());
                 }
-            }
-            // XXX create socket registration
-            if (transport == Transport.TCP) {
-                if (iceSocket != null) {
-                    // get the remote address
-                    inetAddr = (InetSocketAddress) session.getRemoteAddress();
-                    TransportAddress remoteAddress = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transport);
-                    iceSocket.setRemoteTransportAddress(remoteAddress);
-                    stunStack.getNetAccessManager().addSocket(iceSocket, iceSocket.getRemoteTransportAddress());
-                } else {
-                    // socket was in most cases recently closed or in-process of being closed / cleaned up, so return and exception
-                    throw new IOException("Connection already closed for: " + session.toString());
+                // XXX create socket registration
+                if (transport == Transport.TCP) {
+                    if (iceSocket != null) {
+                        session.setAttribute(IceTransport.Ice.NEGOTIATING_ICESOCKET, iceSocket);
+                        iceSocket.addRef();
+                        // get the remote address
+                        inetAddr = (InetSocketAddress) session.getRemoteAddress();
+                        TransportAddress remoteAddress = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transport);
+                        logger.debug("Socket {} current remote address: {} Session remote address: {}", iceSocket.getId(),
+                                iceSocket.getRemoteTransportAddress(), remoteAddress);
+                        session.setAttribute(IceTransport.Ice.NEGOTIATING_TRANSPORT_ADDR, remoteAddress);
+                        iceSocket.negotiateRemoteAddress(remoteAddress);
+                        stunStack.getNetAccessManager().buildConnectorLink(iceSocket, remoteAddress);
+                    }
                 }
+            } else {
+                // socket was in most cases recently closed or in-process of being closed / cleaned up, so return and exception
+                throw new IOException("Connection already closed for: " + session.toString());
             }
         } else {
             logger.debug("No stun stack at create for: {}", addr);
@@ -231,6 +238,19 @@ public class IceHandler extends IoHandlerAdapter {
     @Override
     public void sessionClosed(IoSession session) throws Exception {
         logger.debug("Session closed: {}", session.getId());
+
+        //Were we negotiating?
+        IceSocketWrapper iceSocket = (IceSocketWrapper) session.removeAttribute(IceTransport.Ice.NEGOTIATING_ICESOCKET);
+        if (iceSocket != null) {
+            iceSocket.releaseRef();
+            TransportAddress remoteAddress = (TransportAddress) session.removeAttribute(IceTransport.Ice.NEGOTIATING_TRANSPORT_ADDR);
+            if (remoteAddress != null) {
+                if (iceSocket.negotiationFinished(remoteAddress)) {
+                    logger.debug("Negotiation finished for session {} @ {}", session.getId(), remoteAddress);
+                }
+            }
+        }
+
         // remove any existing reference to an ice socket
         Optional<Object> socket = Optional.ofNullable(session.removeAttribute(IceTransport.Ice.CONNECTION));
         if (socket.isPresent()) {

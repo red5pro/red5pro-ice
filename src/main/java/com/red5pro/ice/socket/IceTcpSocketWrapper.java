@@ -145,9 +145,9 @@ public class IceTcpSocketWrapper extends IceSocketWrapper {
         super.setSession(newSession);
         // update the remote address with the one from the current session
         if ("dummy".equals(newSession.getTransportMetadata().getName())) {
-            remoteTransportAddress = null;
+            setRemoteTransportAddress(null);
         } else {
-            remoteTransportAddress = new TransportAddress((InetSocketAddress) newSession.getRemoteAddress(), Transport.TCP);
+            setRemoteTransportAddress(new TransportAddress((InetSocketAddress) newSession.getRemoteAddress(), Transport.TCP));
         }
     }
 
