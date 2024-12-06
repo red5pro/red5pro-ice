@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.apache.mina.core.service.IoAcceptor;
+import org.apache.mina.core.session.IoSession;
 import org.apache.mina.filter.codec.ProtocolCodecFilter;
 import org.apache.mina.util.CopyOnWriteMap;
 import com.red5pro.ice.socket.IceSocketWrapper;
@@ -18,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.Transport;
+import com.red5pro.ice.TransportAddress;
 
 /**
  * IceTransport, the parent transport class.
@@ -102,7 +104,8 @@ public abstract class IceTransport {
         LOCAL_TRANSPORT_ADDR, // local TransportAddress for the connected InetSocketAddress
         REMOTE_TRANSPORT_ADDR, // remote TransportAddress for the connected InetSocketAddress
         NEGOTIATING_TRANSPORT_ADDR,
-        NEGOTIATING_ICESOCKET;
+        NEGOTIATING_ICESOCKET,
+        CLOSE_FUTURE;
     }
 
     static {
@@ -125,7 +128,7 @@ public abstract class IceTransport {
     /**
      * Returns a static instance of this transport.
      *
-     * @param type the transport type requested, either UDP or TCP
+     * @param type the transport type requested, either UDP or TCP. null will search both.
      * @param id transport / acceptor identifier
      * @return IceTransport
      */
@@ -133,6 +136,11 @@ public abstract class IceTransport {
         //logger.trace("getInstance - type: {} id: {}", type, id);
         if (type == Transport.TCP) {
             return IceTcpTransport.getInstance(id);
+        } else if (type == null) {
+            IceTransport find = null;
+            if ((find = IceTcpTransport.getInstance(id)) != null) {
+                return find;
+            }
         }
         return IceUdpTransport.getInstance(id);
     }
@@ -337,6 +345,20 @@ public abstract class IceTransport {
      */
     public static long getAcceptorTimeout() {
         return acceptorTimeout;
+    }
+
+    protected boolean associateSession(IoSession session) {
+        logger.info("Associate socket with session {}", session);
+        TransportAddress address = (TransportAddress) session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR);
+        if (address != null) {
+            IceSocketWrapper socket = IceTransport.getIceHandler().lookupBinding(address);
+            if (socket != null) {
+                return socket.setSession(session);
+            } else {
+                logger.info("Socket address {} not found in transport {}", address, id);
+            }
+        }
+        return false;
     }
 
 }

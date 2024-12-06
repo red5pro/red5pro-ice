@@ -111,6 +111,8 @@ public class Agent {
      */
     private static long terminationDelay = StackProperties.getInt(StackProperties.TERMINATION_DELAY, DEFAULT_TERMINATION_DELAY);
 
+    public static ThreadLocal<Agent> localAgent = new ThreadLocal<Agent>();
+
     /**
      * The Map used to store the media streams.
      */
@@ -424,6 +426,7 @@ public class Agent {
             logger.debug("Requested port: {} is already in-use", port);
             port = 0;
         }
+        Agent.localAgent.set(this);
         //logger.info("createComponent stream: {}", stream);
         Component component = stream.createComponent(keepAliveStrategy);
         //logger.info("createComponent stream: {} component: {}", stream, component);
@@ -467,6 +470,7 @@ public class Agent {
             */
             connCheckServer.start();
         }
+        Agent.localAgent.set(null);
         return component;
     }
 
@@ -485,6 +489,7 @@ public class Agent {
             throws IllegalArgumentException, IOException, BindException {
         logger.debug("createComponent: {} ports: {}", transport, Arrays.asList(ports));
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
+        Agent.localAgent.set(this);
         //logger.info("createComponent stream: {}", stream);
         Component component = stream.createComponent(keepAliveStrategy);
         //logger.info("createComponent stream: {} component: {}", stream, component);
@@ -534,6 +539,7 @@ public class Agent {
             */
             connCheckServer.start();
         }
+        Agent.localAgent.set(null);
         return component;
     }
 
@@ -567,6 +573,7 @@ public class Agent {
             logger.debug("Requested port: {} is already in-use", port2);
             port2 = 0;
         }
+        Agent.localAgent.set(this);
         //logger.info("createComponent stream: {}", stream);
         Component component = stream.createComponent(keepAliveStrategy);
         component.setReferenceId(getProperty("refId"));
@@ -612,6 +619,7 @@ public class Agent {
             */
             connCheckServer.start();
         }
+        Agent.localAgent.set(null);
         return component;
     }
 
@@ -632,6 +640,7 @@ public class Agent {
             throws IllegalArgumentException, IOException, BindException {
         logger.debug("createComponent: {} ports: {} {} ports: {}", transport1, Arrays.asList(ports1), transport2, Arrays.asList(ports2));
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
+        Agent.localAgent.set(this);
         //logger.info("createComponent stream: {}", stream);
         Component component = stream.createComponent(keepAliveStrategy);
         component.setReferenceId(getProperty("refId"));
@@ -697,6 +706,7 @@ public class Agent {
             */
             connCheckServer.start();
         }
+        Agent.localAgent.set(null);
         return component;
     }
 
@@ -748,6 +758,7 @@ public class Agent {
             logger.debug("Requested preferred port: {} is already in-use", preferredPort);
             throw new BindException("Requested preferred port: " + preferredPort + " is already in-use");
         }
+        Agent.localAgent.set(this);
         //logger.info("createComponent stream: {}", stream);
         Component component = stream.createComponent(keepAliveStrategy);
         //logger.info("createComponent stream: {} component: {}", stream, component);
@@ -787,6 +798,7 @@ public class Agent {
          * started after we've made the gathered LocalCandidates available to the caller, the caller may send them and a connectivity check may arrive from the remote Agent.
          */
         connCheckServer.start();
+        Agent.localAgent.set(null);
         return component;
     }
 
@@ -1381,7 +1393,7 @@ public class Agent {
      */
     public RemoteCandidate findRemoteCandidate(TransportAddress remoteAddress) {
         for (IceMediaStream stream : mediaStreams) {
-            logger.debug("Looking for remote candidate in stream: {} in {}", stream.getName(),
+            logger.trace("Looking for remote candidate in stream: {} in {}", stream.getName(),
                     stream.getComponents().get(0).getRemoteCandidates());
             RemoteCandidate cnd = stream.findRemoteCandidate(remoteAddress);
             if (cnd != null) {
@@ -1448,7 +1460,7 @@ public class Agent {
             // lookup a remote candidate match first before creating a peer candidate
             RemoteCandidate remoteCandidate = findRemoteCandidate(remoteAddress);
             if (remoteCandidate == null) {
-                logger.debug("Remote candidate for {} was not found, creating a peer candidate", remoteAddress);
+                logger.debug("{}. Remote candidate for {} was not found, creating a peer candidate", state.get(), remoteAddress);
                 String ufrag = null;
                 Component parentComponent = localCandidate.getParentComponent();
                 // look up a remote candidate match in the parent component for a matching host candidate with the same transport
@@ -1467,9 +1479,10 @@ public class Agent {
             // look up existing pair first
             CandidatePair triggeredPair = findCandidatePair(localAddress, remoteAddress);
             if (triggeredPair == null) {
+                logger.trace("Creating Triggered Pair {} => {}", localAddress, remoteAddress);
                 triggeredPair = createCandidatePair(localCandidate, remoteCandidate);
             }
-            logger.debug("Set use-candidate {} for pair {}", useCandidate, triggeredPair.toShortString());
+            logger.trace("Set use-candidate {} for pair {}", useCandidate, triggeredPair.toShortString());
             if (useCandidate) {
                 triggeredPair.setUseCandidateReceived();
             }
@@ -1479,8 +1492,8 @@ public class Agent {
                 preDiscoveredPairsQueue.add(triggeredPair);
             } else if (state.get() != IceProcessingState.FAILED) {
                 // Running, Connected or Terminated, but not Failed
-                if (isDebug) {
-                    logger.debug("Received check from {} triggered a check. Local ufrag {}", triggeredPair.toShortString(),
+                if (isTrace) {
+                    logger.trace("Received check from {} triggered a check. Local ufrag {}", triggeredPair.toShortString(),
                             getLocalUfrag());
                 }
                 // We have been started, and have not failed (yet). If this is a new pair, handle it (even if we have already completed).

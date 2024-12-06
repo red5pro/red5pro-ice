@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.Agent;
+import com.red5pro.ice.IceProcessingState;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 
@@ -149,6 +150,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     };
 
+    protected Agent localAgent = null;
+
     IceSocketWrapper() throws IOException {
         throw new IOException("Invalid constructor, use IceSocketWrapper(TransportAddress) instead");
     }
@@ -161,6 +164,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      */
     IceSocketWrapper(TransportAddress address) throws IOException {
         logger.debug("New wrapper for {}", address);
+        localAgent = Agent.localAgent.get();
+
         transportAddress = address;
     }
 
@@ -231,13 +236,20 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * @param sess IoSession being closed
      */
     public void close(IoSession sess) {
-        logger.debug("Close: {}", this);
-        //logger.debug("Socket {} ref count at close {}", id, references.get());
+
+        if (!closed.get()) {
+            logger.debug("Close: {}", this);
+        }
+        if (!session.get().equals(NULL_SESSION) && sess != null && !session.get().equals(sess)) {
+            logger.warn("Closing socket with wrong session  {}", sess);
+            return;
+        }
+
         // flip to closed if not set already
         if (closed.compareAndSet(false, true)) {
             if (sess != null) {
                 // additional clean up steps
-                logger.debug("Close session: {}", sess.getId());
+                logger.debug("Close session: {}  socket references: {}", sess.getId(), references.get());
                 try {
                     // if the session isn't already closed or disconnected
                     if (!sess.isClosing()) {
@@ -403,29 +415,64 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      *
      * @param newSession
      */
-    public void setSession(IoSession newSession) {
+    public boolean setSession(IoSession newSession) {
+        if (localAgent != null) {
+            if (localAgent.getState() == IceProcessingState.WAITING) {
+                logger.debug("Wont set session until IceProcessingState is running. {}", localAgent.getState());
+                return false;
+            }
+        }
         logger.debug("setSession - addr: {} session: {} previous: {}", transportAddress, newSession, session.get());
         if (newSession == null || newSession.equals(NULL_SESSION)) {
-            session.set(NULL_SESSION);
+            //If there was an old session, are we are nulling out?
+            IoSession oldSession = session.getAndSet(NULL_SESSION);
+            if (oldSession != null && !oldSession.equals(NULL_SESSION)) {
+                //Probably not going to happen.
+                oldSession.removeAttribute(Ice.CONNECTION);
+                oldSession.setAttribute(Ice.ACTIVE_SESSION, Boolean.FALSE);
+                @SuppressWarnings("unchecked")
+                IoFutureListener<CloseFuture> oldCloseFuture = (IoFutureListener<CloseFuture>) oldSession.getAttribute(Ice.CLOSE_FUTURE);
+                if (oldCloseFuture != null) {
+                    oldSession.getCloseFuture().removeListener(oldCloseFuture);
+                }
+            }
+            return true;
+
         } else if (session.compareAndSet(NULL_SESSION, newSession)) {
+            if (!newSession.getRemoteAddress().equals(remoteTransportAddress.get())) {
+                InetSocketAddress inetAddr = (InetSocketAddress) newSession.getRemoteAddress();
+                remoteTransportAddress.set(new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), getTransport()));
+            }
             // set the connection attribute
             newSession.setAttribute(Ice.CONNECTION, this);
             // flag the session as selected / active!
             newSession.setAttribute(Ice.ACTIVE_SESSION, Boolean.TRUE);
-            // attach the close listener and log the result
-            newSession.getCloseFuture().addListener(new IoFutureListener<CloseFuture>() {
-
+            IoFutureListener<CloseFuture> newCloseFuture = new IoFutureListener<CloseFuture>() {
                 @Override
                 public void operationComplete(CloseFuture future) {
                     logger.info("CloseFuture done: {} closed? {}", future.getSession().getId(), future.isClosed());
                     close(future.getSession());
                 }
+            };
+            newSession.setAttribute(Ice.CLOSE_FUTURE, newCloseFuture);
+            // attach the close listener and log the result
+            newSession.getCloseFuture().addListener(newCloseFuture);
 
-            });
+
+            return true;
+        } else if (session.get().getId() == newSession.getId()) {
+            logger.warn("Same session already set: {}", session.get());
+            return true;
         } else {
-            logger.warn("Session already set: {} incoming: {}", session.get(), newSession);
+            logger.warn("Session already set: {}, connected: {}. incoming: {}", session.get(), session.get().isConnected(), newSession);
+            return false;
         }
     }
+
+    public boolean hasSession() {
+        return !NULL_SESSION.equals(session.get());
+    }
+
 
     /**
      * Returns an IoSession or null.

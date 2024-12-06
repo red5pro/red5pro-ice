@@ -42,7 +42,7 @@ public class IceUdpTransport extends IceTransport {
 
         @Override
         public void put(IoSession session) {
-            logger.trace("Adding session to recycler: {}", session);
+            logger.trace("Try adding session to recycler: {}", session);
             String key = generateKey(session);
             // to allow binding/storage or not
             boolean allowUse = true;
@@ -81,7 +81,7 @@ public class IceUdpTransport extends IceTransport {
 
         @Override
         public void remove(IoSession session) {
-            logger.trace("Removing session from recycler: {}", session);
+            logger.debug("Removing session from recycler: {}", session);
             String key = generateKey(session);
             // remove by key
             if (sessions.remove(key) != null) {
@@ -93,7 +93,7 @@ public class IceUdpTransport extends IceTransport {
             }
         }
 
-        private String generateKey(IoSession session) {
+        public String generateKey(IoSession session) {
             return String.format("%s@%s", session.getLocalAddress(), session.getRemoteAddress().toString());
         }
 
