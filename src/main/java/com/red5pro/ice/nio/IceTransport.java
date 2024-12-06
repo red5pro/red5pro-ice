@@ -122,7 +122,7 @@ public abstract class IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     public IceTransport() {
-        logger.info("Socket linger: {} DNS cache ttl: {}", soLinger, System.getProperty("networkaddress.cache.ttl"));
+        logger.info("Properties: Socket linger: {} DNS cache ttl: {}", soLinger, System.getProperty("networkaddress.cache.ttl"));
     }
 
     /**
@@ -257,7 +257,7 @@ public abstract class IceTransport {
         if (acceptor != null) {
             acceptor.unbind();
             acceptor.dispose(true);
-            logger.info("Disposed acceptor: {}", id);
+            logger.info("Disposed acceptor: {} {}", id);
         }
     }
 
@@ -348,14 +348,14 @@ public abstract class IceTransport {
     }
 
     protected boolean associateSession(IoSession session) {
-        logger.info("Associate socket with session {}", session);
+        logger.debug("Associate socket with session {}", session);
         TransportAddress address = (TransportAddress) session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR);
         if (address != null) {
             IceSocketWrapper socket = IceTransport.getIceHandler().lookupBinding(address);
             if (socket != null) {
                 return socket.setSession(session);
             } else {
-                logger.info("Socket address {} not found in transport {}", address, id);
+                logger.warn("Cannot associate session. Socket address {} not found in transport {}", address, id);
             }
         }
         return false;

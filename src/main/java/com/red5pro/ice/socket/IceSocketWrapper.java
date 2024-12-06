@@ -277,7 +277,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             // get the stun stack
             StunStack stunStack = IceTransport.getIceHandler().lookupStunStack(transportAddress);
             if (stunStack == null) {
-                logger.warn("StunStack not found for transport: {}", transportAddress);
+                logger.warn("While closing, StunStack not found for transport: {}", transportAddress);
             }
             // removal from the net access manager via stun stack
             if (stunStack != null) {
@@ -291,10 +291,10 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
                 if (transport.removeBinding(transportAddress)) {
                     logger.debug("removed binding: {}", transportAddress);
                 } else {
-                    logger.warn("failed to remove binding: {}", transportAddress);
+                    logger.warn("While closing, failed to remove binding: {}", transportAddress);
                 }
             } else {
-                logger.warn("no transport for: {} id: {}", transportAddress, id);
+                logger.warn("While closing, no transport for: {} found with id: {}", transportAddress, id);
             }
             // for GC
             relayedCandidateConnection = null;
@@ -461,7 +461,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
             return true;
         } else if (session.get().getId() == newSession.getId()) {
-            logger.warn("Same session already set: {}", session.get());
+            logger.debug("Same session already set: {}", session.get());
             return true;
         } else {
             logger.warn("Session already set: {}, connected: {}. incoming: {}", session.get(), session.get().isConnected(), newSession);

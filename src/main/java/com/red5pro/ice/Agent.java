@@ -69,7 +69,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.1.0";
+    private final static String VERSION = "1.1.4";
 
     /**
      * Secure random for shared use.
@@ -2363,7 +2363,7 @@ public class Agent {
                                 //logger.info("Remote address: {}", remoteAddress);
                                 IceSocketWrapper socketWrapper = base.getCandidateIceSocketWrapper(remoteAddress);
                                 if (selectedPair.isNominated()) {
-                                    logger.info("Setting remote address: {} on icesocket", remoteAddress);
+                                    logger.debug("Setting remote address: {} on icesocket", remoteAddress);
                                     socketWrapper.setRemoteTransportAddress(remoteAddress);
                                 }
                                 break;

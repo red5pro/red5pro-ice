@@ -62,7 +62,7 @@ public abstract class LocalCandidate extends Candidate<LocalCandidate> {
         // The default implementation just refers to the method which doesn't involve a remove address.
         // Extenders which support multiple instances mapped by remote address should override.
         IceSocketWrapper iceSocket = IceTransport.getIceHandler().lookupBindingByRemote(remoteAddress);
-        logger.warn("Wrapper from lookup: {} current: {}", iceSocket, getCandidateIceSocketWrapper());
+        logger.debug("Wrapper from lookup: {} current: {}", iceSocket, getCandidateIceSocketWrapper());
         return iceSocket != null ? iceSocket : getCandidateIceSocketWrapper();
     }
 

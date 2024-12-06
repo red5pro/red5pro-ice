@@ -103,7 +103,7 @@ public class IceUdpTransport extends IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     private IceUdpTransport() {
-        logger.info("id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout, timeout);
+        logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout, timeout);
     }
 
     protected static Logger log = LoggerFactory.getLogger(IceUdpTransport.class);
@@ -167,7 +167,7 @@ public class IceUdpTransport extends IceTransport {
 
                 @Override
                 public void sessionCreated(IoSession session) throws Exception {
-                    logger.info("sessionCreated: {}  for ice transport id: {}", session, id);
+                    logger.info("Acceptor sessionCreated: {}  for ice transport id: {}", session, id);
                     //logger.debug("sessionCreated acceptor sessions: {}", acceptor.getManagedSessions());
                     if (!session.containsAttribute(IceTransport.Ice.UUID)) {
                         session.setAttribute(IceTransport.Ice.UUID, id);
@@ -176,7 +176,7 @@ public class IceUdpTransport extends IceTransport {
 
                 @Override
                 public void sessionClosed(IoSession session) throws Exception {
-                    logger.debug("sessionClosed: {}", session);
+                    logger.debug("Acceptor sessionClosed: {}", session);
                     /*
                     if (session.containsAttribute(Ice.CONNECTION)) {
                         IceSocketWrapper wrapper = (IceSocketWrapper) session.getAttribute(Ice.CONNECTION);
