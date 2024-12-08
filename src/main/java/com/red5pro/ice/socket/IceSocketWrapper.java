@@ -153,8 +153,6 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     };
 
-    protected Agent localAgent = null;
-
     IceSocketWrapper() throws IOException {
         throw new IOException("Invalid constructor, use IceSocketWrapper(TransportAddress) instead");
     }
@@ -167,7 +165,6 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      */
     IceSocketWrapper(TransportAddress address) throws IOException {
         logger.debug("New wrapper for {}", address);
-        localAgent = Agent.localAgent.get();
 
         transportAddress = address;
     }
@@ -241,7 +238,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     public void close(IoSession sess) {
 
         if (!closed.get()) {
-        logger.debug("Close: {}", this);
+            logger.debug("Close: {}", this);
         }
         if (!session.get().equals(NULL_SESSION) && sess != null && !session.get().equals(sess)) {
             logger.warn("Closing socket with wrong session  {}", sess);
@@ -418,12 +415,6 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * @param newSession
      */
     public boolean setSession(IoSession newSession) {
-        if (localAgent != null) {
-            if (localAgent.getState() == IceProcessingState.WAITING) {
-                logger.debug("Wont set session until IceProcessingState is running. {}", localAgent.getState());
-                return false;
-            }
-        }
         logger.debug("setSession - addr: {} session: {} previous: {}", transportAddress, newSession, session.get());
         if (newSession == null || newSession.equals(NULL_SESSION)) {
             //If there was an old session, are we are nulling out?

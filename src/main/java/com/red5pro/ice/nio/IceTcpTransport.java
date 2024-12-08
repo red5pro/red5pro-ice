@@ -33,8 +33,8 @@ public class IceTcpTransport extends IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     private IceTcpTransport() {
-        logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id, sharedAcceptor, acceptorTimeout, timeout,
-                ioThreads);
+        logger.debug("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id, sharedAcceptor,
+                acceptorTimeout, timeout, ioThreads);
     }
 
     /**

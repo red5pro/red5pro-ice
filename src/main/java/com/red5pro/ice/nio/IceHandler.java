@@ -3,6 +3,7 @@ package com.red5pro.ice.nio;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -40,6 +41,16 @@ public class IceHandler extends IoHandlerAdapter {
 
     // temporary holding area for ice sockets awaiting session creation
     private static ConcurrentMap<TransportAddress, IceSocketWrapper> iceSockets = new ConcurrentHashMap<>();
+
+    /**
+     * Returns a copy of the current stun stacks.
+     * @return
+     */
+    public static Map<TransportAddress, StunStack> getStunStacks() {
+        ConcurrentMap<TransportAddress, StunStack> copy = new ConcurrentHashMap<>();
+        copy.putAll(stunStacks);
+        return copy;
+    }
 
     /**
      * Registers a StunStack and IceSocketWrapper to the internal maps to wait for their associated IoSession creation.
