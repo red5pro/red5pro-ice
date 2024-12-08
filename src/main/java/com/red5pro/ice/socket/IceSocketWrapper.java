@@ -26,13 +26,16 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.session.IoSessionConfig;
 import org.apache.mina.transport.socket.DatagramSessionConfig;
 import org.apache.mina.transport.socket.SocketSessionConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.red5pro.ice.Transport;
+import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.nio.IceTransport;
 import com.red5pro.ice.nio.IceTransport.Ice;
 import com.red5pro.ice.nio.IceUdpTransport;
 import com.red5pro.ice.stack.RawMessage;
 import com.red5pro.ice.stack.StunStack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.Agent;
 import com.red5pro.ice.IceProcessingState;
@@ -238,7 +241,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     public void close(IoSession sess) {
 
         if (!closed.get()) {
-            logger.debug("Close: {}", this);
+        logger.debug("Close: {}", this);
         }
         if (!session.get().equals(NULL_SESSION) && sess != null && !session.get().equals(sess)) {
             logger.warn("Closing socket with wrong session  {}", sess);
@@ -371,16 +374,15 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * @return UUID string for this instance or "disconnected" if not set on the session or not connected
      */
     public String getId() {
-        if (this.id != null) {
-            return this.id;
+        if (id == null) {
+            IoSession sess = session.get();
+            if (!sess.equals(NULL_SESSION) && sess.containsAttribute(IceTransport.Ice.UUID)) {
+                id = (String) sess.getAttribute(IceTransport.Ice.UUID);
+            } else {
+                return DISCONNECTED;
+            }
         }
-
-        IoSession sess = session.get();
-        if (!sess.equals(NULL_SESSION) && sess.containsAttribute(IceTransport.Ice.UUID)) {
-            this.id = (String) sess.getAttribute(IceTransport.Ice.UUID);
-            return this.id;
-        }
-        return DISCONNECTED;
+        return id;
     }
 
     /**

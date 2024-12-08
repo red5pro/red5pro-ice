@@ -55,8 +55,8 @@ public abstract class IceTransport {
     // used for binding and unbinding timeout, default 2s
     protected static long acceptorTimeout = StackProperties.getInt("ACCEPTOR_TIMEOUT", 2);
 
-    // whether or not to use a shared acceptor
-    protected final static boolean sharedAcceptor = false;//StackProperties.getBoolean("NIO_SHARED_MODE", true);//Shared mode disabled.
+    // whether or not to use a shared acceptor for all transports (disable via -DNIO_SHARED_MODE=false)
+    protected final static boolean sharedAcceptor = StackProperties.getBoolean("NIO_SHARED_MODE", true);
 
     // whether or not to handle a hung acceptor aggressively
     protected static boolean aggressiveAcceptorReset = StackProperties.getBoolean("ACCEPTOR_RESET", false);
@@ -212,7 +212,6 @@ public abstract class IceTransport {
                     // no exceptions? return true for removing the binding
                     return true;
                 }
-
             } catch (Throwable t) {
                 // if aggressive acceptor handling is enabled, reset the acceptor
                 if (aggressiveAcceptorReset) {

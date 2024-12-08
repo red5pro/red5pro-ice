@@ -4,7 +4,7 @@
     <groupId>com.red5pro</groupId>
     <artifactId>red5pro-ice</artifactId>
     <!-- When the version changes, update Agent.VERSION as well -->
-    <version>1.1.4</version>
+    <version>1.1.6</version>
     <packaging>jar</packaging>
     <name>red5pro-ice</name>
     <url>https://github.com/red5pro/red5pro-ice</url>
@@ -62,11 +62,6 @@
         </dependencies>
     </dependencyManagement>
     <dependencies>
-        <dependency>
-            <groupId>com.red5pro</groupId>
-            <artifactId>red5pro-common</artifactId>
-            <version>${red5pro-common.version}</version>
-        </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
@@ -127,21 +122,15 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <show>private</show>
-                    <nohelp>true</nohelp>
+                    <verbose>false</verbose>
                     <failOnError>false</failOnError>
                     <sourcepath>${basedir}/src/main/java</sourcepath>
                     <includeDependencySources>false</includeDependencySources>
+                    <dependencySourceIncludes>
+                        <dependencySourceInclude>com.red5pro:*</dependencySourceInclude>
+                    </dependencySourceIncludes>
                     <detectOfflineLinks>false</detectOfflineLinks>
                     <javadocExecutable>${java.home}/bin/javadoc</javadocExecutable>
-                    <tags>
-                        <tag>
-                            <name>todo</name>
-                            <!-- todo tag for all places -->
-                            <placement>a</placement>
-                            <head>To do:</head>
-                        </tag>
-                    </tags>
                 </configuration>
             </plugin>
             <plugin>
