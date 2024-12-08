@@ -42,7 +42,7 @@ public class IceUdpTransport extends IceTransport {
 
         @Override
         public void put(IoSession session) {
-            logger.trace("Adding session to recycler: {}", session);
+            logger.trace("Try adding session to recycler: {}", session);
             String key = generateKey(session);
             // to allow binding/storage or not
             boolean allowUse = true;
@@ -81,7 +81,7 @@ public class IceUdpTransport extends IceTransport {
 
         @Override
         public void remove(IoSession session) {
-            logger.trace("Removing session from recycler: {}", session);
+            logger.debug("Removing session from recycler: {}", session);
             String key = generateKey(session);
             // remove by key
             if (sessions.remove(key) != null) {
@@ -93,7 +93,7 @@ public class IceUdpTransport extends IceTransport {
             }
         }
 
-        private String generateKey(IoSession session) {
+        public String generateKey(IoSession session) {
             return String.format("%s@%s", session.getLocalAddress(), session.getRemoteAddress().toString());
         }
 
@@ -103,7 +103,7 @@ public class IceUdpTransport extends IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     private IceUdpTransport() {
-        logger.info("id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout, timeout);
+        logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout, timeout);
     }
 
     protected static Logger log = LoggerFactory.getLogger(IceUdpTransport.class);
@@ -115,7 +115,7 @@ public class IceUdpTransport extends IceTransport {
      * @return IceTransport
      */
     public static IceUdpTransport getInstance(String id) {
-        log.info("IceUdpTransport  getInstance: {}", id);
+        log.debug("IceUdpTransport  getInstance: {}", id);
         IceUdpTransport instance = (IceUdpTransport) transports.get(id);
         // an id of "disconnected" is a special case where the socket is not associated with an IoSession
         if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
@@ -167,7 +167,7 @@ public class IceUdpTransport extends IceTransport {
 
                 @Override
                 public void sessionCreated(IoSession session) throws Exception {
-                    logger.info("sessionCreated: {}  for ice transport id: {}", session, id);
+                    logger.info("Acceptor sessionCreated: {}  for ice transport id: {}", session, id);
                     //logger.debug("sessionCreated acceptor sessions: {}", acceptor.getManagedSessions());
                     if (!session.containsAttribute(IceTransport.Ice.UUID)) {
                         session.setAttribute(IceTransport.Ice.UUID, id);
@@ -176,7 +176,7 @@ public class IceUdpTransport extends IceTransport {
 
                 @Override
                 public void sessionClosed(IoSession session) throws Exception {
-                    logger.debug("sessionClosed: {}", session);
+                    logger.debug("Acceptor sessionClosed: {}", session);
                     /*
                     if (session.containsAttribute(Ice.CONNECTION)) {
                         IceSocketWrapper wrapper = (IceSocketWrapper) session.getAttribute(Ice.CONNECTION);

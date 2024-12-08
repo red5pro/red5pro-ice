@@ -171,7 +171,7 @@ public class StunStack implements MessageEventHandler {
                 IceTransport.getIceHandler().registerStackAndSocket(this, iceSocket);
             }
             // add the socket to the net access manager
-            netAccessManager.addSocket(iceSocket, remoteAddress);
+            netAccessManager.buildConnectorLink(iceSocket, remoteAddress);
             added = true;
         }
         return added;
@@ -201,7 +201,7 @@ public class StunStack implements MessageEventHandler {
         logger.debug("removeSocket - id: {} local: {} remote: {}", id, localAddr, remoteAddr);
         // first cancel all transactions using this address
         cancelTransactionsForAddress(localAddr, remoteAddr);
-        Connector connector = netAccessManager.removeSocket(localAddr, remoteAddr);
+        Connector connector = netAccessManager.removeConnectorLink(localAddr, remoteAddr);
         if (connector != null) {
             connector.stop();
         }

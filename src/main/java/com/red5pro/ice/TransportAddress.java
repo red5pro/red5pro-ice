@@ -179,6 +179,27 @@ public class TransportAddress extends InetSocketAddress {
     }
 
     /**
+     * Equal if both objects are not null and obj1.equals(obj2).
+     * Equal if both object are null.
+     * Not equal if one is null and the other is not.
+     * @param obj1 TransportAddress
+     * @param obj2 TransportAddress
+     * @return true if equal.
+     */
+    public static boolean equals(TransportAddress obj1, TransportAddress obj2) {
+
+        if (obj1 != null && obj2 != null) {
+            return obj1.equals(obj2); // both not null
+
+        } else if (obj1 == null && obj2 == null) {
+            return true;// both null
+
+        } else {
+            return false;// one is null and the other is not.
+        }
+    }
+
+    /**
      * Returns true if this is an IPv6 address and false otherwise.
      *
      * @return true if this is an IPv6 address and false otherwise.
