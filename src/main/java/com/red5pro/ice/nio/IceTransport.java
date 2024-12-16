@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.mina.core.service.IoAcceptor;
 import org.apache.mina.core.session.IoSession;
@@ -88,10 +89,13 @@ public abstract class IceTransport {
 
     protected ExecutorService executor = Executors.newCachedThreadPool();
 
+    protected ReentrantLock bindings = new ReentrantLock();
+
     // constants for the session map or anything else
     public enum Ice {
         TRANSPORT,
         CONNECTION,
+        AGENT,
         STUN_STACK,
         DECODER,
         ENCODER,
@@ -204,6 +208,7 @@ public abstract class IceTransport {
         // if the acceptor is null theres nothing to do
         if (acceptor != null) {
             int port = ((InetSocketAddress) addr).getPort();
+            bindings.lock();
             try {
                 // perform the unbinding, if bound
                 if (acceptor.getLocalAddresses().contains(addr)) {
@@ -224,6 +229,7 @@ public abstract class IceTransport {
                     logger.warn("Remove binding failed on {}", addr, t);
                 }
             } finally {
+                bindings.unlock();
                 // remove the address from the handler
                 if (iceHandler.remove(addr)) {
                     logger.debug("Removed address: {} from handler", addr);
@@ -259,6 +265,7 @@ public abstract class IceTransport {
             acceptor.dispose(true);
             logger.info("Disposed acceptor: {} {}", id);
         }
+        transports.remove(id);
     }
 
     /**
@@ -361,4 +368,11 @@ public abstract class IceTransport {
         return false;
     }
 
+    public static boolean transportExists(String id) {
+        return transports.containsKey(id);
+    }
+
+    public static int transportCount() {
+        return transports.size();
+    }
 }

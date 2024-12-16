@@ -3,22 +3,30 @@ package com.red5pro.ice.nio;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.service.IoHandlerAdapter;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
-import com.red5pro.ice.socket.IceSocketWrapper;
-import com.red5pro.ice.stack.RawMessage;
-import com.red5pro.ice.stack.StunStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.Agent;
+import com.red5pro.ice.IceProcessingState;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.socket.IceSocketWrapper;
+import com.red5pro.ice.stack.RawMessage;
+import com.red5pro.ice.stack.StunStack;
 
 /**
  * Handle routing of messages on the ICE socket.
@@ -26,20 +34,36 @@ import com.red5pro.ice.TransportAddress;
  * @author Paul Gregoire
  * @author Andy Shaules
  */
-public class IceHandler extends IoHandlerAdapter {
+public class IceHandler extends IoHandlerAdapter implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(IceHandler.class);
 
+    private static final Logger sweeperLogger = LoggerFactory.getLogger("ice.handler.sweeper");
+
     private static boolean isTrace = logger.isTraceEnabled();
 
-    @SuppressWarnings("unused")
     private static boolean isDebug = logger.isDebugEnabled();
 
     // temporary holding area for stun stacks awaiting session creation
     private static ConcurrentMap<TransportAddress, StunStack> stunStacks = new ConcurrentHashMap<>();
 
+    private static ConcurrentMap<String, Agent> agents = new ConcurrentHashMap<>();
+
     // temporary holding area for ice sockets awaiting session creation
     private static ConcurrentMap<TransportAddress, IceSocketWrapper> iceSockets = new ConcurrentHashMap<>();
+
+    private ScheduledExecutorService cleanSweeper = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
+
+    private long sweepJob = 0;
+
+    protected IceHandler() {
+        logger.info("Waking up");
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            cleanSweeper.shutdown();
+        }));
+
+        cleanSweeper.scheduleWithFixedDelay(this, 10, 10, TimeUnit.SECONDS);
+    }
 
     /**
      * Registers a StunStack and IceSocketWrapper to the internal maps to wait for their associated IoSession creation.
@@ -60,6 +84,10 @@ public class IceHandler extends IoHandlerAdapter {
         //logger.debug("exit registerStackAndSocket");
     }
 
+    public void registerAgent(Agent agent) {
+        agents.put(agent.getId(), agent);
+    }
+
     /**
      * Returns an IceSocketWrapper for a given address if it exists and null if it doesn't.
      *
@@ -67,7 +95,9 @@ public class IceHandler extends IoHandlerAdapter {
      * @return IceSocketWrapper
      */
     public IceSocketWrapper lookupBinding(TransportAddress address) {
-        logger.trace("lookupBinding for address: {} existing bindings: {}", address, iceSockets);
+        if (isTrace) {
+            logger.trace("lookupBinding for address: {} existing bindings: {}", address, iceSockets);
+        }
         return iceSockets.get(address);
     }
 
@@ -78,7 +108,7 @@ public class IceHandler extends IoHandlerAdapter {
      * @return IceSocketWrapper
      */
     public IceSocketWrapper lookupBindingByRemote(SocketAddress remoteAddress) {
-        if (isDebug) {
+        if (isTrace) {
             logger.debug("lookupBindingByRemote for address: {} existing bindings: {}", remoteAddress, iceSockets);
         }
         IceSocketWrapper iceSocket = null;
@@ -145,6 +175,7 @@ public class IceHandler extends IoHandlerAdapter {
         StunStack stunStack = stunStacks.get(addr);
         if (stunStack != null) {
             session.setAttribute(IceTransport.Ice.STUN_STACK, stunStack);
+            session.setAttribute(IceTransport.Ice.AGENT, stunStack.getAgent());
             IceSocketWrapper iceSocket = iceSockets.get(addr);
             if (iceSocket != null) {
                 logger.debug("New session on Socket id: {}, session {}, current session {}", iceSocket.getId(), session,
@@ -153,11 +184,9 @@ public class IceHandler extends IoHandlerAdapter {
                 if (!session.containsAttribute(IceTransport.Ice.UUID)) {
                     session.setAttribute(IceTransport.Ice.UUID, iceSocket.getId());
                 }
-
+                session.setAttribute(IceTransport.Ice.NEGOTIATING_ICESOCKET, iceSocket);
                 // XXX create socket registration
                 if (transport == Transport.TCP) {
-
-                    session.setAttribute(IceTransport.Ice.NEGOTIATING_ICESOCKET, iceSocket);
                     iceSocket.addRef();
                     // get the remote address
                     inetAddr = (InetSocketAddress) session.getRemoteAddress();
@@ -181,7 +210,10 @@ public class IceHandler extends IoHandlerAdapter {
     /** {@inheritDoc} */
     @Override
     public void sessionOpened(IoSession session) throws Exception {
-        logger.debug("Opened (session: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(), session.getRemoteAddress());
+        if (isDebug) {
+            logger.debug("Opened (session: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(),
+                    session.getRemoteAddress());
+        }
     }
 
     private IceSocketWrapper associateSessionToSocket(IoSession session) {
@@ -306,14 +338,29 @@ public class IceHandler extends IoHandlerAdapter {
             // only log it at trace level if we're debugging
             if (isTrace) {
                 logger.warn("Exception on session: {}", session.getId(), cause);
+            } else {
+                logger.warn("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
             }
-        } else {
+        } else if (isTrace) {
             logger.warn("Exception on session: {}", session.getId(), cause);
+        } else {
+            logger.warn("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
         }
+        session.setAttribute("exception", cause);
+        //Look for application API.
+        Agent agent = (Agent) session.getAttribute(IceTransport.Ice.AGENT);
         // determine transport type
         Transport transportType = (session.getAttribute(IceTransport.Ice.TRANSPORT) == Transport.TCP) ? Transport.TCP : Transport.UDP;
         InetSocketAddress inetAddr = (InetSocketAddress) session.getLocalAddress();
         TransportAddress addr = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transportType);
+        if (agent != null) {
+            agent.setException(addr, cause);
+            if (agent.isClosing() || !agent.isActive()) {
+                logger.warn("Session agent is shutting down ");
+                return;
+            }
+        }
+
         logger.warn("Session: {} exception on transport: {} connection-less? {} address: {}", session.getId(), transportType,
                 session.getTransportMetadata().isConnectionless(), addr);
         // get the transport / acceptor identifier
@@ -335,7 +382,6 @@ public class IceHandler extends IoHandlerAdapter {
         if (iceSocket != null) {
             // Invoked when any exception is thrown by user IoHandler implementation or by MINA. If cause is an
             // instance of IOException, MINA will close the connection automatically.
-            session.setAttribute("exception", cause);
             // handle closing of the socket
             if (!iceSocket.isClosed()) {
                 iceSocket.close(session);
@@ -360,6 +406,29 @@ public class IceHandler extends IoHandlerAdapter {
         return false;
     }
 
+    public boolean unregisterAgent(String id) {
+        Agent agent = agents.remove(id);
+        if (agent != null) {
+            if (!agent.hasEolHandler()) {
+                Set<Integer> history = agent.getPortAllocationHistory();
+                boolean clean = false;
+                try {
+                    clean = agent.getEndOfLifeStateLogger().call();
+                } catch (Exception e) {
+                }
+                if (!clean) {
+                    logger.warn("Unclean exit for {}. Check if these ports are disposed. {}", agent.getLocalUfrag(), history.toString());
+                    forceCleanUp(agent);
+                }
+                try {
+                    agent.getNuker().call();
+                } catch (Exception e) {
+                }
+            }
+        }
+        return agent != null;
+    }
+
     /* From BC TlsUtils for debugging */
 
     public static int readUint24(byte[] buf, int offset) {
@@ -375,4 +444,104 @@ public class IceHandler extends IoHandlerAdapter {
         return ((long) (hi & 0xffffffffL) << 24) | (long) (lo & 0xffffffffL);
     }
 
+    @Override
+    public void run() {
+        Thread.currentThread().setName("sweeper job-" + sweepJob++);
+        sweeperLogger.info("Starting");
+
+        sweeperLogger.info("ICE Transport count: {}", IceTransport.transportCount());
+
+        if (!stunStacks.isEmpty()) {
+            sweeperLogger.info("---Stun Stacks---");
+            stunStacks.forEach((hood, stunna) -> {
+                if (stunna != null) {
+                    sweeperLogger.info("Stack age: {}, reg-count: {}, has-agent: {}", stunna.getAge(), stunna.getRegistrationCount(),
+                            stunna.hasAgent());
+                    sweeperLogger.info(hood.toString());
+                } else {
+                    sweeperLogger.info("No stack for {}", hood);
+                }
+
+            });
+        } else {
+            sweeperLogger.info("No stun stacks to evaluate");
+        }
+        if (!iceSockets.isEmpty()) {
+            sweeperLogger.info("---ICE Sockets---");
+            iceSockets.forEach((addy, socket) -> {
+                if (socket != null) {
+                    sweeperLogger.info(socket.toSweeperInfo());
+                    sweeperLogger.info("Socket age: {}, has-StunStack: {}, has-transport: {}", socket.getAge(),
+                            stunStacks.containsKey(addy), IceTransport.transportExists(socket.getId()));
+                } else {
+                    sweeperLogger.info("No socket for {}", addy);
+                }
+            });
+        } else {
+            sweeperLogger.info("No ice sockets to evaluate");
+        }
+        if (!agents.isEmpty()) {
+            sweeperLogger.info("--- Agents ---");
+
+            List<Agent> toRemove = new ArrayList<>();
+
+
+            agents.forEach((id, agent) -> {
+
+                if (agent.getState() == IceProcessingState.WAITING) {
+                    sweeperLogger.info("Wating agent {}, age: {}, allocated ports: {}", agent.getLocalUfrag(), agent.getAge(),
+                            agent.getPreAllocatedPorts());
+                } else if (agent.getState() == IceProcessingState.RUNNING && !agent.isClosing()) {
+                    sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-age: {}, allocated ports: {}", agent.getLocalUfrag(),
+                            agent.getState(), agent.getAge(), agent.getIceAge(), agent.getPreAllocatedPorts());
+                } else if (!agent.isClosing()) {
+                    sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                            agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                            agent.getPreAllocatedPorts());
+                } else if (!agent.isActive()) {
+                    sweeperLogger.info("Agent is closed {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                            agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                            agent.getPreAllocatedPorts());
+                } else if (agent.isClosing()) {
+                    sweeperLogger.info("Agent is closing {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                            agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                            agent.getPreAllocatedPorts());
+                } else if (agent.mustBeDead()) {
+                    toRemove.add(agent);
+                    Throwable ce = agent.getClosingError();
+                    if (ce != null) {
+                        logger.error("Closing error for frag: {}", agent.getLocalUfrag(), ce);
+                    }
+                    agent.getUncleanExits().forEach((m, t) -> {
+                        sweeperLogger.error("Error in agent {} freeing {}, {}", agent.getLocalUfrag(), m, t);
+                        sweeperLogger.error("Failed agent {} allocated ports: {}  ports-tried: {}", agent.getLocalUfrag(),
+                                agent.getPreAllocatedPorts(), agent.getPortAllocationHistory());
+                    });
+                }
+            });
+
+            toRemove.forEach(agent -> {
+                unregisterAgent(agent.getId());
+
+            });
+        } else {
+            sweeperLogger.info("No ice agents to evaluate");
+        }
+        sweeperLogger.info("Exiting");
+
+    }
+
+    public void callEolHandlerFor(Agent agent) {
+        Agent.EndOfLifeStateHandler handler = agent.getEolHandler();
+        if (handler != null) {
+            cleanSweeper.schedule(() -> {
+                forceCleanUp(agent);
+                handler.agentEndOfLife(agent, agent.getEndOfLifeStateLogger(), agent.getNuker());
+            }, 200, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private void forceCleanUp(Agent agent) {
+        logger.debug("Force cleanup , todo!");
+    }
 }

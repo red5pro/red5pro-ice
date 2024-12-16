@@ -84,8 +84,10 @@ public class ComponentSocket implements PropertyChangeListener {
     }
 
     public void close(Transport t, int port) {
+        logger.info("close {}  {} ", t, port);
         Set<IceSocketWrapper> toClose = new HashSet<>();
         socketWrappers.forEach(wrapper -> {
+            logger.info("wrapper {} ", wrapper);
             if (wrapper.getTransport() == t && wrapper.getLocalPort() == port) {
                 wrapper.close();
                 toClose.add(wrapper);
@@ -95,13 +97,16 @@ public class ComponentSocket implements PropertyChangeListener {
         socketWrappers.removeAll(toClose);
 
         if (socketWrappers.isEmpty()) {
+            logger.info("close self {} ", this);
             close();
         }
     }
 
     public void close(int port) {
+        logger.info("close {}  {} ", this, port);
         Set<IceSocketWrapper> toClose = new HashSet<>();
         socketWrappers.forEach(wrapper -> {
+            logger.info("chcking {} ", wrapper);
             if (wrapper.getLocalPort() == port) {
                 wrapper.close();
                 toClose.add(wrapper);
@@ -110,6 +115,7 @@ public class ComponentSocket implements PropertyChangeListener {
         socketWrappers.removeAll(toClose);
 
         if (socketWrappers.isEmpty()) {
+            logger.info("close self {} ", this);
             close();
         }
     }

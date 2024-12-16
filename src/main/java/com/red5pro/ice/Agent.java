@@ -6,16 +6,18 @@ import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.BindException;
-import java.net.InetSocketAddress;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -24,9 +26,11 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import org.apache.mina.util.CopyOnWriteMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +73,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.1.4";
+    private final static String VERSION = "1.1.4.2";
 
     /**
      * Secure random for shared use.
@@ -113,6 +117,16 @@ public class Agent {
 
     public static ThreadLocal<Agent> localAgent = new ThreadLocal<Agent>();
 
+    protected final String id = UUID.randomUUID().toString();
+
+    protected Map<IceMediaStream, Throwable> uncleanExits = new HashMap<>();
+
+    protected AtomicReference<Throwable> overArchingError = new AtomicReference<>();
+
+    protected Map<TransportAddress, Throwable> exceptionsCaught = new CopyOnWriteMap<>(1);
+
+    private Callable<Boolean> eolState;
+
     /**
      * The Map used to store the media streams.
      */
@@ -122,6 +136,10 @@ public class Agent {
      * List of ports given to the agent when constructing components.
      */
     private final ConcurrentSkipListSet<Integer> allocatedPorts = new ConcurrentSkipListSet<>();
+    /**
+     * History of allocated ports given
+     */
+    private final ConcurrentSkipListSet<Integer> runningPorts = new ConcurrentSkipListSet<>();
 
     /**
      * The candidate harvester that we use to gather candidate on the local machine.
@@ -270,6 +288,14 @@ public class Agent {
      */
     private CountDownLatch iceSetupLatch = new CountDownLatch(1);
 
+    private long creationTime;
+
+    private volatile boolean shouldBeDead;
+
+    private volatile boolean iAmDoomed;
+
+    private EndOfLifeStateHandler eolHandler;
+
     static {
         // add the software attribute to all messages
         if (StackProperties.getString(StackProperties.SOFTWARE) == null) {
@@ -292,6 +318,8 @@ public class Agent {
      * @param ufragPrefix an optional prefix to the generated local ICE username fragment.
      */
     public Agent(String ufragPrefix) {
+        creationTime = System.currentTimeMillis();
+        IceTransport.getIceHandler().registerAgent(this);
         connCheckServer = new ConnectivityCheckServer(this);
         connCheckClient = new ConnectivityCheckClient(this);
         //add the FINGERPRINT attribute to all messages.
@@ -311,7 +339,12 @@ public class Agent {
         for (MappingCandidateHarvester harvester : MappingCandidateHarvesters.getHarvesters()) {
             addCandidateHarvester(harvester);
         }
+        stunStack.setAgent(this);
         logger.debug("Created a new Agent ufrag: {}", ufrag);
+    }
+
+    public long getAge() {
+        return System.currentTimeMillis() - creationTime;
     }
 
     /**
@@ -358,6 +391,10 @@ public class Agent {
      */
     public long getIceStartTime() {
         return iceStartTime;
+    }
+
+    public long getIceAge() {
+        return System.currentTimeMillis() - iceStartTime;
     }
 
     /**
@@ -423,7 +460,7 @@ public class Agent {
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
         // check the preferred port against any existing bindings first!
         if (IceTransport.isBound(port)) {
-            logger.debug("Requested port: {} is already in-use", port);
+            logger.warn("Requested port: {} is already in-use", port);
             port = 0;
         }
         Agent.localAgent.set(this);
@@ -438,11 +475,15 @@ public class Agent {
          */
         logger.debug("Gathering candidates for component {}. Local ufrag {}", component.toShortString(), getLocalUfrag());
         if (useHostHarvester()) {
-            logger.debug("Using host harvester");
+
             if (port > 0) {
+                logger.debug("Using host harvester");
                 hostCandidateHarvester.harvest(component, port, transport);
+                logger.debug("Host harvester done");
+            } else {
+                logger.warn("Harvester not starting! {}", transport.toString());
             }
-            logger.debug("Host harvester done");
+
         } else if (hostHarvesters.isEmpty()) {
             logger.warn("No host harvesters available!");
         }
@@ -562,15 +603,17 @@ public class Agent {
      */
     public Component createComponent(IceMediaStream stream, Transport transport1, int port1, Transport transport2, int port2)
             throws IllegalArgumentException, IOException, BindException {
+        int origPOrt1 = port1;
+        int origPOrt2 = port2;
         logger.debug("createComponent: {} port: {} {} port: {}", transport1, port1, transport2, port2);
         KeepAliveStrategy keepAliveStrategy = KeepAliveStrategy.SELECTED_ONLY;
         // check the preferred port against any existing bindings first!
         if (IceTransport.isBound(port1)) {
-            logger.debug("Requested port: {} is already in-use", port1);
+            logger.debug("createComponent Requested port: {} is already in-use", port1);
             port1 = 0;
         }
         if (IceTransport.isBound(port2)) {
-            logger.debug("Requested port: {} is already in-use", port2);
+            logger.debug("createComponent Requested port: {} is already in-use", port2);
             port2 = 0;
         }
         Agent.localAgent.set(this);
@@ -588,9 +631,13 @@ public class Agent {
         if (useHostHarvester()) {
             if (port1 > 0) {
                 hostCandidateHarvester.harvest(component, port1, transport1);
+            } else {
+                logger.warn("hostCandidateHarvester port: {} is already in-use", origPOrt1);
             }
             if (port2 > 0) {
                 hostCandidateHarvester.harvest(component, port2, transport2);
+            } else {
+                logger.warn("hostCandidateHarvester port: {} is already in-use", origPOrt2);
             }
         } else if (hostHarvesters.isEmpty()) {
             logger.warn("No host harvesters available!");
@@ -755,7 +802,7 @@ public class Agent {
         logger.debug("createComponent: {} preferredPort: {}", transport, preferredPort);
         // check the preferred port against any existing bindings first!
         if (IceTransport.isBound(preferredPort)) {
-            logger.debug("Requested preferred port: {} is already in-use", preferredPort);
+            logger.warn("Requested preferred port: {} is already in-use", preferredPort);
             throw new BindException("Requested preferred port: " + preferredPort + " is already in-use");
         }
         Agent.localAgent.set(this);
@@ -843,8 +890,14 @@ public class Agent {
      * Initializes all stream check lists and begins the checks.
      */
     public void startConnectivityEstablishment() {
-        logger.info("Start ICE connectivity establishment. Local ufrag {}", getLocalUfrag());
         iceStartTime = System.currentTimeMillis();
+        if (iAmDoomed) {
+            logger.warn("Ice Agent is being disposed. Not starting connectivity establishment for {}", getLocalUfrag());
+            return;
+        } else {
+            logger.info("Start ICE connectivity establishment. Local ufrag {}  {}", getLocalUfrag(), allocatedPorts.toString());
+        }
+
         shutdown = false;
         pruneNonMatchedStreams();
         try {
@@ -1911,6 +1964,7 @@ public class Agent {
         if (port == 0) {
             return 0;
         }
+        runningPorts.add(port);
         // we dont want no stinkin' zeros.
         allocatedPorts.add(Integer.valueOf(port));
         return port;
@@ -1925,11 +1979,16 @@ public class Agent {
         return copy;
     }
 
+    public Set<Integer> getPortAllocationHistory() {
+        return Set.copyOf(runningPorts);
+    }
+
     /**
      * Releases all resources allocated by any Component with the specified port
      * @param port
      */
     public void freeTransports(Transport type, int port) {
+        logger.info("freeTransports {}  {} ", type, port);
         if (port != 0) {
             mediaStreams.forEach(stream -> {
                 stream.getComponents().forEach(comp -> {
@@ -1942,18 +2001,18 @@ public class Agent {
         }
     }
 
-    public void freeTransports(int port) {
-        if (port != 0) {
-            mediaStreams.forEach(stream -> {
-                stream.getComponents().forEach(comp -> {
-                    ComponentSocket cSocket = comp.getComponentSocket();
-                    if (cSocket != null) {
-                        cSocket.close(port);
-                    }
-                });
-            });
-        }
-    }
+//    public void freeTransports(int port) {
+//        if (port != 0) {
+//            mediaStreams.forEach(stream -> {
+//                stream.getComponents().forEach(comp -> {
+//                    ComponentSocket cSocket = comp.getComponentSocket();
+//                    if (cSocket != null) {
+//                        cSocket.close(port);
+//                    }
+//                });
+//            });
+//        }
+//    }
 
     /**
      * Prepares this Agent for garbage collection by ending all related processes and freeing its IceMediaStreams, Components
@@ -1984,46 +2043,98 @@ public class Agent {
         logger.debug("Free ICE agent");
         if (!shutdown) {
             shutdown = true;
-            // stop sending keep alives (STUN Binding Indications)
-            if (stunKeepAlive != null) {
-                stunKeepAlive.cancel(true);
-                stunKeepAlive = null;
-            }
-            // stop responding to STUN Binding Requests
-            connCheckServer.stop();
-            // set the IceProcessingState#TERMINATED state on this Agent unless it is in a termination state already
-            IceProcessingState state = getState();
-            if (!IceProcessingState.FAILED.equals(state) && !IceProcessingState.TERMINATED.equals(state)) {
-                terminate(IceProcessingState.TERMINATED);
-            }
-            // kill the stun stack first then the media streams
-            stunStack.shutDown();
-            // Free its IceMediaStreams, Components and Candidates
-            if (!mediaStreams.isEmpty()) {
-                if (isDebug) {
-                    logger.debug("Remove streams: {}", mediaStreams);
+            //Just incase the owner forgot to call prefree.
+            iAmDoomed = true;
+            AtomicBoolean unclean = new AtomicBoolean();
+            try {
+                // stop sending keep alives (STUN Binding Indications)
+                if (stunKeepAlive != null) {
+                    stunKeepAlive.cancel(true);
+                    stunKeepAlive = null;
                 }
-                // in the WebRTC case, we may have a single stream with multiple components
-                mediaStreams.forEach(stream -> {
-                    try {
-                        if (mediaStreams.remove(stream)) {
-                            logger.debug("Removed stream: {}", stream.getName());
-                            stream.free();
-                        }
-                    } catch (Throwable t) {
-                        logger.debug("Remove stream: {} failed", stream.getName(), t);
-                        /*
-                        if (t instanceof InterruptedException) {
-                            Thread.currentThread().interrupt();
-                        } else if (t instanceof ThreadDeath) {
-                            throw (ThreadDeath) t;
-                        }
-                        */
+                // stop responding to STUN Binding Requests
+                connCheckServer.stop();
+                // set the IceProcessingState#TERMINATED state on this Agent unless it is in a termination state already
+                IceProcessingState state = getState();
+                if (!IceProcessingState.FAILED.equals(state) && !IceProcessingState.TERMINATED.equals(state)) {
+                    terminate(IceProcessingState.TERMINATED);
+                }
+                // kill the stun stack first then the media streams
+                stunStack.shutDown();
+                // Free its IceMediaStreams, Components and Candidates
+                if (!mediaStreams.isEmpty()) {
+                    if (isDebug) {
+                        logger.debug("Remove streams: {}", mediaStreams);
                     }
-                });
+                    // in the WebRTC case, we may have a single stream with multiple components
+                    mediaStreams.forEach(stream -> {
+                        try {
+                            if (mediaStreams.remove(stream)) {
+                                logger.debug("Removed stream: {}", stream.getName());
+                                stream.free();
+                            }
+                        } catch (Throwable t) {
+                            logger.debug("Remove stream: {} failed", stream.getName(), t);
+                            uncleanExits.put(stream, t);
+                            unclean.set(true);
+                            /*
+                            if (t instanceof InterruptedException) {
+                            Thread.currentThread().interrupt();
+                            } else if (t instanceof ThreadDeath) {
+                            throw (ThreadDeath) t;
+                            }
+                            */
+                        }
+                    });
+                }
+
+            } catch (Throwable j) {
+                unclean.set(true);
+                overArchingError.set(j);
+
+            } finally {
+                if (!exceptionsCaught.isEmpty()) {
+                    unclean.set(true);
+                }
+                eolState = () -> logCleanliness(!unclean.get());
+
+                if (!unclean.get()) {
+                    //clean. no exception shutdown.
+                    IceTransport.getIceHandler().unregisterAgent(id);
+                } else {
+                    shouldBeDead = true;
+                }
+                if (eolHandler != null) {
+                    IceTransport.getIceHandler().callEolHandlerFor(this);
+                }
             }
-            logger.info("ICE agent freed for: {}", ufrag);
         }
+    }
+
+    private boolean logCleanliness(boolean clean) {
+        if (!clean) {
+            logger.error("ICE agent freed with errors for: {}", ufrag);
+            if (overArchingError.get() != null) {
+                logger.error("Error: {}", overArchingError.get());
+            }
+            uncleanExits.forEach((s, t) -> {
+                logger.error("ms: {} error: {}", s, t);
+            });
+            exceptionsCaught.forEach((s, t) -> {
+                logger.error("endpoint: {} error: {}", s, t);
+            });
+        } else {
+            logger.info("ICE agent freed cleanly for: {}", ufrag);
+        }
+        return clean;
+    }
+
+    public boolean mustBeDead() {
+        return shouldBeDead;
+    }
+
+    public Throwable getClosingError() {
+        return overArchingError.get();
     }
 
     /**
@@ -2384,6 +2495,59 @@ public class Agent {
         }
     }
 
+    public String getId() {
+        return id;
+    }
+
+    public Map<IceMediaStream, Throwable> getUncleanExits() {
+        return uncleanExits;
+    }
+
+    public void setException(TransportAddress addr, Throwable cause) {
+        exceptionsCaught.put(addr, cause);
+    }
+
+    public Map<TransportAddress, Throwable> getExceptionsCaught() {
+        Map<TransportAddress, Throwable> copy = new CopyOnWriteMap<>(1);
+        copy.putAll(exceptionsCaught);
+        return copy;
+    }
+
+    /**
+     * Call after successfully freeing agent.
+     */
+    protected boolean nukeCollections() {
+        if (mustBeDead()) {
+            exceptionsCaught.clear();
+            uncleanExits.clear();
+            overArchingError.set(null);
+            allocatedPorts.clear();
+            runningPorts.clear();
+            stunStack.setAgent(null);
+            return true;
+        }
+        eolHandler = null;
+        return false;
+    }
+
+    /**
+     * Call after agent mustBeDead() returns true to free internal collections.
+     * Callable returns false if called too early.	 *
+     */
+    public Callable<Boolean> getNuker() {
+        return () -> nukeCollections();
+    }
+
+    /**
+     * Call after agent mustBeDead() returns true to log errors.
+     * Call before calling the nuker.
+     * Callable will be null if called too early.
+     */
+    public Callable<Boolean> getEndOfLifeStateLogger() {
+
+        return eolState;
+    }
+
     /*
     private static class SampleListener implements ServiceListener {
         @Override
@@ -2420,5 +2584,49 @@ public class Agent {
         }
     }
     */
+    /**
+     * Called before freeing.
+     */
+    public void doomed() {
+        iAmDoomed = true;
+    }
 
+    /**
+     * Set prior to freeing.
+     * @param eolHandler
+     */
+    public void setEndOfLifeStateHandler(EndOfLifeStateHandler eolHandler) {
+        this.eolHandler = eolHandler;
+    }
+
+    public boolean hasEolHandler() {
+        return eolHandler != null;
+    }
+
+    /**
+     * @return true if the application is about to free this agent.
+     */
+    public boolean isClosing() {
+        return iAmDoomed;
+    }
+
+    /**
+     * Optionally set handler to agent prior to freeing .
+     * @author Andy
+     *
+     */
+    public static interface EndOfLifeStateHandler {
+
+        /**
+         *
+         * @param agent Agent that was freed.
+         * @param endOfLifeLogger Callable to log end of life state. returns true if clean, false if there were errors.
+         * @param cleanUpEndOfLifeExceptions Callable to free collection of end-of-life exceptions. returns true if cleared.
+         */
+        void agentEndOfLife(Agent agent, Callable<Boolean> endOfLifeLogger, Callable<Boolean> cleanUpEndOfLifeExceptions);
+    }
+
+    public EndOfLifeStateHandler getEolHandler() {
+        return eolHandler;
+    };
 }

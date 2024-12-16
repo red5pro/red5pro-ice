@@ -3,22 +3,29 @@ package com.red5pro.ice.stack;
 
 import java.io.IOException;
 import java.lang.Thread.UncaughtExceptionHandler;
+import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.crypto.Mac;
 
+import org.apache.mina.core.session.IoSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.Agent;
 import com.red5pro.ice.ResponseCollector;
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
@@ -103,6 +110,11 @@ public class StunStack implements MessageEventHandler {
      */
     private boolean useAllBinding;
 
+    private WeakReference<Agent> agentRef = new WeakReference<>(null);
+
+
+    private HashSet<TransportAddress> registrations = new HashSet<TransportAddress>();
+
     /**
      * Executor for all threads and tasks needed in this stacks agent.
      */
@@ -123,6 +135,8 @@ public class StunStack implements MessageEventHandler {
         }
     });
 
+    private long creationTime;
+
     static {
         // The Mac instantiation used in MessageIntegrityAttribute could take several hundred milliseconds so we don't
         // want it instantiated only after we get a response because the delay may cause the transaction to fail.
@@ -137,6 +151,7 @@ public class StunStack implements MessageEventHandler {
         logger.trace("ctor: {}", this);
         // create a new network access manager
         netAccessManager = new NetAccessManager(this);
+        creationTime = System.currentTimeMillis();
     }
 
     /**
@@ -173,6 +188,7 @@ public class StunStack implements MessageEventHandler {
             // add the socket to the net access manager
             netAccessManager.buildConnectorLink(iceSocket, remoteAddress);
             added = true;
+            registeredWith(iceSocket.getTransportAddress());
         }
         return added;
     }
@@ -205,6 +221,8 @@ public class StunStack implements MessageEventHandler {
         if (connector != null) {
             connector.stop();
         }
+
+        removeRegistration(localAddr);
     }
 
     /**
@@ -911,8 +929,9 @@ public class StunStack implements MessageEventHandler {
                                 }
                             });
                         }
-                    } while (executor.isShutdown());
+                    } while (!executor.isShutdown());
                 } finally {
+                    serverTransactionExpireFuture = null;
                     Thread.currentThread().setName(oldName);
                 }
             });
@@ -955,4 +974,90 @@ public class StunStack implements MessageEventHandler {
         return null;
     }
 
+    public String toString() {
+
+        StringBuilder b = new StringBuilder();
+
+        long age = System.currentTimeMillis() - creationTime;
+        b.append("StunStack ");
+        b.append("age: ").append(age);
+
+        registrations.forEach(addy -> {
+            AtomicBoolean progress = new AtomicBoolean();
+            b.append(", socket:[ ").append(addy.toString());
+            try {
+                IceSocketWrapper socket = IceTransport.getIceHandler().lookupBinding(addy);
+                if (socket != null) {
+                    b.append(" id: ").append(socket.getId());
+                    b.append(", session:[ ");
+                    progress.set(true);
+                    IoSession sess = socket.getSession();
+                    if (sess != null) {
+                        b.append(sess.getId());
+                        b.append(", connected: ").append(sess.isConnected());
+                        b.append(", read-bps: ").append(sess.getReadBytesThroughput() * 8);
+                        b.append(", write-bps: ").append(sess.getWrittenBytesThroughput() * 8);
+                    } else {
+                        b.append("null");
+                    }
+
+                }
+
+            } catch (Throwable t) {
+                logger.error("", t);
+                b.append(" Error reading stunstack: ");
+                b.append(t);
+            } finally {
+                if (progress.get()) {
+                    b.append("]");
+                }
+                b.append("]");
+            }
+        });
+
+
+        return b.toString();
+    }
+
+    private void registeredWith(TransportAddress addr) {
+        if (registrations.add(addr)) {
+            logger.debug("Registered with {} ", addr);
+        } else {
+            logger.debug("Already registered with {} ", addr);
+        }
+    }
+
+    private boolean removeRegistration(TransportAddress addr) {
+        return registrations.remove(addr);
+    }
+
+    public int getRegistrationCount() {
+        return registrations.size();
+    }
+
+    public long getAge() {
+        return System.currentTimeMillis() - creationTime;
+    }
+
+    public void setAgent(Agent agent) {
+        agentRef = new WeakReference<>(agent);
+    }
+
+    public boolean hasAgent() {
+        return agentRef.get() != null;
+    }
+
+    public Agent getAgent() {
+        return agentRef.get();
+    }
+
+    public Set<Integer> getAgentPortAllocations() {
+        Agent agent = agentRef.get();
+        if (agent != null) {
+            return agent.getPreAllocatedPorts();
+        } else {
+            return Collections.emptySet();
+        }
+
+    }
 }

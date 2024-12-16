@@ -103,7 +103,10 @@ public class IceUdpTransport extends IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     private IceUdpTransport() {
-        logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout, timeout);
+        logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout,
+                timeout);
+        // add ourself to the transports map
+        transports.put(id, this);
     }
 
     protected static Logger log = LoggerFactory.getLogger(IceUdpTransport.class);
@@ -223,8 +226,7 @@ public class IceUdpTransport extends IceTransport {
             if (isTrace) {
                 logger.trace("Acceptor sizes - send: {} recv: {}", sessionConf.getSendBufferSize(), sessionConf.getReadBufferSize());
             }
-            // add ourself to the transports map
-            transports.put(id, this);
+
         }
     }
 

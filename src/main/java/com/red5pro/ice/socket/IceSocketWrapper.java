@@ -8,8 +8,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.util.Arrays;
-import java.util.NoSuchElementException;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,18 +24,17 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.session.IoSessionConfig;
 import org.apache.mina.transport.socket.DatagramSessionConfig;
 import org.apache.mina.transport.socket.SocketSessionConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.red5pro.ice.Agent;
+import com.red5pro.ice.Transport;
+import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.nio.IceTransport;
 import com.red5pro.ice.nio.IceTransport.Ice;
 import com.red5pro.ice.nio.IceUdpTransport;
 import com.red5pro.ice.stack.RawMessage;
 import com.red5pro.ice.stack.StunStack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.red5pro.ice.Agent;
-import com.red5pro.ice.IceProcessingState;
-import com.red5pro.ice.Transport;
-import com.red5pro.ice.TransportAddress;
 
 /**
  * Parent socket wrapper that define a socket that could be UDP, TCP...
@@ -152,6 +149,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     protected Agent localAgent = null;
 
+    private long creationTime;
+
     IceSocketWrapper() throws IOException {
         throw new IOException("Invalid constructor, use IceSocketWrapper(TransportAddress) instead");
     }
@@ -165,8 +164,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     IceSocketWrapper(TransportAddress address) throws IOException {
         logger.debug("New wrapper for {}", address);
         localAgent = Agent.localAgent.get();
-
         transportAddress = address;
+        creationTime = System.currentTimeMillis();
     }
 
     /**
@@ -416,12 +415,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      * @param newSession
      */
     public boolean setSession(IoSession newSession) {
-        if (localAgent != null) {
-            if (localAgent.getState() == IceProcessingState.WAITING) {
-                logger.debug("Wont set session until IceProcessingState is running. {}", localAgent.getState());
-                return false;
-            }
-        }
+
         logger.debug("setSession - addr: {} session: {} previous: {}", transportAddress, newSession, session.get());
         if (newSession == null || newSession.equals(NULL_SESSION)) {
             //If there was an old session, are we are nulling out?
@@ -780,5 +774,35 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         // attach the relay connection
         iceSocket.setRelayedConnection(relayedCandidateConnection);
         return iceSocket;
+    }
+
+    public String toSweeperInfo() {
+        StringBuilder b = new StringBuilder();
+        try {
+            b.append(this.getClass().getSimpleName());
+            b.append("[ id: ").append(getId()).append(", link: ").append(this.transportAddress);
+            b.append(" => ").append(this.remoteTransportAddress.get());
+            b.append(", closed: ").append(isClosed());
+            b.append(", session:[ ");
+            IoSession sess = getSession();
+            if (sess != null) {
+                b.append(sess.getId());
+                b.append(", connected: ").append(sess.isConnected());
+            } else {
+                b.append("null");
+            }
+            b.append(" ]");
+            b.append(" ]");
+        } catch (Throwable t) {
+            logger.error("", t);
+            b.append("Error reading socket: ").append(t);
+        }
+
+        return b.toString();
+    }
+
+    public long getAge() {
+        // TODO Auto-generated method stub
+        return System.currentTimeMillis() - creationTime;
     }
 }

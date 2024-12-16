@@ -124,10 +124,17 @@ public class IceDecoder extends ProtocolDecoderAdapter {
         // else if the ice socket is not in the session yet, attempt to pull it from those registered in the handler
         iceSocket = (IceSocketWrapper) Optional.ofNullable(session.getAttribute(Ice.CONNECTION)).orElse(
                 IceTransport.getIceHandler().lookupBinding((TransportAddress) session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR)));
+        if (iceSocket == null) {
+            iceSocket = (IceSocketWrapper) session.getAttribute(Ice.NEGOTIATING_ICESOCKET);
+        }
+
         // if the socket is valid for processing input
-        if (iceSocket == null || iceSocket.isClosed()) {
-            logger.warn("Ice socket missing in session or closed: {}", session);
-            throw new SocketClosedException("Socket closed or wrapper unavailable");
+        if (iceSocket == null) {
+            logger.warn("Ice socket is null for session: {}", session);
+            throw new SocketClosedException("Socket is null");
+        } else if (iceSocket.isClosed()) {
+            logger.warn("Ice socket is closed for session: {}", session);
+            throw new SocketClosedException("Socket is closed");
         }
         // if we're TCP (not UDP), grab the size and advance the position
         if (transport != Transport.UDP) {
