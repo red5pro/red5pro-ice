@@ -193,11 +193,11 @@ public abstract class IceTransport {
 
     }
 
-    {// non static so application has time to apply system properties.
-        deadTransportTimeout = StackProperties.getInt(StackProperties.ICE_SWEEPER_TIMEOUT, 60);
-
-        cleanSweepingInterval = StackProperties.getInt(StackProperties.ICE_SWEEPER_INTERVAL, 60);
-    }
+//    {// non static so application has time to apply system properties.
+//        deadTransportTimeout = StackProperties.getInt(StackProperties.ICE_SWEEPER_TIMEOUT, 60);
+//
+//        cleanSweepingInterval = StackProperties.getInt(StackProperties.ICE_SWEEPER_INTERVAL, 60);
+//    }
 
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.

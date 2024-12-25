@@ -80,7 +80,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         }));
 
         // Fixed delay between iterations. Not a fixed interval.
-        cleanSweeper.scheduleWithFixedDelay(this, 10, IceTransport.cleanSweepingInterval, TimeUnit.SECONDS);
+        cleanSweeper.scheduleWithFixedDelay(this, 10, 60, TimeUnit.SECONDS);
     }
 
     /**
