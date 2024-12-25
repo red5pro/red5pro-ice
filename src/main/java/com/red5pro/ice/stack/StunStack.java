@@ -3,14 +3,11 @@ package com.red5pro.ice.stack;
 
 import java.io.IOException;
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -25,7 +22,6 @@ import org.apache.mina.core.session.IoSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.red5pro.ice.Agent;
 import com.red5pro.ice.ResponseCollector;
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
@@ -110,8 +106,7 @@ public class StunStack implements MessageEventHandler {
      */
     private boolean useAllBinding;
 
-    private WeakReference<Agent> agentRef = new WeakReference<>(null);
-
+    private String agentId;
 
     private HashSet<TransportAddress> registrations = new HashSet<TransportAddress>();
 
@@ -730,7 +725,7 @@ public class StunStack implements MessageEventHandler {
         if (executor != null) {
             try {
                 List.of(executor.shutdownNow()).forEach(r -> {
-                    logger.warn("Task at shutdown: {}", r);
+                    logger.debug("Task at shutdown: {}", r);
                 });
             } catch (Exception e) {
                 logger.warn("Exception during shutdown", e);
@@ -1039,25 +1034,11 @@ public class StunStack implements MessageEventHandler {
         return System.currentTimeMillis() - creationTime;
     }
 
-    public void setAgent(Agent agent) {
-        agentRef = new WeakReference<>(agent);
+    public void setAgentId(String agentId) {
+        this.agentId = agentId;
     }
 
-    public boolean hasAgent() {
-        return agentRef.get() != null;
-    }
-
-    public Agent getAgent() {
-        return agentRef.get();
-    }
-
-    public Set<Integer> getAgentPortAllocations() {
-        Agent agent = agentRef.get();
-        if (agent != null) {
-            return agent.getPreAllocatedPorts();
-        } else {
-            return Collections.emptySet();
-        }
-
+    public String getAgentId() {
+        return agentId;
     }
 }

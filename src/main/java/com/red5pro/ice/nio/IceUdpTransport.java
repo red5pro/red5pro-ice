@@ -15,9 +15,8 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.session.IoSessionRecycler;
 import org.apache.mina.transport.socket.DatagramSessionConfig;
 import org.apache.mina.transport.socket.nio.IceDatagramAcceptor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.socket.IceUdpSocketWrapper;
@@ -29,7 +28,6 @@ import com.red5pro.ice.stack.StunStack;
  * @author Paul Gregoire
  */
 public class IceUdpTransport extends IceTransport {
-
     /**
      * Recycler's session map.
      */
@@ -109,8 +107,6 @@ public class IceUdpTransport extends IceTransport {
         transports.put(id, this);
     }
 
-    protected static Logger log = LoggerFactory.getLogger(IceUdpTransport.class);
-
     /**
      * Returns a static instance of this transport.
      *
@@ -118,8 +114,14 @@ public class IceUdpTransport extends IceTransport {
      * @return IceTransport
      */
     public static IceUdpTransport getInstance(String id) {
-        log.debug("IceUdpTransport  getInstance: {}", id);
-        IceUdpTransport instance = (IceUdpTransport) transports.get(id);
+        IceUdpTransport instance = null;
+        IceTransport it = transports.get(id);
+        if (it != null && !IceUdpTransport.class.isInstance(it)) {
+            return null;
+        } else {
+            instance = (IceUdpTransport) it;
+        }
+
         // an id of "disconnected" is a special case where the socket is not associated with an IoSession
         if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
             if (IceTransport.isSharedAcceptor()) {
@@ -146,11 +148,11 @@ public class IceUdpTransport extends IceTransport {
     }
 
     void createAcceptor() {
-        log.info("IceUdpTransport  createAcceptor: {}", acceptor);
+        pluginLogger.debug("IceUdpTransport  createAcceptor: {}", acceptor);
         if (acceptor == null) {
             // create the nio acceptor
             //acceptor = new NioDatagramAcceptor(); // mina base acceptor
-            acceptor = new IceDatagramAcceptor();
+            acceptor = new IceDatagramAcceptor(ioExecutor);//Shared executor
             acceptor.addListener(new IoServiceListener() {
 
                 @Override
@@ -170,11 +172,11 @@ public class IceUdpTransport extends IceTransport {
 
                 @Override
                 public void sessionCreated(IoSession session) throws Exception {
-                    logger.info("Acceptor sessionCreated: {}  for ice transport id: {}", session, id);
-                    //logger.debug("sessionCreated acceptor sessions: {}", acceptor.getManagedSessions());
-                    if (!session.containsAttribute(IceTransport.Ice.UUID)) {
-                        session.setAttribute(IceTransport.Ice.UUID, id);
+                    logger.debug("Acceptor sessionCreated: {} for ice-udp-transport id: {}", session, id);
+                    if (logger.isTraceEnabled()) {
+                        logger.debug("acceptor sessions: {}", acceptor.getManagedSessions());
                     }
+                    session.setAttribute(IceTransport.Ice.UUID, id);
                 }
 
                 @Override
@@ -239,18 +241,27 @@ public class IceUdpTransport extends IceTransport {
     @Override
     public boolean addBinding(SocketAddress addr) {
         try {
-            logger.debug("Adding UDP binding: {}", addr);
-            acceptor.bind(addr);
-            // add the port to the bound list
-            if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
-                logger.debug("UDP binding added: {}", addr);
-            } else {
-                logger.debug("UDP binding already added: {}", addr);
+            if (boundAddresses.add(addr)) {
+                logger.debug("Adding UDP binding: {}", addr);
+                acceptor.bind(addr);
+                logger.debug("UDP Bound: {}", addr);
+                // add the port to the bound list
+                if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
+                    logger.debug("UDP binding added: {}", addr);
+                } else {
+                    logger.debug("UDP binding already added: {}", addr);
+                }
+                // no exceptions? return true for adding the binding
+                return true;
             }
-            // no exceptions? return true for adding the binding
-            return true;
         } catch (Throwable t) {
             logger.warn("Add binding failed on {}", addr, t);
+
+        } finally {
+            if (!acceptor.getLocalAddresses().contains(addr)) {
+                logger.warn("Removing ref {}", addr);
+                boundAddresses.remove(addr);
+            }
         }
         return false;
     }
@@ -338,4 +349,8 @@ public class IceUdpTransport extends IceTransport {
         return sess;
     }
 
+    @Override
+    public Transport getTransport() {
+        return Transport.UDP;
+    }
 }

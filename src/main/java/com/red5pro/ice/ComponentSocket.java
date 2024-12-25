@@ -85,31 +85,26 @@ public class ComponentSocket implements PropertyChangeListener {
 
     public void close(Transport t, int port) {
         logger.info("close {}  {} ", t, port);
-        Set<IceSocketWrapper> toClose = new HashSet<>();
-        socketWrappers.forEach(wrapper -> {
-            logger.info("wrapper {} ", wrapper);
-            if (wrapper.getTransport() == t && wrapper.getLocalPort() == port) {
-                wrapper.close();
-                toClose.add(wrapper);
-
+        Agent agent = null;
+        if (component != null) {
+            if (component.getParentStream() != null && component.getParentStream().getParentAgent() != null) {
+                agent = component.getParentStream().getParentAgent();
             }
-        });
-        socketWrappers.removeAll(toClose);
-
-        if (socketWrappers.isEmpty()) {
-            logger.info("close self {} ", this);
-            close();
         }
-    }
-
-    public void close(int port) {
-        logger.info("close {}  {} ", this, port);
+        final Agent agentRef = agent;
         Set<IceSocketWrapper> toClose = new HashSet<>();
         socketWrappers.forEach(wrapper -> {
-            logger.info("chcking {} ", wrapper);
-            if (wrapper.getLocalPort() == port) {
-                wrapper.close();
+
+            logger.info("Close, socket {}/{} agent: {}", wrapper.getId(), wrapper.getTransportAddress(),
+                    (agentRef != null ? agentRef.getId() : "null"));
+            if (wrapper.getTransport() == t && wrapper.getLocalPort() == port) {
+                try {
+                    wrapper.close();
+                } catch (Throwable te) {
+                    logger.warn("", te);
+                }
                 toClose.add(wrapper);
+
             }
         });
         socketWrappers.removeAll(toClose);
@@ -122,7 +117,22 @@ public class ComponentSocket implements PropertyChangeListener {
 
     public void close() {
         try {
-            socketWrappers.forEach(IceSocketWrapper::close);
+            Agent agent = null;
+            if (component != null) {
+                if (component.getParentStream() != null && component.getParentStream().getParentAgent() != null) {
+                    agent = component.getParentStream().getParentAgent();
+                }
+            }
+            final Agent agentRef = agent;
+            socketWrappers.forEach(wrapper -> {
+                logger.debug("Close all, socket {}/{} agent: {}", wrapper.getId(), wrapper.getTransportAddress(),
+                        (agentRef != null ? agentRef.getId() : "null"));
+                try {
+                    wrapper.close();
+                } catch (Throwable te) {
+                    logger.warn("", te);
+                }
+            });
         } catch (Exception e) {
             logger.warn("Error closing socket wrappers", e);
         }
@@ -140,6 +150,7 @@ public class ComponentSocket implements PropertyChangeListener {
      * @param socketWrapper
      */
     public void addSocketWrapper(IceSocketWrapper socketWrapper) {
+        logger.debug("Adding socket to listings. {}  {}", socketWrapper.getId(), socketWrapper.getTransportAddress());
         socketWrappers.add(socketWrapper);
     }
 
@@ -149,6 +160,7 @@ public class ComponentSocket implements PropertyChangeListener {
      * @param socketWrapper
      */
     public void removeSocketWrapper(IceSocketWrapper socketWrapper) {
+        logger.debug("Removing socket from listings. {}  {}", socketWrapper.getId(), socketWrapper.getTransportAddress());
         socketWrappers.remove(socketWrapper);
     }
 

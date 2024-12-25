@@ -123,6 +123,18 @@ public class StackProperties {
     public static final String NO_KEEP_ALIVES = "com.red5pro.ice.NO_KEEP_ALIVES";
 
     /**
+     * When Socket acceptors and receivers are using a shared NioProcessingPool, This is the number of IOProcessors to use.
+     * TCP and UDP acceptors can each utilize a single worker pool and executor service.
+     */
+    public static final String NIO_PROCESSOR_POOL_SIZE = "NIO_PROCESSOR_POOL_SIZE";
+
+    public static final String NIO_USE_PROCESSOR_POOLS = "NIO_USE_PROCESSOR_POOLS";
+
+    public static final String ICE_SWEEPER_INTERVAL = "ICE_SWEEPER_INTERVAL";
+
+    public static final String ICE_SWEEPER_TIMEOUT = "ICE_SWEEPER_TIMEOUT";
+
+    /**
      * THIS PROPERTY IS CURRENTLY UNUSED. IF YOU WANT TO SPEED UP NOMINATIONS THEN CONSIDER SPEEDING UP TRANSACTION FAILURE FOR THE TIME BEING.
      * The maximum number of milliseconds that we should wait for a check list to complete before nominating one of its valid pairs (unless there are
      * none in which case we may have to wait until one appears or the whole list fails). Default value is -1 which causes the nominator

@@ -310,12 +310,14 @@ public class HostCandidateHarvester {
                 candidate.setVirtual(addrRef.isVirtual());
                 StunStack stunStack = candidate.getStunStack();
                 // add the socket wrapper to the stack which gets the bind and listening process started
+                logger.debug("Socket added to component, pending stack: {}", iceSocket);
+
                 if (stunStack.addSocket(iceSocket, null, true)) { // do socket binding
                     logger.debug("Socket added to stack: {}", iceSocket);
                     component.addLocalCandidate(candidate);
                     component.getComponentSocket().addSocketWrapper(iceSocket);
                 } else {
-                    logger.warn("Socket not added to stack: {}", iceSocket);
+                    logger.warn("Socket not added to stack. remove from component: {}", iceSocket);
                 }
             } catch (Throwable t) {
                 // There seems to be a problem with this particular address let's just move on for now and hope we will find better

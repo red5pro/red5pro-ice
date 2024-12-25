@@ -77,7 +77,6 @@ public class NetAccessManager {
      *
      * @param socket the socket that the access point should use
      * @param remoteAddress the remote address the {@link Connector} if its TCP or null if its UDP
-     * @throws IOException
      */
     public void buildConnectorLink(IceSocketWrapper socket, TransportAddress remoteAddress) {
         logger.debug("addSocket: {} remote address: {}", socket, remoteAddress);

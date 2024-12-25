@@ -71,7 +71,7 @@ class Connector implements Comparable<Connector> {
      */
     protected void stop() {
         if (alive.compareAndSet(true, false)) {
-            // stun stack also calls socket close as part of the process
+            // stun stack, component socket, and others all calls socket close as part of the process
             sock.close();
         }
     }

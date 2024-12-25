@@ -6,13 +6,21 @@ import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.mina.core.service.IoProcessor;
 import org.apache.mina.core.service.IoService;
 import org.apache.mina.core.service.IoServiceListener;
+import org.apache.mina.core.service.SimpleIoProcessorPool;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.transport.socket.SocketSessionConfig;
+import org.apache.mina.transport.socket.nio.NioProcessor;
+import org.apache.mina.transport.socket.nio.NioSession;
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
+
+import com.red5pro.ice.StackProperties;
+import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.StunStack;
@@ -24,6 +32,19 @@ import com.red5pro.ice.stack.StunStack;
  */
 public class IceTcpTransport extends IceTransport {
 
+    private static IoProcessor<NioSession> processingPool;
+
+    private static AtomicBoolean poolCreated = new AtomicBoolean();
+
+    {// non static so application has time to apply system properties.
+        if (sharedIoProcessor && poolCreated.compareAndSet(false, true)) {
+
+            int numWorkers = StackProperties.getInt(StackProperties.NIO_PROCESSOR_POOL_SIZE,
+                    Runtime.getRuntime().availableProcessors() * 2);
+
+            processingPool = new SimpleIoProcessorPool<NioSession>(NioProcessor.class, numWorkers);
+        }
+    }
     /**
      * Socket linger for this instance.
      */
@@ -46,7 +67,14 @@ public class IceTcpTransport extends IceTransport {
      * @return IceTransport
      */
     public static IceTcpTransport getInstance(String id) {
-        IceTcpTransport instance = (IceTcpTransport) transports.get(id);
+        IceTcpTransport instance = null;
+        IceTransport it = transports.get(id);
+        if (it != null && !IceTcpTransport.class.isInstance(it)) {
+            return null;
+        } else {
+            instance = (IceTcpTransport) it;
+        }
+
         // an id of "disconnected" is a special case where the socket is not associated with an IoSession
         if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
             if (IceTransport.isSharedAcceptor()) {
@@ -75,7 +103,11 @@ public class IceTcpTransport extends IceTransport {
     void createAcceptor() {
         if (acceptor == null) {
             // create the nio acceptor
-            acceptor = new NioSocketAcceptor(ioThreads);
+            if (!sharedIoProcessor) {
+                acceptor = new NioSocketAcceptor(ioThreads);
+            } else {
+                acceptor = new NioSocketAcceptor(ioExecutor, processingPool);
+            }
             acceptor.addListener(new IoServiceListener() {
 
                 @Override
@@ -157,25 +189,39 @@ public class IceTcpTransport extends IceTransport {
     @Override
     public boolean addBinding(SocketAddress addr) {
         try {
-            Future<Boolean> bindFuture = (Future<Boolean>) executor.submit(new Callable<Boolean>() {
+            if (boundAddresses.add(addr)) {
+                Future<Boolean> bindFuture = (Future<Boolean>) ioExecutor.submit(new Callable<Boolean>() {
 
-                @Override
-                public Boolean call() throws Exception {
-                    logger.debug("Adding TCP binding: {}", addr);
-                    acceptor.bind(addr);
-                    // add the port to the bound list
-                    if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
-                        logger.debug("TCP binding added: {}", addr);
+                    @Override
+                    public Boolean call() throws Exception {
+                        logger.debug("Adding TCP binding: {}", addr);
+                        acceptor.bind(addr);
+                        logger.debug("TCP Bound: {}", addr);
+                        //If future timed out but we still bound, add it back.
+                        if (!boundAddresses.contains(addr)) {
+                            boundAddresses.add(addr);
+                        }
+
+                        // add the port to the bound list
+                        if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
+                            logger.debug("TCP binding added: {}", addr);
+                        }
+                        return Boolean.TRUE;
                     }
-                    return Boolean.TRUE;
-                }
 
-            });
-            // wait a maximum of x seconds for this to complete the binding
-            return bindFuture.get(acceptorTimeout, TimeUnit.SECONDS);
+                });
+                // wait a maximum of x seconds for this to complete the binding
+                return bindFuture.get(acceptorTimeout, TimeUnit.SECONDS);
+            }
         } catch (Throwable t) {
             logger.warn("Add binding failed on {}", addr, t);
+        } finally {
+            if (!acceptor.getLocalAddresses().contains(addr)) {
+                logger.warn("Removing ref {}", addr);
+                boundAddresses.remove(addr);
+            }
         }
+
         return false;
     }
 
@@ -204,6 +250,11 @@ public class IceTcpTransport extends IceTransport {
         this.localSoLinger = soLinger;
         // if we've been given a linger property, apply it to the socket; this assumes non-shared acceptors
         ((NioSocketAcceptor) acceptor).getSessionConfig().setSoLinger(localSoLinger);
+    }
+
+    @Override
+    public Transport getTransport() {
+        return Transport.TCP;
     }
 
 }
