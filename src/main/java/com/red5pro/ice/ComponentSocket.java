@@ -85,18 +85,10 @@ public class ComponentSocket implements PropertyChangeListener {
 
     public void close(Transport t, int port) {
         logger.info("close {}  {} ", t, port);
-        Agent agent = null;
-        if (component != null) {
-            if (component.getParentStream() != null && component.getParentStream().getParentAgent() != null) {
-                agent = component.getParentStream().getParentAgent();
-            }
-        }
-        final Agent agentRef = agent;
+
         Set<IceSocketWrapper> toClose = new HashSet<>();
         socketWrappers.forEach(wrapper -> {
 
-            logger.info("Close, socket {}/{} agent: {}", wrapper.getId(), wrapper.getTransportAddress(),
-                    (agentRef != null ? agentRef.getId() : "null"));
             if (wrapper.getTransport() == t && wrapper.getLocalPort() == port) {
                 try {
                     wrapper.close();
@@ -116,26 +108,14 @@ public class ComponentSocket implements PropertyChangeListener {
     }
 
     public void close() {
-        try {
-            Agent agent = null;
-            if (component != null) {
-                if (component.getParentStream() != null && component.getParentStream().getParentAgent() != null) {
-                    agent = component.getParentStream().getParentAgent();
-                }
+        socketWrappers.forEach(wrapper -> {
+            try {
+                wrapper.close();
+            } catch (Throwable te) {
+                logger.warn("", te);
             }
-            final Agent agentRef = agent;
-            socketWrappers.forEach(wrapper -> {
-                logger.debug("Close all, socket {}/{} agent: {}", wrapper.getId(), wrapper.getTransportAddress(),
-                        (agentRef != null ? agentRef.getId() : "null"));
-                try {
-                    wrapper.close();
-                } catch (Throwable te) {
-                    logger.warn("", te);
-                }
-            });
-        } catch (Exception e) {
-            logger.warn("Error closing socket wrappers", e);
-        }
+        });
+
         Component component = this.component;
         if (component != null) {
             component.getParentStream().removePairStateChangeListener(this);

@@ -62,6 +62,7 @@ import com.red5pro.ice.stack.TransactionID;
  * @author Aakash Garg
  * @author Boris Grozev
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public class Agent {
 
@@ -72,7 +73,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.1.4.2";
+    private final static String VERSION = "1.1.4.3";
 
     /**
      * Secure random for shared use.
@@ -478,7 +479,7 @@ public class Agent {
                 hostCandidateHarvester.harvest(component, port, transport);
                 logger.debug("Host harvester done");
             } else {
-                logger.warn("Harvester not starting! IceTransport.isBound(port) reflected port previously bound. {}", transport.toString());
+                logger.warn("Harvester not starting.!{}", transport.toString());
             }
 
         } else if (hostHarvesters.isEmpty()) {
@@ -724,6 +725,7 @@ public class Agent {
                 IceSocketWrapper wrapper = component.getSocket(transport2);
                 IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport2, wrapper.getId());
                 if (iceTransport != null) {
+                    iceTransport.setAgentId(id);
                     iceTransport.setSoLinger(Integer.parseInt(soLinger));
                 }
             }
@@ -2526,14 +2528,8 @@ public class Agent {
         }
     }
 
-    public void notifySessionClosed(IceSocketWrapper iceSocketWrapper, IoSession session, Ice context) {
-        if (session != null) {
-            logger.warn("Component Event socket id: {}/{} sessid: {}/{},  event: {}", iceSocketWrapper.getId(),
-                    iceSocketWrapper.getTransportAddress(), Long.toHexString(session.getId()), session.getId(), context.name());
-        } else {
-            logger.warn("Component Event socket id: {}/{}, event: {}", iceSocketWrapper.getId(), context.name());
-        }
-
+    public void notifySessionChanged(IceSocketWrapper iceSocketWrapper, IoSession session, Ice context) {
+        logger.info("notifySessionChanged {}  {} ", iceSocketWrapper.toString(), context);
         switch (context) {
             case DISPOSE_ADDRESS:
                 allocatedPorts.remove(iceSocketWrapper.getTransportAddress().getPort());
@@ -2551,13 +2547,13 @@ public class Agent {
      * Called by IceHandler if an IceTransport was forced closed.
      */
     public void unregisterIfEmpty() {
-        if (allocatedPorts.isEmpty()) {
-            IceTransport.getIceHandler().unregisterAgent(id);
-            if (eolHandler != null) {
-                eolHandler.agentEndOfLife(this);
-                eolHandler = null;
-            }
-        }
+//        if (allocatedPorts.isEmpty()) {
+//            IceTransport.getIceHandler().unregisterAgent(id);
+//            if (eolHandler != null) {
+//                eolHandler.agentEndOfLife(this);
+//                eolHandler = null;
+//            }
+//        }
     }
 
     /*

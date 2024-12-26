@@ -37,7 +37,7 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
     @SuppressWarnings("static-access")
     @Override
     public void send(IoBuffer buf, SocketAddress destAddress) throws IOException {
-        if (isClosed()) {
+        if (isSessionClosed()) {
             logger.debug("Connection is closed");
             throw new ClosedChannelException();
         } else {

@@ -21,6 +21,7 @@ import com.red5pro.ice.TransportAddress;
  * TCP implementation of the IceSocketWrapper.
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public class IceTcpSocketWrapper extends IceSocketWrapper {
 
@@ -36,7 +37,7 @@ public class IceTcpSocketWrapper extends IceSocketWrapper {
     /** {@inheritDoc} */
     @Override
     public void send(IoBuffer buf, SocketAddress destAddress) throws IOException {
-        if (isClosed()) {
+        if (isSessionClosed()) {
             logger.debug("Connection is closed");
             throw new ClosedChannelException();
         } else {

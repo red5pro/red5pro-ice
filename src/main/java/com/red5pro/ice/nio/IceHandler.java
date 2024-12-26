@@ -8,6 +8,7 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -35,6 +36,7 @@ import com.red5pro.ice.Agent;
 import com.red5pro.ice.IceProcessingState;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.nio.IceTransport.ABPEntry;
 import com.red5pro.ice.nio.IceTransport.Ice;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.RawMessage;
@@ -56,6 +58,15 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
 
     private static boolean isDebug = logger.isDebugEnabled();
 
+    /**
+     * Interval for cleaning up dead transports in seconds.
+     */
+    protected static int cleanSweepingInterval = 60;
+    /**
+     * number of seconds for a nonshared transport to be considered abandoned.
+     */
+    protected static int deadTransportTimeout = 60;
+
     // temporary holding area for stun stacks awaiting session creation
     private static ConcurrentMap<TransportAddress, StunStack> stunStacks = new ConcurrentHashMap<>();
 
@@ -66,9 +77,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
 
     private ExecutorService closer = Executors.newCachedThreadPool();
     /**
-     * Periodic check for abandoned transports.
+     * Periodic check for abandoned transports. ThreadFactory used to create daemon threads.
      */
-    private ScheduledExecutorService cleanSweeper = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
+    private ScheduledExecutorService cleanSweeper = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors() * 2);
 
     private long sweepJob = 0;
 
@@ -78,9 +89,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             cleanSweeper.shutdown();
             closer.shutdown();
         }));
-
+        // Sweeper Job looks for orphaned Acceptors and Sockets.
         // Fixed delay between iterations. Not a fixed interval.
-        cleanSweeper.scheduleWithFixedDelay(this, 10, 60, TimeUnit.SECONDS);
+        cleanSweeper.scheduleWithFixedDelay(this, 60, cleanSweepingInterval, TimeUnit.SECONDS);
     }
 
     /**
@@ -98,12 +109,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         } else {
             logger.debug("Stun stack for address: {}", stunStacks.get(addr));
         }
-        IceSocketWrapper old = iceSockets.put(addr, iceSocket);
-        if (old != null) {
-            logger.warn("IceSocketWrapper already registered under {}", addr, iceSocket.toSweeperInfo());
-
-        }
-        //iceSockets.putIfAbsent(addr, iceSocket);
+        iceSockets.putIfAbsent(addr, iceSocket);
         //logger.debug("exit registerStackAndSocket");
     }
 
@@ -343,6 +349,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         // remove any existing reference to an ice socket
         Optional<Object> socket = Optional.ofNullable(session.removeAttribute(IceTransport.Ice.CONNECTION));
         if (socket.isPresent()) {
+            ((IceSocketWrapper) socket.get()).close();
             // update total message/byte counters
             ((IceSocketWrapper) socket.get()).notifySessionClosed(session, IceTransport.Ice.CLOSED);
         } else {
@@ -359,14 +366,14 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         if (causeMessage != null && causeMessage.contains("Hexdump: 15")) {
             // only log it at trace level if we're debugging
             if (isTrace) {
-                logger.warn("Exception on session: {}", session.getId(), cause);
+                logger.debug("Exception on session: {}", session.getId(), cause);
             } else {
-                logger.warn("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
+                logger.debug("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
             }
         } else if (isTrace) {
-            logger.warn("Exception on session: {}", session.getId(), cause);
+            logger.debug("Exception on session: {}", session.getId(), cause);
         } else {
-            logger.warn("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
+            logger.debug("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
         }
         session.setAttribute(IceTransport.Ice.EXCEPTION.name().toLowerCase(), cause);
         //Look for application API.
@@ -377,7 +384,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         TransportAddress addr = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transportType);
         if (agent != null) {
             if (agent.isClosing() || !agent.isActive()) {
-                logger.warn("Session agent is shutting down ");
+                logger.info("Session agent is shutting down ");
                 return;
             }
         }
@@ -443,7 +450,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
                                         && type == socket.getTransportAddress().getTransport()) {
 
                                     //Owner here. Tell them to relaese ownership of TransportAddress.
-                                    agent.notifySessionClosed(socket, null, Ice.DISPOSE_ADDRESS);
+                                    agent.notifySessionChanged(socket, null, Ice.DISPOSE_ADDRESS);
                                     agent.unregisterIfEmpty();
                                 }
                             }
@@ -483,7 +490,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
      * @return true if acceptor was found and address unbound.
      */
     public boolean unbindSocketByAddress(String address, String type, int port) {
-        Transport t = Transport.valueOf(type);
+        Transport t = Transport.valueOf(type.toUpperCase());
         TransportAddress target = new TransportAddress(address, port, t);
         AtomicBoolean ret = new AtomicBoolean();
 
@@ -528,7 +535,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
      * @return true if acceptor was unbound.
      */
     public boolean closeAcceptorByAddress(String address, String type, int port) {
-        Transport t = Transport.valueOf(type);
+        Transport t = Transport.valueOf(type.toUpperCase());
         TransportAddress target = new TransportAddress(address, port, t);
         AtomicBoolean ret = new AtomicBoolean();
         for (Entry<TransportAddress, IceSocketWrapper> socketEntry : iceSockets.entrySet()) {
@@ -551,13 +558,14 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
      * Management API
      * @return map of sockets owned by each acceptor-id.
      */
-    public Map<String, Set<TransportAddress>> getBindings() {
-        Map<String, Set<TransportAddress>> ret = new HashMap<>();
+    public Map<String, Set<String>> getBindings() {
+        Map<String, Set<String>> ret = new HashMap<>();
         IceTransport.transports.forEach((String id, IceTransport trans) -> {
-            HashSet<TransportAddress> sub = new HashSet<>();
+            HashSet<String> sub = new HashSet<>();
             trans.getBoundAddresses().forEach(addys -> {
-                sub.add((TransportAddress) addys);
+                sub.add(addys.toString().substring(1).concat("/").concat(trans.getType().toString()));
             });
+
             ret.put(id, sub);
         });
         return ret;
@@ -571,7 +579,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
      * @return true if listening address was closed
      */
     public boolean closeSocketByAddress(String address, String type, int port) {
-        Transport t = Transport.valueOf(type);
+        Transport t = Transport.valueOf(type.toUpperCase());
         TransportAddress target = new TransportAddress(address, port, t);
 
         for (Entry<TransportAddress, IceSocketWrapper> socketEntry : iceSockets.entrySet()) {
@@ -633,6 +641,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         }
     }
 
+    /**
+     * Sweeper Job looks for orphaned Acceptors and Sockets.
+     */
     @Override
     public void run() {
         Thread.currentThread().setName("sweeper job-" + sweepJob++);
@@ -676,7 +687,6 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             });
         });
 
-
         if (sweeperLogger.isTraceEnabled() && !stunStacks.isEmpty()) {
             sweeperLogger.trace("---Stun Stacks---");
             stunStacks.forEach((hood, stunna) -> {
@@ -690,7 +700,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             });
         }
 
-        if (sweeperLogger.isDebugEnabled() && !iceSockets.isEmpty()) {
+        if (sweeperLogger.isTraceEnabled() && !iceSockets.isEmpty()) {
             sweeperLogger.info("---ICE Sockets---");
             iceSockets.forEach((addy, socket) -> {
                 if (socket != null) {
@@ -741,6 +751,14 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             });
         }
 
+        if (sweeperLogger.isTraceEnabled()) {
+            Iterator<ABPEntry> iter = IceTransport.getGlobalListing().iterator();
+            while (iter.hasNext()) {
+                ABPEntry entry = iter.next();
+                sweeperLogger.warn(entry.toString());
+            }
+        }
+
         sweeperLogger.trace("Exiting");
     }
 
@@ -748,7 +766,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
 
         Agent agent = sock.getAgent();
 
-        if (!agent.isActive() && agent.closedDuration() > IceTransport.deadTransportTimeout) {
+        if (!agent.isActive() && agent.closedDuration() > deadTransportTimeout) {
 
             sweeperLogger.warn("Agent has been closed for {} seconds. Active duration: {} seconds. Clearing up socket {}.",
                     agent.closedDuration() / 1000.0, (agent.getAge() - agent.closedDuration()) / 1000.0, sock.getTransportAddress());

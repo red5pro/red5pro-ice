@@ -41,6 +41,7 @@ import com.red5pro.ice.stack.StunStack;
  * Parent socket wrapper that define a socket that could be UDP, TCP...
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
@@ -201,16 +202,16 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     public abstract RawMessage read();
 
     /**
-     * Returns true if closed or session is not null and close.
+     * Returns true if socket or session is closed.
      *
      * @return true = not open, false = not closed
      */
-    public boolean isClosed() {
+    public boolean isSessionClosed() {
 
         if (!closed.get()) {
             IoSession sess = session.get();
             if (!sess.equals(NULL_SESSION) && sess.isClosing()) {
-                return true;//Do NOT flip the atomic boolean. because it prevents the socket from closing when someone actually calls close!
+                return true;//Do not flip the atomic boolean. because it prevents the socket from closing when someone calls close().
             }
         }
         return closed.get();
@@ -240,7 +241,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     public boolean close(IoSession sess) {
         if (IceTransport.handOffSocketClosure) {
             Callable<Boolean> closeMe = () -> closeInternal(sess);
-            try {//IoFUture thread will catch an exception but the socket close job will continue on.
+            try {
                 return IceTransport.getIceHandler().runSocketCloseJob(closeMe).get(5000, TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 logger.debug("", e);
@@ -264,7 +265,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         logger.debug("{}   {}", session.get(), sess);
         if (!session.get().equals(NULL_SESSION) && sess != null && !sess.equals(NULL_SESSION) && !session.get().equals(sess)) {
             logger.warn("Closing socket with wrong session  {}", sess);
-            sess = null;//prevent erasure of sess props if needed later.
+            return false;
         }
 
         // flip to closed if not set already
@@ -851,7 +852,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
         if (localAgent != null) {
             IceTransport.getIceHandler().submitTask(() -> {
-                localAgent.notifySessionClosed(this, session, context);
+                localAgent.notifySessionChanged(this, session, context);
             });
         }
     }

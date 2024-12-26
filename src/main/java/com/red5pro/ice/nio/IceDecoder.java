@@ -132,7 +132,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
         if (iceSocket == null) {
             logger.warn("Ice socket is null for session: {}", session);
             throw new SocketClosedException("Socket is null");
-        } else if (iceSocket.isClosed()) {
+        } else if (iceSocket.isSessionClosed()) {
             logger.warn("Ice socket is closed for session: {}", session);
             throw new SocketClosedException("Socket is closed");
         }
@@ -166,7 +166,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
                         // clear session local
                         session.removeAttribute(Ice.TCP_BUFFER);
                         // if the socket is valid for processing input
-                        if (iceSocket != null && !iceSocket.isClosed()) {
+                        if (iceSocket != null && !iceSocket.isSessionClosed()) {
                             // send a buffer of bytes for further processing / handling
                             process(session, iceSocket, buf);
                         } else {
@@ -221,7 +221,7 @@ public class IceDecoder extends ProtocolDecoderAdapter {
                             // get the bytes into our buffer
                             in.get(buf);
                             // if the socket is valid for processing input
-                            if (iceSocket != null && !iceSocket.isClosed()) {
+                            if (iceSocket != null && !iceSocket.isSessionClosed()) {
                                 // send a buffer of bytes for further processing / handling
                                 process(session, iceSocket, buf);
                             } else {

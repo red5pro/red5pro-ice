@@ -1,6 +1,5 @@
 package com.red5pro.ice.nio;
 
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayList;
@@ -8,6 +7,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,13 +15,14 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 
 import org.apache.mina.core.service.IoAcceptor;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.filter.codec.ProtocolCodecFilter;
 import org.apache.mina.util.ConcurrentHashSet;
-import org.apache.mina.util.CopyOnWriteMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,11 +36,11 @@ import com.red5pro.ice.stack.StunStack;
  * IceTransport, the parent transport class.
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public abstract class IceTransport {
 
-    protected static Logger pluginLogger = LoggerFactory.getLogger("com.red5pro.ice.nio");
-
+    /** CachedThreadPool shared by both udp and tcp transports. */
     protected static ExecutorService ioExecutor = Executors.newCachedThreadPool();
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
@@ -51,8 +52,6 @@ public abstract class IceTransport {
     protected final static ProtocolCodecFilter iceCodecFilter = new ProtocolCodecFilter(new IceEncoder(), new IceDecoder());
 
     protected final static IceHandler iceHandler = new IceHandler();
-
-    protected static ConcurrentHashMap<Transport, Method> getInstanceMethods = new ConcurrentHashMap<>();
 
     // used for tcp socket linger, it defaults to -1 (disabled)
     // Specify a linger-on-close timeout. This option disables/enables immediate return from a close() of a TCP Socket.
@@ -75,12 +74,18 @@ public abstract class IceTransport {
     protected final static boolean sharedAcceptor = false;//StackProperties.getBoolean("NIO_SHARED_MODE", true);//Shared mode disabled.
 
     /** whether or not TCP Socket acceptors will use a shared IoProcessorPool and executor.*/
-    protected boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, true);
+    protected final static boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, true);
 
     /** Number of processors created for the shared IoProceeor pool.*/
-    protected int ioThreads = StackProperties.getInt(StackProperties.NIO_PROCESSOR_POOL_SIZE,
+    protected static int ioThreads = StackProperties.getInt(StackProperties.NIO_PROCESSOR_POOL_SIZE,
             Runtime.getRuntime().availableProcessors() * 2);
 
+    /**
+     * @param ioThreads the ioThreads to set
+     */
+    public static void setIoThreads(int count) {
+        ioThreads = count;
+    }
 
     // whether or not to handle a hung acceptor aggressively
     protected static boolean aggressiveAcceptorReset = StackProperties.getBoolean("ACCEPTOR_RESET", false);
@@ -95,25 +100,17 @@ public abstract class IceTransport {
     public static int trafficClass = StackProperties.getInt("TRAFFIC_CLASS", 24);
 
     // thread-safe map containing ice transport instances
-    protected static Map<String, IceTransport> transports = new CopyOnWriteMap<>(1);
+    protected static Map<String, IceTransport> transports = new ConcurrentHashMap<>();
 
     // holder of bound ports; used to prevent blocking issues querying acceptors
-    protected static ConcurrentSkipListSet<Integer> boundPorts = new ConcurrentSkipListSet<>();
-    /**
-     * Interval for cleaning up dead transports in seconds.
-     */
-    protected static int cleanSweepingInterval = 60;
-    /**
-     * number of seconds for a nonshared transport to be considered abandoned.
-     */
-    protected static int deadTransportTimeout = 60;
+    private static ConcurrentSkipListSet<ABPEntry> allBoundPorts = new ConcurrentSkipListSet<>();
 
     /**
      * The acceptor's bound-addresses list will contain an address until it is fully unbound.
      * As a result, multiple threads can enter 'unbind' with the same target.
      * This boundAddresses set prevents multiple threads from entering acceptor.unbind(address).
      */
-    protected Set<SocketAddress> boundAddresses = new ConcurrentHashSet<>();
+    protected Set<SocketAddress> myBoundAddresses = new ConcurrentHashSet<>();
     /**
      * Prevents thread contention between calls to unbind and the call to stop.
      */
@@ -138,22 +135,6 @@ public abstract class IceTransport {
      * Owning agent id, or null if using shared acceptor.
      */
     private String agentId;
-    /**
-     * Debug info used to identify deadlocks or execution completion.
-     */
-    private volatile int stoppedState;
-    /**
-     * Debug info used to identify deadlocks or execution completion when not shared.
-     */
-    private volatile int unbindState;
-    /**
-     * Debug information to reflect how many times 'unbind' was called.
-     */
-    private volatile int unbindCounts;
-    /**
-     * Debug information to reflect how many times stop was called.
-     */
-    private volatile int stopCounts;
 
     private boolean disposed;
 
@@ -193,24 +174,25 @@ public abstract class IceTransport {
 
     }
 
-//    {// non static so application has time to apply system properties.
-//        deadTransportTimeout = StackProperties.getInt(StackProperties.ICE_SWEEPER_TIMEOUT, 60);
-//
-//        cleanSweepingInterval = StackProperties.getInt(StackProperties.ICE_SWEEPER_INTERVAL, 60);
-//    }
+    /**
+     * Did the application add bindings either successfully or unsuccessfully? Once tried, this should always reflect true.
+     * False if the application never called 'addBinding'
+     */
+    protected boolean acceptorUtilized;
 
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     public IceTransport() {
         logger.info("Properties: Socket linger: {} DNS cache ttl: {}", soLinger, System.getProperty("networkaddress.cache.ttl"));
+
     }
 
     /**
      * Returns an instance of this transport.
      *
-     * @param type the transport type requested, either UDP or TCP. Passing null will search both.
-     * @param id transport / acceptor identifier
+     * @param type the transport type requested, either UDP or TCP. Passing null will look up either type if type is unknown.
+     * @param id transport / acceptor identifier. if type is null and id is IceSocketWrapper.DISCONNECTED, it will return a tcp type.
      * @return IceTransport
      */
     public static IceTransport getInstance(Transport type, String id) {
@@ -270,6 +252,13 @@ public abstract class IceTransport {
         return false;
     }
 
+    public void forceClose() {
+        if (acceptor != null) {
+            acceptor.dispose(false);
+            acceptor = null;
+        }
+    }
+
     /**
      * Removes a socket binding from the acceptor.
      * Currently if the acceptor is not shared, there is a one-to-one acceptor-to-socket ratio, and removing binding will call stop.
@@ -278,19 +267,19 @@ public abstract class IceTransport {
      * @return true if successful and false otherwise
      */
     public boolean removeBinding(SocketAddress addr) throws Exception {
-        logger.debug("remove binding: {}  {}   {} ", addr, unbindCounts, boundAddresses.toString());
-        unbindCounts++;
+        logger.debug("remove binding: {}  {} ", addr, myBoundAddresses.toString());
+
 
         //Acceptor bound addresses list will contain an address until it is fully unbound.
         //As a result, multiple threads can enter 'unbind' with the same target.
         //This boundAddresses set prevents multiple threads from entering acceptor.unbind(addr).
-        if (boundAddresses.remove(addr)) {
+        if (myBoundAddresses.remove(addr)) {
             // if the acceptor is null theres nothing to do
             if (acceptor != null) {
                 int port = ((InetSocketAddress) addr).getPort();
                 // We dont want another thread calling stop while we are un-binding. We may have additional tasks to do afterwards.
                 unbindStopLocker.lock();
-                unbindState++;
+
                 boolean didUnbind = false;
                 try {
                     // Did another thread call stop while we waited for lock?
@@ -300,9 +289,9 @@ public abstract class IceTransport {
                     }
                     // perform the un-binding, if bound
                     if (acceptor.getLocalAddresses().contains(addr)) {
-                        unbindState++;
+
                         acceptor.unbind(addr); // do this only once, especially for TCP since it can block
-                        unbindState++;
+
                         logger.debug("Binding removed: {}", addr);
                         didUnbind = true;
                         // no exceptions? return true for removing the binding
@@ -322,34 +311,37 @@ public abstract class IceTransport {
                         logger.warn("Remove binding failed on {}", addr, t);
                     }
                 } finally {
-                    unbindState++;
+
                     if (acceptor != null && acceptor.getLocalAddresses().contains(addr)) {
                         logger.warn("unable to remove binding from acceptor.");
                         //add it back
-                        boundAddresses.add(addr);
+                        myBoundAddresses.add(addr);
                     }
 
                     unbindStopLocker.unlock();
-                    unbindState++;
+
                     // remove the address from the handler
                     if (didUnbind) {
                         if (iceHandler.remove(addr)) {
                             logger.debug("Removed address: {} from handler", addr);
                         }
                         // remove the port from the list
-                        if (boundPorts.remove(port)) {
-                            logger.debug("Port removed from bound ports: {}, now removing binding: {}", port, addr);
+                        if (removeReservedPort(port)) {
+                            if (!sharedAcceptor) {
+                                logger.debug("Port removed from bound ports: {}, now removing acceptor: {}", port, addr);
+                            }
                         } else {
-                            logger.debug("Port already removed from bound ports: {}, now removing binding: {}", port, addr);
+                            if (!sharedAcceptor) {
+                                logger.debug("Port already removed from bound ports: {}, now removing acceptor: {}", port, addr);
+                            }
                         }
 
                     } else {
-                        logger.debug("Did not unbind address: {} from handler  {}", id);
+                        logger.warn("Did not unbind address: {} from handler  {}", id);
                     }
 
-                    //TODO Implement a single acceptor per Agent/transport-type in non-shared mode.
-                    if (!sharedAcceptor && acceptor.getLocalAddresses().isEmpty()) {
-                        // Acceptor is not and the last binding was removed. kill it
+                    if (!sharedAcceptor && myBoundAddresses.isEmpty()) {
+                        // Acceptor is not shared and the last binding was removed. kill it
                         stop();
                     }
                 }
@@ -361,15 +353,6 @@ public abstract class IceTransport {
         }
         return false;
     }
-
-//    /**
-//     * Admin/maintenance method.
-//     */
-//    public void forceClose() {
-//        logger.warn("Acceptor will be reset with extreme predudice {}", id);
-//        acceptor.dispose(false);
-//        acceptor = null;
-//    }
 
     /**
      * Admin/maintenance method.
@@ -386,86 +369,48 @@ public abstract class IceTransport {
     public boolean stop() throws Exception {
         //Can only be called once.
         if (stopCalled.compareAndSet(false, true)) {
-            return stop(false);
-        }
-        return isUnbound();
-    }
+            logger.info("Stop {}", id);
+            if (this.myBoundAddresses.size() > 0) {
+                logger.warn("Stopping with bindings {}", myBoundAddresses.toString());
+            }
 
-    /**
-     *
-     * @param forceRelease when true, bypasses locks and checks to directly dispose the acceptor without preconditions.
-     * @return
-     * @throws Exception
-     */
-    public boolean stop(boolean forceRelease) throws Exception {
-        stopCounts++;
-
-        if (forceRelease) {
-            stopCalled.set(true);
-        }
-
-        stoppedState++;
-        logger.info("Stop {}", id);
-        if (this.boundAddresses.size() > 0) {
-            logger.warn("Stopping with bindings {}", boundAddresses.toString());
-        }
-
-        //If normal release. Grab the orderly lock.
-        if (!forceRelease) {
             //Cannot be called while other thread is still calling remove address.
             unbindStopLocker.lock();
-        }
-        stoppedState++;
-        disposed = false;
-        Set<SocketAddress> copy = null;
-        try {
-
-            if (acceptor != null) {
-                //Normal closure. Check for bound ports.
-                if (!forceRelease && !acceptor.getLocalAddresses().isEmpty()) {
-                    logger.debug("Acceptor has addresses at 'stop' event. Unbind.");
-                    acceptor.unbind();
-                } else if (!forceRelease) {
-                    logger.debug("Acceptor has no bindings at 'stop' event. Dispose directly.");
-                }
-                stoppedState++;
-                if (!forceRelease) {
-                    //Normal closure, await termination
-                    acceptor.dispose(true);
-                    stoppedState++;
-                } else {
-                    copy = new HashSet<>();
-                    copy.addAll(acceptor.getLocalAddresses());
+            disposed = false;
+            Set<SocketAddress> copy = new HashSet<>();
+            try {
+                if (acceptor != null) {
+                    //Normal closure. Check for bound ports.
+                    if (!acceptor.getLocalAddresses().isEmpty()) {
+                        logger.debug("Acceptor has addresses at 'stop' event. Unbind.");
+                        copy.addAll(acceptor.getLocalAddresses());
+                        acceptor.unbind();
+                    }
                     //Forced closure. Dont wait.
-                    acceptor.dispose(false);
+                    acceptor.dispose(true);
+                    disposed = true;
+                    logger.info("Disposed acceptor: {} {}", id);
                 }
-                disposed = true;
-                logger.info("Disposed acceptor: {} {}", id);
+            } catch (Throwable t) {
+                logger.warn("Exception stopping transport", t);
+                throw t;
+            } finally {
+                unbindStopLocker.unlock();
+                // un-forced normal closure.
+                if (disposed) {
+                    copy.forEach(addy -> {
+                        removeReservedPort(((InetSocketAddress) addy).getPort());
+                    });
+                    transports.remove(id);
+                    logger.debug("Unregistered self: {}", id);
+                } else {
+                    //Thread never made it to or past 'dispose'
+                    // Sweeper will catch us
+                    logger.debug("Cannot unregistered self: {}", id);
+                }
             }
-        } catch (Throwable t) {
-            logger.warn("Exception stopping transport", t);
-            throw t;
-        } finally {
-            stoppedState += 10;
-            unbindStopLocker.unlock();
-            stoppedState += 10;
-            // un-forced normal closure.
-            if (!forceRelease && disposed) {
-                transports.remove(id);
-                stoppedState += 10;
-                logger.debug("Unregistered self: {}", id);
-            } else if (forceRelease && disposed) {
-                IceTransport.getIceHandler().cleanUpTransport(id, getTransport(), copy);
-                transports.remove(id);
-                stoppedState += 10;
-                logger.debug("Unregistered self: {}", id);
-            } else {
-                //Thread never made it to or past 'dispose'
-                // Sweeper will catch us
-                logger.debug("Cannot unregistered self: {}", id);
-            }
-        }
 
+        }
         return disposed;
     }
 
@@ -481,7 +426,11 @@ public abstract class IceTransport {
      */
     public static boolean isBound(int port) {
         //logger.info("isBound: {}", port);
-        return boundPorts.contains(port);
+        boolean ret = false;
+        synchronized (allBoundPorts) {
+            ret = allBoundPorts.contains(ABPEntry.valueOf(port));
+        }
+        return ret;
     }
 
     public abstract Transport getTransport();
@@ -525,13 +474,6 @@ public abstract class IceTransport {
      */
     public static void setTimeout(int timeout) {
         IceTransport.timeout = timeout;
-    }
-
-    /**
-     * @param ioThreads the ioThreads to set
-     */
-    public void setIoThreads(int ioThreads) {
-        this.ioThreads = ioThreads;
     }
 
     /**
@@ -606,9 +548,8 @@ public abstract class IceTransport {
         if (acceptor != null) {
             arr = acceptor.getLocalAddresses();
         }
-        return String.format("%s ss: %d ubs: %d, lck: %b, ubc: %d, sc: %d, refs: %s, accs: %s", String.valueOf(stopCalled.get()),
-                stoppedState, unbindState, unbindStopLocker.isLocked(), unbindCounts, stopCounts, boundAddresses.toString(),
-                arr.toString());
+        return String.format("stopped %s lck: %b, refs: %s, sox: %s", String.valueOf(stopCalled.get()), unbindStopLocker.isLocked(),
+                myBoundAddresses.toString(), arr.toString());
     }
 
     public boolean isStopped() {
@@ -616,6 +557,129 @@ public abstract class IceTransport {
     }
 
     public Set<SocketAddress> getBoundAddresses() {
-        return boundAddresses;
+        return acceptor.getLocalAddresses();
+    }
+
+    public int getEstimatedBoundAddressCount() {
+        int size = 0;
+        try {
+            size = acceptor.getLocalAddresses().size();
+        } catch (Throwable t) {//ignore null pointer exception.
+        }
+        return size;
+    }
+
+
+    protected boolean addReservedPort(int port) {
+        logger.debug("add reservation. for port {}", port);
+        boolean results = false;
+        synchronized (allBoundPorts) {
+            if (allBoundPorts.contains(ABPEntry.valueOf(port))) {
+                Predicate<ABPEntry> pred = entry -> entry.port == port;
+                Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+                if (ret.isPresent()) {
+                    int numAddresses = ret.get().binds.incrementAndGet();
+                    logger.debug("added reservation {}. num binds for port {} = {}", results, port, numAddresses);
+                    return true;
+                } else {
+                    //Should never happen.
+                    logger.warn("irregular set {} = {}", port);
+                    ABPEntry entry = new ABPEntry();
+                    entry.port = port;
+                    entry.binds.incrementAndGet();
+                    results = allBoundPorts.add(entry);
+                    logger.debug("added reservation {}. num binds for port {} = {}", results, port, 1);
+                    return results;
+                }
+            } else {
+                ABPEntry entry = new ABPEntry();
+                entry.port = port;
+                entry.binds.incrementAndGet();
+                results = allBoundPorts.add(entry);
+                logger.debug("added reservation {}. num binds for port {} = {}", results, port, 1);
+                return results;
+            }
+        }
+
+    }
+
+
+    public boolean removeReservedPort(int port) {
+        logger.debug("remove reservation. for port {}", port);
+        synchronized (allBoundPorts) {
+            if (allBoundPorts.contains(ABPEntry.valueOf(port))) {
+                Predicate<ABPEntry> pred = entry -> entry.port == port;
+                Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+                if (ret.isPresent()) {
+                    int numAddresses = ret.get().binds.decrementAndGet();
+                    logger.debug("num binds for port {} = {}", port, numAddresses);
+                    if (numAddresses == 0) {
+                        allBoundPorts.remove(ret.get());
+                        logger.debug("cleared reservations {}", port);
+                    }
+                    return true;
+                } else {
+                    logger.debug("optional not present for entry of port {}", port);
+                }
+            } else {
+                logger.debug("reservation contains no entry for port {}", port);
+            }
+        }
+        return false;
+    }
+
+    public boolean wasAcceptorUtilized() {
+        return acceptorUtilized;
+    }
+
+    public static Set<ABPEntry> getGlobalListing() {
+        return allBoundPorts;
+    }
+
+    public abstract Transport getType();
+
+    public static class ABPEntry implements Comparable<ABPEntry> {
+        static ABPEntry tag = new ABPEntry();
+        Integer port;
+        AtomicInteger binds = new AtomicInteger();
+
+        /**
+         * Hash on the Integer.
+         * @return
+         */
+        public int hashCode() {
+            return port.hashCode();
+        }
+
+        public static ABPEntry valueOf(int p) {
+            tag.port = p;
+            return tag;
+        }
+
+        /**
+         * Compare by Integer.
+         */
+        @Override
+        public int compareTo(ABPEntry o) {
+            if (o == null) {
+                throw new NullPointerException();
+            }
+
+            return Integer.compare(port, o.port);
+        }
+
+        /**
+         * Equals on Integer.
+         */
+        @Override
+        public boolean equals(Object that) {
+            return port.equals(that);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("{ port:%d, address count:%d }", port, binds.get());
+        }
+
     }
 }

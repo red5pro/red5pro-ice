@@ -26,6 +26,7 @@ import com.red5pro.ice.stack.StunStack;
  * IceTransport for UDP connections.
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public class IceUdpTransport extends IceTransport {
     /**
@@ -100,7 +101,7 @@ public class IceUdpTransport extends IceTransport {
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
-    private IceUdpTransport() {
+    IceUdpTransport() {
         logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout,
                 timeout);
         // add ourself to the transports map
@@ -108,16 +109,18 @@ public class IceUdpTransport extends IceTransport {
     }
 
     /**
-     * Returns a static instance of this transport.
+     * Returns an instance of this transport.
      *
      * @param id transport / acceptor identifier
      * @return IceTransport
      */
     public static IceUdpTransport getInstance(String id) {
+
         IceUdpTransport instance = null;
         IceTransport it = transports.get(id);
-        if (it != null && !IceUdpTransport.class.isInstance(it)) {
-            return null;
+        // We may have been called when the caller did not know the type via IceTransport#getInstance .
+        if (thisIsSomethingButNot(it)) {
+            return null;//it must be tcp.
         } else {
             instance = (IceUdpTransport) it;
         }
@@ -148,11 +151,10 @@ public class IceUdpTransport extends IceTransport {
     }
 
     void createAcceptor() {
-        pluginLogger.debug("IceUdpTransport  createAcceptor: {}", acceptor);
         if (acceptor == null) {
             // create the nio acceptor
             //acceptor = new NioDatagramAcceptor(); // mina base acceptor
-            acceptor = new IceDatagramAcceptor(ioExecutor);//Shared executor
+            acceptor = new IceDatagramAcceptor(ioExecutor);//Shared cached thread pool
             acceptor.addListener(new IoServiceListener() {
 
                 @Override
@@ -241,12 +243,13 @@ public class IceUdpTransport extends IceTransport {
     @Override
     public boolean addBinding(SocketAddress addr) {
         try {
-            if (boundAddresses.add(addr)) {
+            acceptorUtilized = true;
+            if (myBoundAddresses.add(addr)) {
                 logger.debug("Adding UDP binding: {}", addr);
                 acceptor.bind(addr);
                 logger.debug("UDP Bound: {}", addr);
                 // add the port to the bound list
-                if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
+                if (addReservedPort(((InetSocketAddress) addr).getPort())) {
                     logger.debug("UDP binding added: {}", addr);
                 } else {
                     logger.debug("UDP binding already added: {}", addr);
@@ -259,8 +262,8 @@ public class IceUdpTransport extends IceTransport {
 
         } finally {
             if (!acceptor.getLocalAddresses().contains(addr)) {
-                logger.warn("Removing ref {}", addr);
-                boundAddresses.remove(addr);
+                logger.warn("Failed to bind. Removing ref {}", addr);
+                myBoundAddresses.remove(addr);
             }
         }
         return false;
@@ -351,6 +354,23 @@ public class IceUdpTransport extends IceTransport {
 
     @Override
     public Transport getTransport() {
+        return Transport.UDP;
+    }
+
+    /**
+     * Returns true if 'it' is not null and is not an IceUdpTransport
+     * @param it extension of IceTransport or null
+     * @return boolean true if parameter is not null and is not an IceUdpTransport
+     */
+    private static boolean thisIsSomethingButNot(IceTransport it) {
+        if (it != null) {
+            return !IceUdpTransport.class.isInstance(it);
+        }
+        return false;
+    }
+
+    @Override
+    public Transport getType() {
         return Transport.UDP;
     }
 }

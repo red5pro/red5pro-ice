@@ -6,7 +6,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.mina.core.service.IoProcessor;
 import org.apache.mina.core.service.IoService;
@@ -19,7 +19,6 @@ import org.apache.mina.transport.socket.nio.NioProcessor;
 import org.apache.mina.transport.socket.nio.NioSession;
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
 
-import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
@@ -29,20 +28,15 @@ import com.red5pro.ice.stack.StunStack;
  * IceTransport for TCP connections.
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public class IceTcpTransport extends IceTransport {
 
-    private static IoProcessor<NioSession> processingPool;
+    private static AtomicReference<IoProcessor<NioSession>> processingPool = new AtomicReference<IoProcessor<NioSession>>(null);
 
-    private static AtomicBoolean poolCreated = new AtomicBoolean();
-
-    {// non static so application has time to apply system properties.
-        if (sharedIoProcessor && poolCreated.compareAndSet(false, true)) {
-
-            int numWorkers = StackProperties.getInt(StackProperties.NIO_PROCESSOR_POOL_SIZE,
-                    Runtime.getRuntime().availableProcessors() * 2);
-
-            processingPool = new SimpleIoProcessorPool<NioSession>(NioProcessor.class, numWorkers);
+    {//Non static
+        if (sharedIoProcessor && processingPool.get() == null) {
+            processingPool.compareAndSet(null, new SimpleIoProcessorPool<NioSession>(NioProcessor.class, ioThreads));
         }
     }
     /**
@@ -50,10 +44,11 @@ public class IceTcpTransport extends IceTransport {
      */
     private int localSoLinger = -1;
 
+
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
-    private IceTcpTransport() {
+    IceTcpTransport() {
         logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id, sharedAcceptor,
                 acceptorTimeout, timeout, ioThreads);
         // add ourself to the transports map
@@ -61,16 +56,18 @@ public class IceTcpTransport extends IceTransport {
     }
 
     /**
-     * Returns a static instance of this transport.
+     * Returns an instance of this transport.
      *
      * @param id transport / acceptor identifier
      * @return IceTransport
      */
     public static IceTcpTransport getInstance(String id) {
+
         IceTcpTransport instance = null;
         IceTransport it = transports.get(id);
-        if (it != null && !IceTcpTransport.class.isInstance(it)) {
-            return null;
+        // We may have been called when the caller did not know the type via IceTransport#getInstance.
+        if (thisIsSomethingButNot(it)) {
+            return null;//must be UDP
         } else {
             instance = (IceTcpTransport) it;
         }
@@ -106,7 +103,7 @@ public class IceTcpTransport extends IceTransport {
             if (!sharedIoProcessor) {
                 acceptor = new NioSocketAcceptor(ioThreads);
             } else {
-                acceptor = new NioSocketAcceptor(ioExecutor, processingPool);
+                acceptor = new NioSocketAcceptor(ioExecutor, processingPool.get());
             }
             acceptor.addListener(new IoServiceListener() {
 
@@ -189,7 +186,8 @@ public class IceTcpTransport extends IceTransport {
     @Override
     public boolean addBinding(SocketAddress addr) {
         try {
-            if (boundAddresses.add(addr)) {
+            acceptorUtilized = true;
+            if (myBoundAddresses.add(addr)) {
                 Future<Boolean> bindFuture = (Future<Boolean>) ioExecutor.submit(new Callable<Boolean>() {
 
                     @Override
@@ -197,13 +195,8 @@ public class IceTcpTransport extends IceTransport {
                         logger.debug("Adding TCP binding: {}", addr);
                         acceptor.bind(addr);
                         logger.debug("TCP Bound: {}", addr);
-                        //If future timed out but we still bound, add it back.
-                        if (!boundAddresses.contains(addr)) {
-                            boundAddresses.add(addr);
-                        }
-
                         // add the port to the bound list
-                        if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
+                        if (addReservedPort(((InetSocketAddress) addr).getPort())) {
                             logger.debug("TCP binding added: {}", addr);
                         }
                         return Boolean.TRUE;
@@ -218,7 +211,7 @@ public class IceTcpTransport extends IceTransport {
         } finally {
             if (!acceptor.getLocalAddresses().contains(addr)) {
                 logger.warn("Removing ref {}", addr);
-                boundAddresses.remove(addr);
+                myBoundAddresses.remove(addr);
             }
         }
 
@@ -257,4 +250,20 @@ public class IceTcpTransport extends IceTransport {
         return Transport.TCP;
     }
 
+    /**
+     * Returns true if 'it' is not null and is not an IceTcpTransport
+     * @param it extension of IceTransport or null
+     * @return boolean true if parameter is not null and is not an IceTcpTransport
+     */
+    private static boolean thisIsSomethingButNot(IceTransport it) {
+        if (it != null) {
+            return !IceTcpTransport.class.isInstance(it);
+        }
+        return false;
+    }
+
+    @Override
+    public Transport getType() {
+        return Transport.TCP;
+    }
 }
