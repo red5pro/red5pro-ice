@@ -1,7 +1,6 @@
 package com.red5pro.ice.nio;
 
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -124,6 +123,7 @@ public class IceTcpTransport extends IceTransport {
 
                 @Override
                 public void sessionCreated(IoSession session) throws Exception {
+                    logger.debug("Acceptor sessionCreated: {} for ice-tcp-transport id: {}", session, id);
                     //logger.debug("sessionCreated: {}", session);
                     //logger.trace("Acceptor sessions: {}", acceptor.getManagedSessions());
                     session.setAttribute(IceTransport.Ice.UUID, id);
@@ -178,28 +178,23 @@ public class IceTcpTransport extends IceTransport {
     }
 
     /**
-     * Adds a socket binding to the acceptor.
-     *
-     * @param addr
-     * @return true if successful and false otherwise
+     * {@inheritDoc}
      */
     @Override
-    public boolean addBinding(SocketAddress addr) {
+    public Long addBinding(String socketUUID, InetSocketAddress addr) {
         try {
             acceptorUtilized = true;
             if (myBoundAddresses.add(addr)) {
-                Future<Boolean> bindFuture = (Future<Boolean>) ioExecutor.submit(new Callable<Boolean>() {
+                Future<Long> bindFuture = (Future<Long>) ioExecutor.submit(new Callable<Long>() {
 
                     @Override
-                    public Boolean call() throws Exception {
+                    public Long call() throws Exception {
                         logger.debug("Adding TCP binding: {}", addr);
                         acceptor.bind(addr);
                         logger.debug("TCP Bound: {}", addr);
-                        // add the port to the bound list
-                        if (addReservedPort(((InetSocketAddress) addr).getPort())) {
-                            logger.debug("TCP binding added: {}", addr);
-                        }
-                        return Boolean.TRUE;
+                        Long rsvp = cacheBoundAddressInfo(socketUUID, (InetSocketAddress) addr, ((InetSocketAddress) addr).getPort());
+                        logger.debug("TCP binding added: {}", addr);
+                        return rsvp;
                     }
 
                 });
@@ -215,14 +210,14 @@ public class IceTcpTransport extends IceTransport {
             }
         }
 
-        return false;
+        return null;
     }
 
     /** {@inheritDoc} */
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
         logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {} soLinger: {}", stunStack, iceSocket, localSoLinger);
         boolean result = false;
-        iceSocket.setId(id);
+        iceSocket.setTransportId(id);
         // add the stack and wrapper to a map which will hold them until an associated session is opened
         // when opened, the stack and wrapper will be added to the session as attributes
         iceHandler.registerStackAndSocket(stunStack, iceSocket);
@@ -231,7 +226,9 @@ public class IceTcpTransport extends IceTransport {
             // get the local address
             TransportAddress localAddress = iceSocket.getTransportAddress();
             // attempt to add a binding to the server
-            result = addBinding(localAddress);
+            Long rsvp = addBinding(iceSocket.getId(), localAddress);
+            result = rsvp != null;
+            iceSocket.setRsvp(rsvp);
         }
         return result;
     }

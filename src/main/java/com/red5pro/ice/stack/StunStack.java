@@ -39,6 +39,7 @@ import com.red5pro.ice.message.Request;
 import com.red5pro.ice.message.Response;
 import com.red5pro.ice.nio.IceTcpTransport;
 import com.red5pro.ice.nio.IceTransport;
+import com.red5pro.ice.nio.IceTransport.AcceptorStrategy;
 import com.red5pro.ice.nio.IceUdpTransport;
 import com.red5pro.ice.security.CredentialsManager;
 import com.red5pro.ice.security.LongTermCredential;
@@ -108,6 +109,8 @@ public class StunStack implements MessageEventHandler {
 
     private String agentId;
 
+    private AcceptorStrategy strategy = AcceptorStrategy.DiscretePerSocket;
+
     private HashSet<TransportAddress> registrations = new HashSet<TransportAddress>();
 
     /**
@@ -131,6 +134,10 @@ public class StunStack implements MessageEventHandler {
     });
 
     private long creationTime;
+
+    private String udpTransportSessionId;
+
+    private String tcpTransportSessionId;
 
     static {
         // The Mac instantiation used in MessageIntegrityAttribute could take several hundred milliseconds so we don't
@@ -169,11 +176,33 @@ public class StunStack implements MessageEventHandler {
         } else {
             // add the wrapper for binding
             if (doBind) {
+                IceTransport transport = null;
                 if (iceSocket instanceof IceUdpSocketWrapper) {
-                    IceUdpTransport transport = IceUdpTransport.getInstance(iceSocket.getId());
-                    transport.registerStackAndSocket(this, iceSocket);
+
+                    if (strategy == AcceptorStrategy.DiscretePerSession) {
+                        if (udpTransportSessionId == null) {
+                            transport = IceUdpTransport.getInstance(iceSocket.getTransportId());
+                            udpTransportSessionId = transport.getId();
+                        } else {
+                            transport = IceUdpTransport.getInstance(udpTransportSessionId);
+                        }
+                    } else {
+                        transport = IceUdpTransport.getInstance(iceSocket.getTransportId());
+                    }
                 } else {
-                    IceTcpTransport transport = IceTcpTransport.getInstance(iceSocket.getId());
+                    if (strategy == AcceptorStrategy.DiscretePerSession) {
+                        if (tcpTransportSessionId == null) {
+                            transport = IceTcpTransport.getInstance(iceSocket.getTransportId());
+                            tcpTransportSessionId = transport.getId();
+                        } else {
+                            transport = IceTcpTransport.getInstance(tcpTransportSessionId);
+                        }
+                    } else {
+                        transport = IceTcpTransport.getInstance(iceSocket.getTransportId());
+                    }
+                }
+
+                if (transport != null) {
                     transport.registerStackAndSocket(this, iceSocket);
                 }
             } else {
@@ -983,7 +1012,7 @@ public class StunStack implements MessageEventHandler {
             try {
                 IceSocketWrapper socket = IceTransport.getIceHandler().lookupBinding(addy);
                 if (socket != null) {
-                    b.append(" id: ").append(socket.getId());
+                    b.append(" id: ").append(socket.getTransportId());
                     b.append(", session:[ ");
                     progress.set(true);
                     IoSession sess = socket.getSession();
@@ -1040,5 +1069,13 @@ public class StunStack implements MessageEventHandler {
 
     public String getAgentId() {
         return agentId;
+    }
+
+    public AcceptorStrategy getStrategy() {
+        return strategy;
+    }
+
+    public void setStrategy(AcceptorStrategy strategy) {
+        this.strategy = strategy;
     }
 }

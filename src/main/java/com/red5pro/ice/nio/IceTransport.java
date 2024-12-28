@@ -43,6 +43,8 @@ public abstract class IceTransport {
     /** CachedThreadPool shared by both udp and tcp transports. */
     protected static ExecutorService ioExecutor = Executors.newCachedThreadPool();
 
+    protected static Logger pluginLogger = LoggerFactory.getLogger(IceTransport.class);
+
     protected Logger logger = LoggerFactory.getLogger(getClass());
 
     protected boolean isTrace = logger.isTraceEnabled(), isDebug = logger.isDebugEnabled();
@@ -71,10 +73,10 @@ public abstract class IceTransport {
     protected static long acceptorTimeout = StackProperties.getInt("ACCEPTOR_TIMEOUT", 2);
 
     /** whether or not to use a shared acceptor. */
-    protected final static boolean sharedAcceptor = false;//StackProperties.getBoolean("NIO_SHARED_MODE", true);//Shared mode disabled.
+    protected static boolean sharedAcceptor = StackProperties.getBoolean("NIO_SHARED_MODE", false);//Shared mode disabled.
 
     /** whether or not TCP Socket acceptors will use a shared IoProcessorPool and executor.*/
-    protected final static boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, true);
+    protected final static boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, false);
 
     /** Number of processors created for the shared IoProceeor pool.*/
     protected static int ioThreads = StackProperties.getInt(StackProperties.NIO_PROCESSOR_POOL_SIZE,
@@ -127,6 +129,7 @@ public abstract class IceTransport {
     protected int receiveBufferSize = StackProperties.getInt("SO_RCVBUF", BUFFER_SIZE_DEFAULT);
 
     protected int sendBufferSize = StackProperties.getInt("SO_SNDBUF", BUFFER_SIZE_DEFAULT);
+
     /**
      * Local / instance socket acceptor; depending upon the transport, this will be NioDatagramAcceptor for UDP or NioSocketAcceptor for TCP.
      */
@@ -159,7 +162,7 @@ public abstract class IceTransport {
         CLOSED,
         CLOSE_FUTURE,
         EXCEPTION, //In case any end-users are reflecting 'exception', name as lower case maintains compatibility with previous versions.
-        /** Ice library is cleaning up a stray socket.*/
+        /** Ice library has removed binding. */
         DISPOSE_ADDRESS;
     }
 
@@ -224,6 +227,10 @@ public abstract class IceTransport {
         return ret;
     }
 
+    public String getId() {
+        return id;
+    }
+
     /**
      * Returns the acceptor if it exists and null otherwise.
      *
@@ -234,12 +241,12 @@ public abstract class IceTransport {
     }
 
     /**
-     * Adds a socket binding to the acceptor.
-     *
-     * @param addr
-     * @return true if successful and false otherwise
+     * Attempt to bind a port to a local address.
+     * @param socketUUID unique identifier for the socket bind-session. This identifier represents the intent to bind, successful or not. Subsequent connected IoSsessions will have their own uuid.
+     * @param addr address to bind to.
+     * @return bind ID or null if address failed to bind.
      */
-    public abstract boolean addBinding(SocketAddress addr);
+    public abstract Long addBinding(String socketUUID, InetSocketAddress addr);
 
     /**
      * Registers a StunStack and IceSocketWrapper to the internal maps to wait for their associated IoSession creation. This causes a bind on the given local address.
@@ -259,16 +266,21 @@ public abstract class IceTransport {
         }
     }
 
+    public boolean removeBinding(SocketAddress addr) throws Exception {
+        return removeBinding(null, addr);
+    }
+
     /**
      * Removes a socket binding from the acceptor.
      * Currently if the acceptor is not shared, there is a one-to-one acceptor-to-socket ratio, and removing binding will call stop.
      *
+     * @param rsvp id or null
      * @param addr
-     * @return true if successful and false otherwise
+     * @return
+     * @throws Exception
      */
-    public boolean removeBinding(SocketAddress addr) throws Exception {
-        logger.debug("remove binding: {}  {} ", addr, myBoundAddresses.toString());
-
+    public boolean removeBinding(Long rsvp, SocketAddress addr) throws Exception {
+        logger.debug("remove binding: {}  {} rsvp: {}", addr, myBoundAddresses.toString(), rsvp);
 
         //Acceptor bound addresses list will contain an address until it is fully unbound.
         //As a result, multiple threads can enter 'unbind' with the same target.
@@ -326,24 +338,20 @@ public abstract class IceTransport {
                             logger.debug("Removed address: {} from handler", addr);
                         }
                         // remove the port from the list
-                        if (removeReservedPort(port)) {
-                            if (!sharedAcceptor) {
-                                logger.debug("Port removed from bound ports: {}, now removing acceptor: {}", port, addr);
-                            }
+                        if (removeCachedBoundAddressInfo(rsvp, (InetSocketAddress) addr, port)) {
+                            logger.debug("Port {} removed from bound ports listing: {}", port, addr);
                         } else {
-                            if (!sharedAcceptor) {
-                                logger.debug("Port already removed from bound ports: {}, now removing acceptor: {}", port, addr);
-                            }
+                            logger.debug("Port {} already removed from bound ports listing: {}", port, addr);
                         }
-
                     } else {
-                        logger.warn("Did not unbind address: {} from handler  {}", id);
+                        logger.warn("Did not unbind address: {} from handler. transport-id: {}", id);
                     }
 
                     if (!sharedAcceptor && myBoundAddresses.isEmpty()) {
                         // Acceptor is not shared and the last binding was removed. kill it
                         stop();
                     }
+
                 }
             } else {
                 logger.debug("cant unbind address, Acceptor is null {}  id: {}", addr, id);
@@ -364,14 +372,14 @@ public abstract class IceTransport {
     /**
      *
      * @return true if acceptor is released.
-     * @throws Exception
+     * @throws Exception,
      */
     public boolean stop() throws Exception {
         //Can only be called once.
         if (stopCalled.compareAndSet(false, true)) {
             logger.info("Stop {}", id);
             if (this.myBoundAddresses.size() > 0) {
-                logger.warn("Stopping with bindings {}", myBoundAddresses.toString());
+                logger.debug("Stopping with bindings {}", myBoundAddresses.toString());
             }
 
             //Cannot be called while other thread is still calling remove address.
@@ -389,7 +397,7 @@ public abstract class IceTransport {
                     //Forced closure. Dont wait.
                     acceptor.dispose(true);
                     disposed = true;
-                    logger.info("Disposed acceptor: {} {}", id);
+                    logger.debug("Disposed acceptor: {} {}", id);
                 }
             } catch (Throwable t) {
                 logger.warn("Exception stopping transport", t);
@@ -398,18 +406,18 @@ public abstract class IceTransport {
                 unbindStopLocker.unlock();
                 // un-forced normal closure.
                 if (disposed) {
+                    logger.info("Disposed {}", id);
                     copy.forEach(addy -> {
-                        removeReservedPort(((InetSocketAddress) addy).getPort());
+                        removeCachedBoundAddressInfo(((InetSocketAddress) addy));
                     });
                     transports.remove(id);
                     logger.debug("Unregistered self: {}", id);
                 } else {
                     //Thread never made it to or past 'dispose'
                     // Sweeper will catch us
-                    logger.debug("Cannot unregistered self: {}", id);
+                    logger.debug("Could not unregistered self: {}", id);
                 }
             }
-
         }
         return disposed;
     }
@@ -418,20 +426,6 @@ public abstract class IceTransport {
         return disposed;
     }
 
-    /**
-     * Review all ports in-use for a conflict with the given port.
-     *
-     * @param port
-     * @return true if already bound and false otherwise
-     */
-    public static boolean isBound(int port) {
-        //logger.info("isBound: {}", port);
-        boolean ret = false;
-        synchronized (allBoundPorts) {
-            ret = allBoundPorts.contains(ABPEntry.valueOf(port));
-        }
-        return ret;
-    }
 
     public abstract Transport getTransport();
 
@@ -503,6 +497,11 @@ public abstract class IceTransport {
         return acceptorTimeout;
     }
 
+    /**
+     * Replaces a connectivity checking session with the actual media session.
+     * @param session
+     * @return
+     */
     protected boolean associateSession(IoSession session) {
         logger.debug("Associate socket with session {}", session);
         TransportAddress address = (TransportAddress) session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR);
@@ -569,63 +568,114 @@ public abstract class IceTransport {
         return size;
     }
 
+    protected boolean updateReservedPortWithHost(Long rid, InetSocketAddress addy) {
+        Predicate<ABPEntry> pred = entry -> entry.port == addy.getPort();
+        Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+        if (ret.isPresent()) {
+            ret.get().update(rid, addy);
+            return true;
+        }
 
-    protected boolean addReservedPort(int port) {
-        logger.debug("add reservation. for port {}", port);
+        return false;
+    }
+
+    /**
+     * Add successfully bound address and port to the lookup index.
+     * @param iceSocketUUID IceSocket UUID
+     * @param addy address to bind to.
+     * @param port port to bind to.
+     * @return Long Reservation id
+     */
+    protected Long cacheBoundAddressInfo(String iceSocketUUID, InetSocketAddress addy, int port) {
+        logger.debug("add reservation for port {} with {}  for {}", port, addy, iceSocketUUID);
         boolean results = false;
+        long start = System.currentTimeMillis();
         synchronized (allBoundPorts) {
-            if (allBoundPorts.contains(ABPEntry.valueOf(port))) {
+            try {
                 Predicate<ABPEntry> pred = entry -> entry.port == port;
                 Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
                 if (ret.isPresent()) {
                     int numAddresses = ret.get().binds.incrementAndGet();
+                    ReservationEntry rsvp = RE().id(iceSocketUUID).with(addy);
+                    results = ret.get().hosts.add(rsvp);
+                    Long rid = rsvp.rid;
                     logger.debug("added reservation {}. num binds for port {} = {}", results, port, numAddresses);
-                    return true;
+                    return results ? rid : null;
                 } else {
-                    //Should never happen.
-                    logger.warn("irregular set {} = {}", port);
                     ABPEntry entry = new ABPEntry();
                     entry.port = port;
                     entry.binds.incrementAndGet();
+                    ReservationEntry rsvp = RE().id(iceSocketUUID).with(addy);
+                    entry.hosts.add(rsvp);
+                    Long rid = rsvp.rid;
                     results = allBoundPorts.add(entry);
                     logger.debug("added reservation {}. num binds for port {} = {}", results, port, 1);
-                    return results;
+                    return results ? rid : null;
                 }
-            } else {
-                ABPEntry entry = new ABPEntry();
-                entry.port = port;
-                entry.binds.incrementAndGet();
-                results = allBoundPorts.add(entry);
-                logger.debug("added reservation {}. num binds for port {} = {}", results, port, 1);
-                return results;
+            } finally {
+                logger.info("addReservedPort dur: {}", System.currentTimeMillis() - start);
             }
         }
-
     }
 
+    public boolean removeCachedBoundAddressInfo(Long rid, int port) {
+        return removeCachedBoundAddressInfo(rid, null, port);
+    }
 
-    public boolean removeReservedPort(int port) {
-        logger.debug("remove reservation. for port {}", port);
+    public boolean removeCachedBoundAddressInfo(InetSocketAddress addy) {
+        return removeCachedBoundAddressInfo(null, addy, addy.getPort());
+    }
+
+    public boolean removeCachedBoundAddressInfo(Long rid, InetSocketAddress addy, int port) {
+        logger.debug("remove reservation. for port {} with rid: {} and tid: {}", port, rid, addy);
         synchronized (allBoundPorts) {
-            if (allBoundPorts.contains(ABPEntry.valueOf(port))) {
-                Predicate<ABPEntry> pred = entry -> entry.port == port;
-                Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
-                if (ret.isPresent()) {
+            Predicate<ABPEntry> pred = entry -> entry.port == port;
+            Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+            if (ret.isPresent()) {
+
+                if (ret.get().removeRid(rid) || ret.get().removeTid(addy)) {
                     int numAddresses = ret.get().binds.decrementAndGet();
                     logger.debug("num binds for port {} = {}", port, numAddresses);
                     if (numAddresses == 0) {
                         allBoundPorts.remove(ret.get());
                         logger.debug("cleared reservations {}", port);
                     }
-                    return true;
-                } else {
-                    logger.debug("optional not present for entry of port {}", port);
+                    ReservationEntry owner = ReservationEntry.reservation.get();
+                    if (owner != null) {
+                        ReservationEntry.reservation.set(null);
+                        iceHandler.notifyReservationRemoved(owner.rid, owner.socketUUID, owner.address);
+                    }
+
+                    return true;//rid or tid was removed.
                 }
             } else {
-                logger.debug("reservation contains no entry for port {}", port);
+                logger.debug("optional not present for entry of port {}", port);
             }
         }
         return false;
+    }
+
+    /**
+     * Review all ports in-use for a conflict with the given port.
+     *
+     * @param port
+     * @return true if already bound and false otherwise
+     */
+    public static boolean isBound(int port) {
+        Predicate<ABPEntry> pred = entry -> entry.port == port;
+        Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+        return ret.isPresent();
+    };
+
+    /** Check if a bind reservation id is still present.
+    *
+    * @param port
+    * @return true if already bound and false otherwise
+    */
+    public static boolean didBind(Long rsvp, int port) {
+        Predicate<ABPEntry> pred = entry -> entry.port == port && entry.hasRsvp(rsvp);
+        Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+        return ret.isPresent();
     }
 
     public boolean wasAcceptorUtilized() {
@@ -638,10 +688,16 @@ public abstract class IceTransport {
 
     public abstract Transport getType();
 
+    /**
+     * All-Bound-Ports reservation table entry.
+     * @author Andy
+     *
+     */
     public static class ABPEntry implements Comparable<ABPEntry> {
-        static ABPEntry tag = new ABPEntry();
+
         Integer port;
         AtomicInteger binds = new AtomicInteger();
+        Set<ReservationEntry> hosts = new ConcurrentSkipListSet<>();
 
         /**
          * Hash on the Integer.
@@ -651,9 +707,65 @@ public abstract class IceTransport {
             return port.hashCode();
         }
 
-        public static ABPEntry valueOf(int p) {
-            tag.port = p;
-            return tag;
+        public boolean hasRsvp(Long rid) {
+            //first try look up with value of instance.
+            if (hosts.contains(ReservationEntry.valueOf(rid))) {
+                return true;
+            }
+            // Now just iterate and compare with direct instance.
+            for (ReservationEntry rsvp : hosts) {
+                if (rid == rsvp.rid) {
+                    if (ReservationEntry.reservation.get() == null) {
+                        ReservationEntry.reservation.set(rsvp);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void update(Long rid, InetSocketAddress addy) {
+            for (ReservationEntry rsvp : hosts) {
+                if (rid == rsvp.rid) {
+                    rsvp.address = addy;
+                    break;
+                }
+            }
+        }
+
+        public boolean removeTid(InetSocketAddress tid) {
+            if (tid == null) {
+                return false;
+            }
+            ReservationEntry found = null;
+            for (ReservationEntry rsvp : hosts) {
+                if (tid.equals(rsvp.address)) {
+                    found = rsvp;
+                    break;
+                }
+            }
+            if (found != null) {
+                ReservationEntry.reservation.set(found);
+                return hosts.remove(found);
+            }
+
+            return false;
+        }
+
+        public boolean removeRid(Long rid) {
+            if (rid == null) {
+                return false;
+            }
+            //lookup object will have null socektUUID and helps determine which entry to return in 'compare' or 'equals'
+            ReservationEntry lookup = ReservationEntry.valueOf(rid);
+            try {
+                if (hosts.remove(lookup)) {
+                    return true;
+                }
+            } finally {
+                lookup = null;
+            }
+            return false;
         }
 
         /**
@@ -668,12 +780,13 @@ public abstract class IceTransport {
             return Integer.compare(port, o.port);
         }
 
-        /**
-         * Equals on Integer.
-         */
         @Override
-        public boolean equals(Object that) {
-            return port.equals(that);
+        public boolean equals(Object what) {
+            if (ABPEntry.class.isInstance(what)) {
+                ABPEntry that = (ABPEntry) what;
+                return port.equals(that.port);
+            }
+            return false;
         }
 
         @Override
@@ -682,4 +795,104 @@ public abstract class IceTransport {
         }
 
     }
+
+    public static ReservationEntry RE() {
+        return new ReservationEntry();
+    }
+
+    public static class ReservationEntry implements Comparable<ReservationEntry> {
+        public static ThreadLocal<ReservationEntry> reservation = new ThreadLocal<>();
+        private static long ridCount = 0;
+        private final long rid;
+        public String socketUUID = null;
+        public InetSocketAddress address;
+
+        private ReservationEntry(Long rsvp) {
+            rid = rsvp;
+        }
+
+        private ReservationEntry() {
+            rid = ++ridCount;
+        }
+
+        public ReservationEntry id(String socketUUID) {
+            this.socketUUID = socketUUID;
+            return this;
+        }
+
+        public ReservationEntry with(InetSocketAddress address) {
+            this.address = address;
+            return this;
+        }
+
+        public boolean equals(Object o) {
+
+            if (ReservationEntry.class.isInstance(o)) {
+                ReservationEntry that = (ReservationEntry) o;
+                if (this.rid == that.rid) {
+                    if (reservation.get() == null) {
+                        if (this.socketUUID == null && that.socketUUID != null) {
+                            reservation.set(that);
+                        } else if (that.socketUUID == null && this.socketUUID != null) {
+                            reservation.set(this);
+                        }
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public int compareTo(ReservationEntry o) {
+            boolean equal = (this.rid == o.rid);
+            if (equal) {
+                if (reservation.get() == null) {
+                    if (this.socketUUID == null && o.socketUUID != null) {
+                        reservation.set(o);
+                    } else if (o.socketUUID == null && this.socketUUID != null) {
+                        reservation.set(this);
+                    }
+                }
+            }
+            return (int) (this.rid - o.rid);
+        }
+
+        static ReservationEntry valueOf(Long rsvp) {
+            return new ReservationEntry(rsvp);
+        }
+    }
+
+    /**
+     * For each Transport type utilized(TCP and UDP), this enum represents the three basic ways to manage IceTransports for users.
+     * Create an IceTransport for every IceSocketWrapper. Create a single IceTransport for each end user.
+     * Create one IceTransport for all users.
+     * @author Andy
+     *
+     */
+    public static enum AcceptorStrategy {
+        /** One acceptor per Socket Wrapper*/
+        DiscretePerSocket,
+        /**One acceptor per user session*/
+        DiscretePerSession,
+        /** Shared Acceptor, sharedAcceptor*/
+        Shared;
+
+        private static AcceptorStrategy[] cachedvalues = values();
+
+        public static AcceptorStrategy valueOf(int ordinal) {
+            if (ordinal < 0 || ordinal >= cachedvalues.length) {
+                return DiscretePerSocket;
+            }
+            return cachedvalues[ordinal];
+        }
+    }
+
+    /**
+     * Tells the system to use shared acceptors.
+     */
+    public static void setSharedAcceptor() {
+        sharedAcceptor = true;
+    };
+
 }

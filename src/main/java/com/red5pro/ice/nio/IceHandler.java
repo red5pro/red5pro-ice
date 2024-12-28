@@ -208,11 +208,11 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             session.setAttribute(IceTransport.Ice.AGENT, agent);
             IceSocketWrapper iceSocket = iceSockets.get(addr);
             if (iceSocket != null) {
-                logger.debug("New session on Socket id: {}, session {}, current session {}", iceSocket.getId(), session,
+                logger.debug("New session on Socket id: {}, session {}, current session {}", iceSocket.getTransportId(), session,
                         iceSocket.getSession());
                 // No longer setting socket ID here because ice transport might not have set attribute yet.
                 if (!session.containsAttribute(IceTransport.Ice.UUID)) {
-                    session.setAttribute(IceTransport.Ice.UUID, iceSocket.getId());
+                    session.setAttribute(IceTransport.Ice.UUID, iceSocket.getTransportId());
                 }
                 session.setAttribute(IceTransport.Ice.NEGOTIATING_ICESOCKET, iceSocket);
                 // XXX create socket registration
@@ -220,7 +220,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
                     // get the remote address
                     inetAddr = (InetSocketAddress) session.getRemoteAddress();
                     TransportAddress remoteAddress = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transport);
-                    logger.debug("Socket {} current remote address: {} Session remote address: {}", iceSocket.getId(),
+                    logger.debug("Socket {} current remote address: {} Session remote address: {}", iceSocket.getTransportId(),
                             iceSocket.getRemoteTransportAddress(), remoteAddress);
                     session.setAttribute(IceTransport.Ice.NEGOTIATING_TRANSPORT_ADDR, remoteAddress);
                     iceSocket.negotiateRemoteAddress(remoteAddress);
@@ -388,7 +388,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
                 return;
             }
         }
-
+        IceSocketWrapper iceSocket = iceSockets.get(addr);
         logger.warn("Session: {} exception on transport: {} connection-less? {} address: {}", session.getId(), transportType,
                 session.getTransportMetadata().isConnectionless(), addr);
         // get the transport / acceptor identifier
@@ -397,11 +397,11 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         IceTransport transport = IceTransport.getInstance(transportType, id);
         // remove binding
         if (transport != null) {
-            transport.removeBinding(addr);
+            transport.removeBinding(iceSocket.getRsvp(), addr);
         }
         // remove any map entries
         stunStacks.remove(addr);
-        IceSocketWrapper iceSocket = iceSockets.get(addr);
+
         if (iceSocket == null && session.containsAttribute(IceTransport.Ice.CONNECTION)) {
             iceSocket = (IceSocketWrapper) session.removeAttribute(IceTransport.Ice.CONNECTION);
         }
@@ -430,11 +430,32 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         return false;
     }
 
+    public void notifyReservationRemoved(Long rid, String socketUUID, InetSocketAddress address) {
+        logger.debug("notifyReservationRemoved rid: {}, socketUUID: {}   address:{} ", rid, socketUUID, address);
+        this.submitTask(() -> {
+
+            logger.debug("Running notification to agent for {}", socketUUID);
+            IceSocketWrapper wrapper = IceSocketWrapper.getInstance(socketUUID);
+            if (wrapper != null) {
+                //set reservation to null.
+                wrapper.setRsvp(null);
+                Agent agent = wrapper.getAgent();
+                if (agent != null) {
+                    agent.notifySessionChanged(wrapper, wrapper.getSession(), Ice.DISPOSE_ADDRESS);
+                } else {
+                    logger.debug("No agent");
+                }
+            } else {
+                logger.debug("No wrapper");
+            }
+        });
+    }
+
     public void cleanUpTransport(String id, Transport type, Set<SocketAddress> killed) {
         try {
             //get all the sockets owned by the transport id
             IceSocketWrapper[] mySockets = (IceSocketWrapper[]) iceSockets.entrySet().stream().filter((entry) -> {
-                return entry.getValue().getId().equals(id);
+                return entry.getValue().getTransportId().equals(id);
             }).toArray();
 
             //Call their agents if their address was listed in killed
@@ -501,7 +522,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
                     TransportAddress reflect = new TransportAddress((InetSocketAddress) addy, t);
                     if (reflect.equals(target)) {
                         try {
-                            ret.set(trans.removeBinding(target));
+                            ret.set(trans.removeBinding(null, target));
                         } catch (Exception e) {
                             logger.warn("", e);
                         }
@@ -540,7 +561,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         AtomicBoolean ret = new AtomicBoolean();
         for (Entry<TransportAddress, IceSocketWrapper> socketEntry : iceSockets.entrySet()) {
             if (socketEntry.getKey().equals(target)) {
-                String id = socketEntry.getValue().getId();
+                String id = socketEntry.getValue().getTransportId();
                 IceTransport transport = IceTransport.getInstance(t, id);
                 if (transport != null) {
                     try {
@@ -674,14 +695,14 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             //Iterate on known addresses.
             t.getBoundAddresses().forEach((SocketAddress sockAddy) -> {
                 IceSocketWrapper iceSocket = iceSockets.get(sockAddy);
-                if (iceSocket != null && iceSocket.getId() == id) {
+                if (iceSocket != null && iceSocket.getTransportId() == id) {
                     doCheckups(t, iceSocket);
                 }
             });
 
             //Iterate on lost/unknown addresses.
             iceSockets.forEach((addy, iceSocket) -> {
-                if (iceSocket != null && iceSocket.getId() == id) {
+                if (iceSocket != null && iceSocket.getTransportId() == id) {
                     doCheckups(t, iceSocket);
                 }
             });
@@ -705,7 +726,8 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             iceSockets.forEach((addy, socket) -> {
                 if (socket != null) {
                     sweeperLogger.info(socket.toSweeperInfo());
-                    sweeperLogger.info("Socket age: {}, has-transport: {}", socket.getAge(), IceTransport.transportExists(socket.getId()));
+                    sweeperLogger.info("Socket age: {}, has-transport: {}", socket.getAge(),
+                            IceTransport.transportExists(socket.getTransportId()));
                 } else {
                     sweeperLogger.info("No socket for {}", addy);
                 }
@@ -860,5 +882,6 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     public Future<?> submitTask(Runnable runThis) {
         return closer.submit(runThis);
     }
+
 
 }

@@ -8,7 +8,11 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
@@ -55,8 +59,12 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     public final static String DISCONNECTED = "disconnected";
 
+    protected static ConcurrentMap<String, IceSocketWrapper> iceSockets = new ConcurrentHashMap<>();
+
+    protected final String id = UUID.randomUUID().toString();
+
     // acceptor id for this socket
-    protected String id;
+    protected String transportId;
 
     // whether or not we've been closed
     public AtomicBoolean closed = new AtomicBoolean(false);
@@ -153,6 +161,10 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     private long creationTime;
 
+    private Long rsvp;
+
+    private Long closingTime;
+
     IceSocketWrapper() throws IOException {
         throw new IOException("Invalid constructor, use IceSocketWrapper(TransportAddress) instead");
     }
@@ -168,6 +180,10 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         localAgent = Agent.localAgent.get();
         transportAddress = address;
         creationTime = System.currentTimeMillis();
+        logger.warn("my uuid {}", id);
+        iceSockets.put(id, this);
+        logger.warn("iceSockets {}", iceSockets.size());
+        localAgent.addSocketUUID(id);
     }
 
     /**
@@ -270,6 +286,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
         // flip to closed if not set already
         if (closed.compareAndSet(false, true)) {
+            closingTime = System.currentTimeMillis();
             if (sess != null) {
                 // additional clean up steps
                 logger.debug("Close session: {}  socket references: {}", sess.getId());
@@ -305,14 +322,14 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             // removal from the net access manager via stun stack
             if (stunStack != null) {
                 // part of the removal process in stunstack closes the connector which closes this
-                stunStack.removeSocket(id, transportAddress, remoteTransportAddress.get());
+                stunStack.removeSocket(transportId, transportAddress, remoteTransportAddress.get());
             }
             // unbinds and closes any non-shared acceptor
-            IceTransport transport = IceTransport.getInstance(transportAddress.getTransport(), id);
+            IceTransport transport = IceTransport.getInstance(transportAddress.getTransport(), transportId);
             if (transport != null) { // remove the binding from the transport
                 // Might be shared, so don't kill it, just remove binding
                 try {
-                    if (transport.removeBinding(transportAddress)) {
+                    if (transport.removeBinding(rsvp, transportAddress)) {
                         logger.debug("removed binding: {}", transportAddress);
                     } else {
                         logger.warn("While closing, failed to remove binding: {}", transportAddress);
@@ -321,7 +338,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
                     logger.warn("", e);
                 }
             } else {
-                logger.warn("While closing, no transport for: {} found with id: {}", transportAddress, id);
+                logger.warn("While closing, no transport for: {} found with id: {}", transportAddress, transportId);
             }
             // for GC
             relayedCandidateConnection = null;
@@ -345,6 +362,17 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             logger.debug("Already Closed: {}", this);
         }
         return false;
+    }
+
+    /**
+     * Milliseconds between creation and closed. If not closed, then milliseconds between created and now.
+     * @return
+     */
+    public long getTimeAlive() {
+        if (closingTime == null) {
+            return System.currentTimeMillis() - creationTime;
+        }
+        return closingTime - creationTime;
     }
 
     /**
@@ -400,17 +428,17 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     /**
      * Returns the unique identifier for the associated acceptor.
      *
-     * @return UUID string for this instance or "disconnected" if not set on the session or not connected
+     * @return UUID string for the associated IceTransport instance or "disconnected" if not set on the session or not connected
      */
-    public String getId() {
-        if (this.id != null) {
-            return this.id;
+    public String getTransportId() {
+        if (this.transportId != null) {
+            return this.transportId;
         }
 
         IoSession sess = session.get();
         if (!sess.equals(NULL_SESSION) && sess.containsAttribute(IceTransport.Ice.UUID)) {
-            this.id = (String) sess.getAttribute(IceTransport.Ice.UUID);
-            return this.id;
+            this.transportId = (String) sess.getAttribute(IceTransport.Ice.UUID);
+            return this.transportId;
         }
         return DISCONNECTED;
     }
@@ -547,7 +575,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             remoteTransportAddress.set(remoteAddress);
         } else {
             // get the transport
-            IceUdpTransport transport = IceUdpTransport.getInstance(id);
+            IceUdpTransport transport = IceUdpTransport.getInstance(transportId);
             // get session matching the remote address
             IoSession sess = transport.getSessionByRemote(remoteAddress);
             // set the selected session on the wrapper
@@ -699,9 +727,9 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      *
      * @param id
      */
-    public void setId(String id) {
+    public void setTransportId(String id) {
         logger.debug("Setting id {}", id);
-        this.id = id;
+        this.transportId = id;
     }
 
     @Override
@@ -818,7 +846,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         StringBuilder b = new StringBuilder();
         try {
             b.append(this.getClass().getSimpleName());
-            b.append("[ id: ").append(getId()).append(", link: ").append(this.transportAddress);
+            b.append("[ id: ").append(getTransportId()).append(", link: ").append(this.transportAddress);
             b.append(" => ").append(this.remoteTransportAddress.get());
             b.append(", closed: ").append(isSocketClosed());
             b.append(", session:[ ");
@@ -855,5 +883,40 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
                 localAgent.notifySessionChanged(this, session, context);
             });
         }
+    }
+
+    /**
+     * The unique identifier for this socket wrapper information.
+     * @return this socket's UUID
+     */
+    public String getId() {
+        return id;
+    }
+
+    public void setRsvp(Long rsvp) {
+        this.rsvp = rsvp;
+    }
+
+    public Long getRsvp() {
+        return rsvp;
+    }
+
+    public static IceSocketWrapper getInstance(String uuid) {
+        return iceSockets.get(uuid);
+    }
+
+    /**
+     * Agent calls this to remove its sockets from uuid mapping when freed.
+     * @param socketIds list of socket UUIDs
+     */
+    public static void removeSocketsFromMap(List<String> socketIds) {
+        socketIds.forEach(socket -> {
+            IceSocketWrapper wrapper = iceSockets.remove(socket);
+            if (wrapper != null) {
+                wrapper.logger.debug("Removed. {},  time alive: {}s seconds", wrapper.transportAddress, (wrapper.getTimeAlive()) / 1000.0);
+            }
+        });
+
+
     }
 }

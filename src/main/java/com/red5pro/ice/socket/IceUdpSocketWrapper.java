@@ -55,7 +55,7 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
                 IoSession sess = getSession();
                 if (sess == null) {
                     // attempt to pull the session from the transport
-                    IceUdpTransport transport = IceUdpTransport.getInstance(id);
+                    IceUdpTransport transport = IceUdpTransport.getInstance(transportId);
                     // get session matching the remote address
                     sess = transport.getSessionByRemote(destAddress);
                     // if theres no registered session pointing to the destination, create one

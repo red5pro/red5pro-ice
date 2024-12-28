@@ -20,6 +20,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -40,6 +41,7 @@ import com.red5pro.ice.harvest.MappingCandidateHarvesters;
 import com.red5pro.ice.harvest.TrickleCallback;
 import com.red5pro.ice.nio.IceTcpTransport;
 import com.red5pro.ice.nio.IceTransport;
+import com.red5pro.ice.nio.IceTransport.AcceptorStrategy;
 import com.red5pro.ice.nio.IceTransport.Ice;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.StunStack;
@@ -292,6 +294,10 @@ public class Agent {
 
     private long closingTime;
 
+    private List<String> socketUUIDs = new CopyOnWriteArrayList<String>();
+
+    private AcceptorStrategy strategy;
+
     static {
         // add the software attribute to all messages
         if (StackProperties.getString(StackProperties.SOFTWARE) == null) {
@@ -315,6 +321,20 @@ public class Agent {
      */
     public Agent(String ufragPrefix) {
         creationTime = System.currentTimeMillis();
+        stunStack.setAgentId(id);
+        int ordinal = StackProperties.getInt(StackProperties.ACCEPTOR_STRATEGY, AcceptorStrategy.DiscretePerSession.ordinal());
+        strategy = AcceptorStrategy.valueOf(ordinal);
+
+        //Override strategy if global shared is set.
+        if (IceTransport.isSharedAcceptor()) {
+            strategy = AcceptorStrategy.Shared;
+        } else if (strategy == AcceptorStrategy.Shared) {
+            //If shared acceptor_strategy is configured,
+            //Inform framework that shared acceptors are being used.
+            IceTransport.setSharedAcceptor();
+        }
+        logger.warn("AcceptorStrategy {}", strategy);
+        stunStack.setStrategy(strategy);
         IceTransport.getIceHandler().registerAgent(this);
         connCheckServer = new ConnectivityCheckServer(this);
         connCheckClient = new ConnectivityCheckClient(this);
@@ -336,7 +356,6 @@ public class Agent {
             addCandidateHarvester(harvester);
         }
 
-        stunStack.setAgentId(id);
 
         logger.debug("Created a new Agent ufrag: {}", ufrag);
     }
@@ -548,7 +567,7 @@ public class Agent {
             if (soLinger != null) {
                 logger.debug("Setting SO_LINGER: {}", soLinger);
                 IceSocketWrapper wrapper = component.getSocket(transport);
-                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport, wrapper.getId());
+                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport, wrapper.getTransportId());
                 if (iceTransport != null) {
                     iceTransport.setAgentId(id);
                     iceTransport.setSoLinger(Integer.parseInt(soLinger));
@@ -712,7 +731,7 @@ public class Agent {
             if (soLinger != null) {
                 logger.debug("Setting SO_LINGER: {}", soLinger);
                 IceSocketWrapper wrapper = component.getSocket(transport1);
-                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport1, wrapper.getId());
+                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport1, wrapper.getTransportId());
                 if (iceTransport != null) {
                     iceTransport.setAgentId(id);
                     iceTransport.setSoLinger(Integer.parseInt(soLinger));
@@ -723,7 +742,7 @@ public class Agent {
             if (soLinger != null) {
                 logger.debug("Setting SO_LINGER: {}", soLinger);
                 IceSocketWrapper wrapper = component.getSocket(transport2);
-                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport2, wrapper.getId());
+                IceTcpTransport iceTransport = (IceTcpTransport) IceTransport.getInstance(transport2, wrapper.getTransportId());
                 if (iceTransport != null) {
                     iceTransport.setAgentId(id);
                     iceTransport.setSoLinger(Integer.parseInt(soLinger));
@@ -1344,7 +1363,7 @@ public class Agent {
     public void setControlling(boolean isControlling) {
         logger.debug("setControlling: {} from current setting: {}", isControlling, this.isControlling);
         if (this.isControlling != isControlling) {
-            logger.info("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling,
+            logger.debug("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling,
                     isControlling);
         }
         this.isControlling = isControlling;
@@ -2086,6 +2105,8 @@ public class Agent {
                 cleanExit = !unclean.get();
                 IceTransport.getIceHandler().unregisterAgent(id);
                 shouldBeDead = true;
+                logger.debug("removing sockets from socket mapping : {}", socketUUIDs.toString());
+                IceSocketWrapper.removeSocketsFromMap(socketUUIDs);
             }
         }
     }
@@ -2424,7 +2445,7 @@ public class Agent {
          */
         void agentEndOfLife(Agent agent);
 
-        void portReleased(TransportAddress address);
+        void addressReleased(TransportAddress address);
     }
 
     /**
@@ -2529,15 +2550,14 @@ public class Agent {
     }
 
     public void notifySessionChanged(IceSocketWrapper iceSocketWrapper, IoSession session, Ice context) {
-        logger.info("notifySessionChanged {}  {} ", iceSocketWrapper.toString(), context);
+        logger.info("notifySessionChanged: {}  adress: {}  session: {}", context, iceSocketWrapper.getTransportAddress(), session);
         switch (context) {
             case DISPOSE_ADDRESS:
-                allocatedPorts.remove(iceSocketWrapper.getTransportAddress().getPort());
                 if (eolHandler != null) {
-                    eolHandler.portReleased(iceSocketWrapper.getTransportAddress());
+                    eolHandler.addressReleased(iceSocketWrapper.getTransportAddress());
                 }
                 break;
-            case CLOSED:
+            case CLOSED://closed_future and closed are called about the same time.
                 break;
             default:
         }
@@ -2554,6 +2574,14 @@ public class Agent {
 //                eolHandler = null;
 //            }
 //        }
+    }
+
+    public List<String> getSocketIds() {
+        return socketUUIDs;
+    }
+
+    public void addSocketUUID(String socketId) {
+        socketUUIDs.add(socketId);
     }
 
     /*

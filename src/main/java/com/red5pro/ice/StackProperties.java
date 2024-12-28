@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 public class StackProperties {
 
     private static final Logger logger = LoggerFactory.getLogger(StackProperties.class);
+    /** Besides sharedAcceptor, acceptor strategy can inform stun stack how to manage acceptors per user session. */
+    public static final String ACCEPTOR_STRATEGY = "ACCEPTOR_STRATEGY";
 
     /**
      * The name of the property containing the number of binds that we should should execute in case a port is already bound to (each retry would be on

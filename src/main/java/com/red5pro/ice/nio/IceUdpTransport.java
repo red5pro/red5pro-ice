@@ -235,13 +235,10 @@ public class IceUdpTransport extends IceTransport {
     }
 
     /**
-     * Adds a socket binding to the acceptor.
-     *
-     * @param addr
-     * @return true if successful and false otherwise
+     * {@inheritDoc}
      */
     @Override
-    public boolean addBinding(SocketAddress addr) {
+    public Long addBinding(String socketUUID, InetSocketAddress addr) {
         try {
             acceptorUtilized = true;
             if (myBoundAddresses.add(addr)) {
@@ -249,13 +246,14 @@ public class IceUdpTransport extends IceTransport {
                 acceptor.bind(addr);
                 logger.debug("UDP Bound: {}", addr);
                 // add the port to the bound list
-                if (addReservedPort(((InetSocketAddress) addr).getPort())) {
+                Long rsvp = cacheBoundAddressInfo(socketUUID, addr, addr.getPort());
+                if (rsvp != null) {
                     logger.debug("UDP binding added: {}", addr);
                 } else {
                     logger.debug("UDP binding already added: {}", addr);
                 }
                 // no exceptions? return true for adding the binding
-                return true;
+                return rsvp;
             }
         } catch (Throwable t) {
             logger.warn("Add binding failed on {}", addr, t);
@@ -266,24 +264,25 @@ public class IceUdpTransport extends IceTransport {
                 myBoundAddresses.remove(addr);
             }
         }
-        return false;
+        return null;
     }
 
     /** {@inheritDoc} */
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
         logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {}", stunStack, iceSocket);
-        boolean result = false;
+
         // Setting ID here because our 'IoServiceListener' session-created may be called AFTER ice handler is called to send resopnse.
         // Cant find any reason we should not set id here.
-        iceSocket.setId(id);
+        iceSocket.setTransportId(id);
         // add the stack and wrapper to a map which will hold them until an associated session is opened
         // when opened, the stack and wrapper will be added to the session as attributes
         iceHandler.registerStackAndSocket(stunStack, iceSocket);
         // get the local address
         TransportAddress localAddress = iceSocket.getTransportAddress();
         // attempt to add a binding to the server
-        result = addBinding(localAddress);
-        return result;
+        Long rsvp = addBinding(iceSocket.getId(), localAddress);
+        iceSocket.setRsvp(rsvp);
+        return rsvp != null;
     }
 
     /**
@@ -294,7 +293,7 @@ public class IceUdpTransport extends IceTransport {
      * @return IoSession or null if creation fails
      */
     public IoSession createSession(IceUdpSocketWrapper socketWrapper, SocketAddress destAddress) {
-        logger.info("createSession tid: {} - wrapper: {} remote: {}", id, socketWrapper, destAddress);
+        logger.debug("createSession tid: {} - wrapper: {} remote: {}", id, socketWrapper, destAddress);
         IoSession session = null;
         if (acceptor != null) {
             // get the local address

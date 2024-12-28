@@ -130,7 +130,7 @@ public class ComponentSocket implements PropertyChangeListener {
      * @param socketWrapper
      */
     public void addSocketWrapper(IceSocketWrapper socketWrapper) {
-        logger.debug("Adding socket to listings. {}  {}", socketWrapper.getId(), socketWrapper.getTransportAddress());
+        logger.debug("Adding socket to listings. {}  {}", socketWrapper.getTransportId(), socketWrapper.getTransportAddress());
         socketWrappers.add(socketWrapper);
     }
 
@@ -140,18 +140,13 @@ public class ComponentSocket implements PropertyChangeListener {
      * @param socketWrapper
      */
     public void removeSocketWrapper(IceSocketWrapper socketWrapper) {
-        logger.debug("Removing socket from listings. {}  {}", socketWrapper.getId(), socketWrapper.getTransportAddress());
+        logger.debug("Removing socket from listings. {}  {}", socketWrapper.getTransportId(), socketWrapper.getTransportAddress());
         socketWrappers.remove(socketWrapper);
     }
 
-    /**
-     * Returns the active socket wrapper.
-     *
-     * @return socketWrapper
-     */
-    //public IceSocketWrapper getSocketWrapper() {
-    //    return getSocketWrapper(Transport.UDP);
-    //}
+    public Set<IceSocketWrapper> getSockets() {
+        return socketWrappers;
+    }
 
     /**
      * Returns the socket wrapper for the specified transport.

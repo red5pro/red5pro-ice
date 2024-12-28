@@ -138,7 +138,7 @@ public class ShallowStackTest extends TestCase {
     protected void tearDown() throws Exception {
         //logger.info("teardown");
         dgramCollector.stopListening();
-        stunStack.removeSocket(localSock.getId(), localAddress);
+        stunStack.removeSocket(localSock.getTransportId(), localAddress);
         localSock.close();
         msgFixture = null;
         stunStack.shutDown();
@@ -288,9 +288,9 @@ public class ShallowStackTest extends TestCase {
         logger.info("\n ReceiveRequest");
         // we're expecting to receive on the ice4j side (non-controlling)
         if (selectedTransport == Transport.UDP) {
-            IceUdpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceUdpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         } else {
-            IceTcpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceTcpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         }
         SimpleRequestCollector requestCollector = new SimpleRequestCollector();
         stunStack.addRequestListener(requestCollector);
@@ -318,9 +318,9 @@ public class ShallowStackTest extends TestCase {
         logger.info("\n SendResponse");
         // we're expecting to receive on the ice4j side (non-controlling)
         if (selectedTransport == Transport.UDP) {
-            IceUdpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceUdpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         } else {
-            IceTcpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceTcpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         }
         //---------- send & receive the request --------------------------------
         SimpleRequestCollector requestCollector = new SimpleRequestCollector();
