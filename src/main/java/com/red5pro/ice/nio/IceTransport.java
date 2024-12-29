@@ -2,10 +2,8 @@ package com.red5pro.ice.nio;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -71,9 +69,6 @@ public abstract class IceTransport {
 
     // used for binding and unbinding timeout, default 2s
     protected static long acceptorTimeout = StackProperties.getInt("ACCEPTOR_TIMEOUT", 2);
-
-    /** whether or not to use a shared acceptor. */
-    protected static boolean sharedAcceptor = StackProperties.getBoolean("NIO_SHARED_MODE", false);//Shared mode disabled.
 
     /** whether or not TCP Socket acceptors will use a shared IoProcessorPool and executor.*/
     protected final static boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, false);
@@ -183,6 +178,8 @@ public abstract class IceTransport {
      */
     protected boolean acceptorUtilized;
 
+    private AcceptorStrategy acceptorStrategy = StunStack.getDefaultAcceptorStrategy();
+
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
@@ -211,21 +208,29 @@ public abstract class IceTransport {
         return IceUdpTransport.getInstance(id);
     }
 
-    public static List<IceTransport> getTransportsForAgent(Transport type, String agentId) {
-        List<IceTransport> ret = new ArrayList<>();
-        transports.forEach((id, t) -> {
-            if (!sharedAcceptor) {
-                if (agentId.equals(t.agentId) && type.equals(t.getTransport())) {
-                    ret.add(t);
-                }
-            } else {
-                if (type.equals(t.getTransport())) {
-                    ret.add(t);
-                }
-            }
-        });
-        return ret;
+    public void setAcceptorStrategy(AcceptorStrategy strategy) {
+        logger.debug("Session acceptor strategy {}", strategy.toString());
+        this.acceptorStrategy = strategy;
     }
+
+    public boolean isShared() {
+        return acceptorStrategy == AcceptorStrategy.Shared;
+    }
+//    public static List<IceTransport> getTransportsForAgent(Transport type, String agentId) {
+//        List<IceTransport> ret = new ArrayList<>();
+//        transports.forEach((id, t) -> {
+//            if (!StunStack.isSharedAcceptor()) {
+//                if (agentId.equals(t.agentId) && type.equals(t.getTransport())) {
+//                    ret.add(t);
+//                }
+//            } else {
+//                if (type.equals(t.getTransport())) {
+//                    ret.add(t);
+//                }
+//            }
+//        });
+//        return ret;
+//    }
 
     public String getId() {
         return id;
@@ -347,7 +352,7 @@ public abstract class IceTransport {
                         logger.warn("Did not unbind address: {} from handler. transport-id: {}", id);
                     }
 
-                    if (!sharedAcceptor && myBoundAddresses.isEmpty()) {
+                    if (!AcceptorStrategy.Shared.equals(acceptorStrategy) && myBoundAddresses.isEmpty()) {
                         // Acceptor is not shared and the last binding was removed. kill it
                         stop();
                     }
@@ -480,15 +485,6 @@ public abstract class IceTransport {
     }
 
     /**
-     * Returns whether or not a shared acceptor is in-use.
-     *
-     * @return true if shared and false otherwise
-     */
-    public static boolean isSharedAcceptor() {
-        return sharedAcceptor;
-    }
-
-    /**
      * Returns the acceptor timeout.
      *
      * @return acceptorTimeout
@@ -521,7 +517,7 @@ public abstract class IceTransport {
      * @param aid
      */
     public void setAgentId(String aid) {
-        if (!sharedAcceptor) {
+        if (!AcceptorStrategy.Shared.equals(acceptorStrategy)) {
             agentId = aid;
         }
     }
@@ -556,7 +552,7 @@ public abstract class IceTransport {
     }
 
     public Set<SocketAddress> getBoundAddresses() {
-        return acceptor.getLocalAddresses();
+        return Set.copyOf(acceptor.getLocalAddresses());
     }
 
     public int getEstimatedBoundAddressCount() {
@@ -673,20 +669,28 @@ public abstract class IceTransport {
     * @return true if already bound and false otherwise
     */
     public static boolean didBind(Long rsvp, int port) {
-        Predicate<ABPEntry> pred = entry -> entry.port == port && entry.hasRsvp(rsvp);
-        Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
-        return ret.isPresent();
+        if (rsvp != null) {
+            Predicate<ABPEntry> pred = entry -> entry.port == port && entry.hasRsvp(rsvp);
+            Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+            return ret.isPresent();
+        }
+        return false;
     }
+
+    public abstract Transport getType();
 
     public boolean wasAcceptorUtilized() {
         return acceptorUtilized;
     }
 
+    /**
+     * Returns a current snapshot of bound ports mapping.
+     * @return
+     */
     public static Set<ABPEntry> getGlobalListing() {
-        return allBoundPorts;
+        return Set.copyOf(allBoundPorts);
     }
 
-    public abstract Transport getType();
 
     /**
      * All-Bound-Ports reservation table entry.
@@ -801,7 +805,9 @@ public abstract class IceTransport {
     }
 
     public static class ReservationEntry implements Comparable<ReservationEntry> {
+        /** Holder for reading ReservationEntry objects from a ConcurrentSkipListSet when calling 'remove' or 'contains'  */
         public static ThreadLocal<ReservationEntry> reservation = new ThreadLocal<>();
+
         private static long ridCount = 0;
         private final long rid;
         public String socketUUID = null;
@@ -845,8 +851,8 @@ public abstract class IceTransport {
 
         @Override
         public int compareTo(ReservationEntry o) {
-            boolean equal = (this.rid == o.rid);
-            if (equal) {
+            int asCompared = (int) (this.rid - o.rid);
+            if (asCompared == 0) {
                 if (reservation.get() == null) {
                     if (this.socketUUID == null && o.socketUUID != null) {
                         reservation.set(o);
@@ -855,44 +861,12 @@ public abstract class IceTransport {
                     }
                 }
             }
-            return (int) (this.rid - o.rid);
+            return asCompared;
         }
 
-        static ReservationEntry valueOf(Long rsvp) {
+        private static ReservationEntry valueOf(Long rsvp) {
             return new ReservationEntry(rsvp);
         }
     }
-
-    /**
-     * For each Transport type utilized(TCP and UDP), this enum represents the three basic ways to manage IceTransports for users.
-     * Create an IceTransport for every IceSocketWrapper. Create a single IceTransport for each end user.
-     * Create one IceTransport for all users.
-     * @author Andy
-     *
-     */
-    public static enum AcceptorStrategy {
-        /** One acceptor per Socket Wrapper*/
-        DiscretePerSocket,
-        /**One acceptor per user session*/
-        DiscretePerSession,
-        /** Shared Acceptor, sharedAcceptor*/
-        Shared;
-
-        private static AcceptorStrategy[] cachedvalues = values();
-
-        public static AcceptorStrategy valueOf(int ordinal) {
-            if (ordinal < 0 || ordinal >= cachedvalues.length) {
-                return DiscretePerSocket;
-            }
-            return cachedvalues[ordinal];
-        }
-    }
-
-    /**
-     * Tells the system to use shared acceptors.
-     */
-    public static void setSharedAcceptor() {
-        sharedAcceptor = true;
-    };
 
 }

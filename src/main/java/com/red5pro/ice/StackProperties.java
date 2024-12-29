@@ -14,8 +14,6 @@ import org.slf4j.LoggerFactory;
 public class StackProperties {
 
     private static final Logger logger = LoggerFactory.getLogger(StackProperties.class);
-    /** Besides sharedAcceptor, acceptor strategy can inform stun stack how to manage acceptors per user session. */
-    public static final String ACCEPTOR_STRATEGY = "ACCEPTOR_STRATEGY";
 
     /**
      * The name of the property containing the number of binds that we should should execute in case a port is already bound to (each retry would be on
@@ -125,16 +123,32 @@ public class StackProperties {
     public static final String NO_KEEP_ALIVES = "com.red5pro.ice.NO_KEEP_ALIVES";
 
     /**
-     * When Socket acceptors and receivers are using a shared NioProcessingPool, This is the number of IOProcessors to use.
-     * TCP and UDP acceptors can each utilize a single worker pool and executor service.
+     * Specifies if the TCP NioSocketAcceptors use a shared pool of IoProcessors or if each NioSocketAcceptor has its own.
+     * It also specifies if both TCP and UDP acceptors will use a shared thread pool.
      */
-    public static final String NIO_PROCESSOR_POOL_SIZE = "NIO_PROCESSOR_POOL_SIZE";
+    public static final String NIO_USE_PROCESSOR_POOLS = "com.red5pro.ice.NIO_USE_PROCESSOR_POOLS";
 
-    public static final String NIO_USE_PROCESSOR_POOLS = "NIO_USE_PROCESSOR_POOLS";
+    /**
+     * When NIO_USE_PROCESSOR_POOLS is true, this is the number of IOProcessors NioSocketAcceptors will use.
+     */
+    public static final String NIO_PROCESSOR_POOL_SIZE = "com.red5pro.ice.NIO_PROCESSOR_POOL_SIZE";
 
-    public static final String ICE_SWEEPER_INTERVAL = "ICE_SWEEPER_INTERVAL";
+    /**
+     * Periodic worker that checks for abandoned or fouled IceSocket sessions.
+     */
+    public static final String ICE_SWEEPER_INTERVAL = "com.red5pro.ice.ICE_SWEEPER_INTERVAL";
 
-    public static final String ICE_SWEEPER_TIMEOUT = "ICE_SWEEPER_TIMEOUT";
+    /**
+     * If a session is suspected of being abandoned, ICE_SWEEPER_TIMEOUT is the number of seconds before the sweeper will take action to free resources.
+     */
+    public static final String ICE_SWEEPER_TIMEOUT = "com.red5pro.ice.ICE_SWEEPER_TIMEOUT";
+
+    /** Besides sharedAcceptor property, acceptor strategy can inform stun stack how to manage acceptors per Transport type, TCP and UDP.
+     * Generally there will be one acceptor per transport type, TCP and UDP.
+     *  0 = one acceptor per socket. 1 = one acceptor for each type(UDP,TCP) for each user-session. 2 = one acceptor for each type(UDP,TCP) per application.
+     *  Mode 2 is the same as shared mode. If shared mode is activated, ACCEPTOR_STRATEGY will be overridden.
+     */
+    public static final String ACCEPTOR_STRATEGY = "com.red5pro.ice.ACCEPTOR_STRATEGY";
 
     /**
      * THIS PROPERTY IS CURRENTLY UNUSED. IF YOU WANT TO SPEED UP NOMINATIONS THEN CONSIDER SPEEDING UP TRANSACTION FAILURE FOR THE TIME BEING.

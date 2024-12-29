@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.Agent;
 import com.red5pro.ice.IceProcessingState;
+import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.nio.IceTransport.ABPEntry;
@@ -61,11 +62,11 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     /**
      * Interval for cleaning up dead transports in seconds.
      */
-    protected static int cleanSweepingInterval = 60;
+    protected static int cleanSweepingInterval = StackProperties.getInt(StackProperties.ICE_SWEEPER_INTERVAL, 60);
     /**
      * number of seconds for a nonshared transport to be considered abandoned.
      */
-    protected static int deadTransportTimeout = 60;
+    protected static int deadTransportTimeout = StackProperties.getInt(StackProperties.ICE_SWEEPER_TIMEOUT, 60);
 
     // temporary holding area for stun stacks awaiting session creation
     private static ConcurrentMap<TransportAddress, StunStack> stunStacks = new ConcurrentHashMap<>();
@@ -433,7 +434,6 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     public void notifyReservationRemoved(Long rid, String socketUUID, InetSocketAddress address) {
         logger.debug("notifyReservationRemoved rid: {}, socketUUID: {}   address:{} ", rid, socketUUID, address);
         this.submitTask(() -> {
-
             logger.debug("Running notification to agent for {}", socketUUID);
             IceSocketWrapper wrapper = IceSocketWrapper.getInstance(socketUUID);
             if (wrapper != null) {
@@ -689,7 +689,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         IceTransport.transports.forEach((id, t) -> {
 
             if (sweeperLogger.isTraceEnabled()) {
-                sweeperLogger.trace("IceTransport: {}  stopped: {}", id, t.getStoppedAndAddresses());
+                sweeperLogger.trace("IceTransport: {}  shared: {}, stopped: {}", id, t.isShared(), t.getStoppedAndAddresses());
             }
 
             //Iterate on known addresses.
@@ -818,14 +818,100 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         }
     }
 
+    private static ThreadLocal<Map<String, Object>> report = new ThreadLocal<Map<String, Object>>();
+
+    public static Set<String> getAgentIds() {
+        return Set.copyOf(agents.keySet());
+    }
+
+    public Map<String, Object> doForcedCleanup(String aid) {
+        Map<String, Object> ret = new HashMap<>();
+        report.set(ret);
+        try {
+            Agent agent = agents.remove(aid);
+            if (agent != null) {
+                report.get().put("agent", true);
+                report.get().put("agent.active", agent.isActive());
+                forceCleanUp(agent);
+            } else {
+                report.get().put("agent", false);
+            }
+        } catch (Exception e) {
+            report.get().put("error", e.getClass().getSimpleName());
+            report.get().put("error.cause", e.getCause());
+            report.get().put("error.message", e.getMessage());
+
+        } finally {
+            report.set(null);
+        }
+        return ret;
+    }
+
     private void forceCleanUp(Agent agent) {
         logger.debug("Force cleanup , todo!");
+        if (report.get() == null) {
+            report.set(new HashMap<>());
+        }
+        List<String> sockets = agent.getSocketIds();
+        report.get().put("socketIds", sockets.toString());
+        for (String socketid : sockets) {
+            IceSocketWrapper socket = IceSocketWrapper.getInstance(socketid);
+            if (socket != null) {
+                report.get().put("socket", socket.toSweeperInfo());
+                if (!socket.isSocketClosed()) {
+                    try {
+                        socket.close();
+                    } catch (Exception e) {
+
+                    }
+                }
+
+
+                IceTransport transport = socket.getIceTransportRef();
+                if (transport != null) {
+                    report.get().put("socket.transport", transport.toString());
+                    Set<SocketAddress> addresses = transport.getBoundAddresses();
+                    if (addresses.contains(socket.getTransportAddress())) {
+                        report.get().put("socket.addresses", addresses.toString());
+                        try {
+                            if (transport.removeBinding(socket.getRsvp(), socket.getTransportAddress())) {
+                                logger.warn("Binding removed");
+                                report.get().put("socket.unbound", true);
+                            } else {
+                                report.get().put("socket.unbound", false);
+                            }
+                            Thread.sleep(1000);
+                        } catch (Exception e) {
+                            logger.warn("Forced cleanup", e);
+                        }
+                    }
+
+                    report.get().put("socket.rsvp", socket.getRsvp());
+                    if (socket.getRsvp() != null) {
+                        boolean isBound = IceTransport.didBind(socket.getRsvp(), socket.getTransportAddress().getPort());
+                        report.get().put("transport.isStillBound", isBound);
+                        logger.warn("is still bound? {}", isBound);
+                    }
+
+                    if (socket.getRsvp() != null) {
+                        boolean ret = transport.removeCachedBoundAddressInfo(socket.getRsvp(), socket.getTransportAddress().getPort());
+                        report.get().put("transport.removed.rsvp", ret);
+                    }
+                } else {
+                    report.get().put("socket.transport", "null");
+                }
+            } else {
+                report.get().put("socket", "null");
+            }
+        }
+
         unorderlyClosure(agent.getId());
     }
 
     private void unorderlyClosure(String id) {
         Agent agent = agents.remove(id);
         if (agent != null) {
+            report.get().put("agent.removed", true);
             logger.warn("Unorderly closure for Agent. ufrag: {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
                     agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(), agent.getPreAllocatedPorts());
             callEolHandlerFor(agent);
@@ -833,6 +919,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     }
 
     public void callEolHandlerFor(Agent agent) {
+
         Agent.EndOfLifeStateHandler handler = agent.getEolHandler();
         if (handler != null) {
             cleanSweeper.schedule(() -> {

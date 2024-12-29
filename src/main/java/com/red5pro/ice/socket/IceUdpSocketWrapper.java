@@ -11,6 +11,8 @@ import java.nio.channels.ClosedChannelException;
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.future.WriteFuture;
 import org.apache.mina.core.session.IoSession;
+
+import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.nio.IceDecoder;
 import com.red5pro.ice.nio.IceUdpTransport;
@@ -153,8 +155,22 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
     }
 
     @Override
+    public Transport getTransport() {
+        return Transport.UDP;
+    }
+
+    @Override
+    public boolean isTCP() {
+        return false;
+    }
+
+    @Override
+    public boolean isUDP() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         return "IceUdpSocketWrapper [transportAddress=" + transportAddress + ", session=" + getSession() + "]";
     }
-
 }

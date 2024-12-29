@@ -41,7 +41,6 @@ import com.red5pro.ice.harvest.MappingCandidateHarvesters;
 import com.red5pro.ice.harvest.TrickleCallback;
 import com.red5pro.ice.nio.IceTcpTransport;
 import com.red5pro.ice.nio.IceTransport;
-import com.red5pro.ice.nio.IceTransport.AcceptorStrategy;
 import com.red5pro.ice.nio.IceTransport.Ice;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.StunStack;
@@ -75,7 +74,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.1.4.3";
+    private final static String VERSION = "1.1.4.4";
 
     /**
      * Secure random for shared use.
@@ -296,8 +295,6 @@ public class Agent {
 
     private List<String> socketUUIDs = new CopyOnWriteArrayList<String>();
 
-    private AcceptorStrategy strategy;
-
     static {
         // add the software attribute to all messages
         if (StackProperties.getString(StackProperties.SOFTWARE) == null) {
@@ -321,20 +318,11 @@ public class Agent {
      */
     public Agent(String ufragPrefix) {
         creationTime = System.currentTimeMillis();
-        stunStack.setAgentId(id);
-        int ordinal = StackProperties.getInt(StackProperties.ACCEPTOR_STRATEGY, AcceptorStrategy.DiscretePerSession.ordinal());
-        strategy = AcceptorStrategy.valueOf(ordinal);
+        stunStack.setAgent(this);
 
-        //Override strategy if global shared is set.
-        if (IceTransport.isSharedAcceptor()) {
-            strategy = AcceptorStrategy.Shared;
-        } else if (strategy == AcceptorStrategy.Shared) {
-            //If shared acceptor_strategy is configured,
-            //Inform framework that shared acceptors are being used.
-            IceTransport.setSharedAcceptor();
-        }
-        logger.warn("AcceptorStrategy {}", strategy);
-        stunStack.setStrategy(strategy);
+        logger.info("StunStack AcceptorStrategy: {}.  Using session overrides:  {}", stunStack.getSessionAcceptorStrategy().toString(),
+                stunStack.hasOverrides());
+
         IceTransport.getIceHandler().registerAgent(this);
         connCheckServer = new ConnectivityCheckServer(this);
         connCheckClient = new ConnectivityCheckClient(this);

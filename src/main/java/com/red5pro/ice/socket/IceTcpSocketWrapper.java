@@ -140,6 +140,21 @@ public class IceTcpSocketWrapper extends IceSocketWrapper {
         return transportAddress.getPort();
     }
 
+    @Override
+    public Transport getTransport() {
+        return Transport.TCP;
+    }
+
+    @Override
+    public boolean isTCP() {
+        return true;
+    }
+
+    @Override
+    public boolean isUDP() {
+        return false;
+    }
+
     /** {@inheritDoc} */
     @Override
     public boolean setSession(IoSession newSession) {
@@ -159,5 +174,4 @@ public class IceTcpSocketWrapper extends IceSocketWrapper {
     public String toString() {
         return "IceTcpSocketWrapper [transportAddress=" + transportAddress + ", session=" + getSession() + "]";
     }
-
 }

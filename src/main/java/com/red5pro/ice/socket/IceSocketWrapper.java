@@ -2,6 +2,7 @@
 package com.red5pro.ice.socket;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -56,15 +57,15 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     protected final boolean isDebug = logger.isDebugEnabled();
 
     public final static IoSession NULL_SESSION = new DummySession();
-
-    public final static String DISCONNECTED = "disconnected";
-
+    /**
+     * Mapping of sockets by socket UUID.
+     */
     protected static ConcurrentMap<String, IceSocketWrapper> iceSockets = new ConcurrentHashMap<>();
 
     protected final String id = UUID.randomUUID().toString();
 
     // acceptor id for this socket
-    protected String transportId;
+    protected String transportId = StunStack.getDefaultAcceptorStrategy().toString();
 
     // whether or not we've been closed
     public AtomicBoolean closed = new AtomicBoolean(false);
@@ -157,13 +158,15 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     /**
      * Once set, do not null out. May be referenced by IceHandler's cleaning sweeper job.
      */
-    private Agent localAgent = null;
+    protected Agent localAgent = null;
 
     private long creationTime;
 
-    private Long rsvp;
+    protected Long rsvp;
 
     private Long closingTime;
+
+    protected WeakReference<IceTransport> transportRef;
 
     IceSocketWrapper() throws IOException {
         throw new IOException("Invalid constructor, use IceSocketWrapper(TransportAddress) instead");
@@ -178,6 +181,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     protected IceSocketWrapper(TransportAddress address) throws IOException {
         logger.debug("New wrapper for {}", address);
         localAgent = Agent.localAgent.get();
+        this.transportId = localAgent.getStunStack().getSessionAcceptorStrategy().toString();
         transportAddress = address;
         creationTime = System.currentTimeMillis();
         logger.warn("my uuid {}", id);
@@ -436,11 +440,11 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         }
 
         IoSession sess = session.get();
-        if (!sess.equals(NULL_SESSION) && sess.containsAttribute(IceTransport.Ice.UUID)) {
+        if (transportId == null && !sess.equals(NULL_SESSION) && sess.containsAttribute(IceTransport.Ice.UUID)) {
             this.transportId = (String) sess.getAttribute(IceTransport.Ice.UUID);
             return this.transportId;
         }
-        return DISCONNECTED;
+        return null;
     }
 
     /**
@@ -548,9 +552,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      *
      * @return transport
      */
-    public Transport getTransport() {
-        return transportAddress != null ? transportAddress.getTransport() : null;
-    }
+    public abstract Transport getTransport();
 
     /**
      * Returns TransportAddress for the wrapped socket implementation.
@@ -571,7 +573,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      */
     public void setRemoteTransportAddress(TransportAddress remoteAddress) {
         // only set remote address for TCP
-        if (this instanceof IceTcpSocketWrapper) {
+        if (this.isTCP()) {
             remoteTransportAddress.set(remoteAddress);
         } else {
             // get the transport
@@ -601,7 +603,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     public boolean negotiateRemoteAddress(TransportAddress address) {
 
-        if (this instanceof IceTcpSocketWrapper) {
+        if (this.isTCP()) {
             remoteTransportAddress.compareAndSet(null, address);
         }
         return negotiatingRemoteAddresses.add(address);
@@ -709,18 +711,14 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
      *
      * @return true if TCP and false otherwise
      */
-    public boolean isTCP() {
-        return (this instanceof IceTcpSocketWrapper);
-    }
+    public abstract boolean isTCP();
 
     /**
      * Returns whether or not this is a UDP wrapper, based on the instance type.
      *
      * @return true if UDP and false otherwise
      */
-    public boolean isUDP() {
-        return (this instanceof IceUdpSocketWrapper);
-    }
+    public abstract boolean isUDP();
 
     /**
      * Sets the id of acceptor, so we can lookup the transport.
@@ -732,16 +730,23 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         this.transportId = id;
     }
 
+    public void setIceTransportRef(IceTransport trans) {
+        transportRef = new WeakReference<IceTransport>(trans);
+    }
+
+    public IceTransport getIceTransportRef() {
+        if (transportRef != null) {
+            return transportRef.get();
+        }
+        return null;
+    }
+
     @Override
     public int compareTo(IceSocketWrapper that) {
         int ret = 0;
         if (that != null) {
             // compare the transports UDP > TCP
-            if (this instanceof IceUdpSocketWrapper && that instanceof IceTcpSocketWrapper) {
-                ret = -1; // TCP being lesser than this UDP instance
-            } else if (this instanceof IceTcpSocketWrapper && that instanceof IceUdpSocketWrapper) {
-                ret = 1;
-            }
+            ret = this.getTransport().ordinal() - that.getTransport().ordinal();
             // break it apart into transport and address
             TransportAddress thatAddress = that.getTransportAddress();
             ret += Arrays.compare(transportAddress.getAddressBytes(), thatAddress.getAddressBytes());

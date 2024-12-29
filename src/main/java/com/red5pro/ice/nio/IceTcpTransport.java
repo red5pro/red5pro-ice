@@ -48,8 +48,8 @@ public class IceTcpTransport extends IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     IceTcpTransport() {
-        logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id, sharedAcceptor,
-                acceptorTimeout, timeout, ioThreads);
+        logger.info("Creating Transport. id: {} policy: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id,
+                StunStack.getDefaultAcceptorStrategy().toString(), acceptorTimeout, timeout, ioThreads);
         // add ourself to the transports map
         transports.put(id, this);
     }
@@ -61,22 +61,29 @@ public class IceTcpTransport extends IceTransport {
      * @return IceTransport
      */
     public static IceTcpTransport getInstance(String id) {
-
         IceTcpTransport instance = null;
-        IceTransport it = transports.get(id);
-        // We may have been called when the caller did not know the type via IceTransport#getInstance.
-        if (thisIsSomethingButNot(it)) {
-            return null;//must be UDP
+        boolean isShared = false;
+        boolean isNew = false;
+        // IceTransport creation strategy
+        if (AcceptorStrategy.isNew(id)) {
+            isNew = true;
+        } else if (AcceptorStrategy.isShared(id)) {
+            isShared = true;
         } else {
-            instance = (IceTcpTransport) it;
+            IceTransport it = transports.get(id);
+            // We may have been called when the caller did not know the type via IceTransport#getInstance.
+            if (thisIsSomethingButNot(it)) {
+                return null;//must be UDP
+            } else {
+                instance = (IceTcpTransport) it;
+            }
         }
 
-        // an id of "disconnected" is a special case where the socket is not associated with an IoSession
-        if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
-            if (IceTransport.isSharedAcceptor()) {
+        if (isNew || isShared) {
+            if (isShared) {
                 // loop through transport and if none are found for TCP, create a new one
                 for (Entry<String, IceTransport> entry : transports.entrySet()) {
-                    if (entry.getValue() instanceof IceTcpTransport) {
+                    if (entry.getValue() instanceof IceTcpTransport && entry.getValue().isShared()) {
                         instance = (IceTcpTransport) entry.getValue();
                         break;
                     }
@@ -88,15 +95,18 @@ public class IceTcpTransport extends IceTransport {
                 instance = new IceTcpTransport();
             }
         }
-        // create an acceptor if none exists for the instance
+        // Assume this transport is new and create an acceptor if none exists for the instance
         if (instance != null && instance.getAcceptor() == null) {
+            if (isNew || isShared) {// AcceptorStrategy as string id
+                instance.setAcceptorStrategy(AcceptorStrategy.valueOf(id));
+            }
             instance.createAcceptor();
         }
         //logger.trace("Instance: {}", instance);
         return instance;
     }
 
-    void createAcceptor() {
+    private void createAcceptor() {
         if (acceptor == null) {
             // create the nio acceptor
             if (!sharedIoProcessor) {
