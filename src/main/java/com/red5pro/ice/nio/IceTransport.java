@@ -71,7 +71,7 @@ public abstract class IceTransport {
     protected static long acceptorTimeout = StackProperties.getInt("ACCEPTOR_TIMEOUT", 2);
 
     /** whether or not TCP Socket acceptors will use a shared IoProcessorPool and executor.*/
-    protected final static boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, false);
+    protected final static boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, true);
 
     /** Number of processors created for the shared IoProceeor pool.*/
     protected static int ioThreads = StackProperties.getInt(StackProperties.NIO_PROCESSOR_POOL_SIZE,
@@ -316,7 +316,6 @@ public abstract class IceTransport {
                     } else {
                         logger.debug("Local address not bound by acceptor: {}", addr);
                     }
-
                 } catch (Throwable t) {
                     // if aggressive acceptor handling is enabled, reset the acceptor
                     if (aggressiveAcceptorReset) {

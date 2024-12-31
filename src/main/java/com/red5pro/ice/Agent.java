@@ -74,7 +74,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.1.4.4";
+    private final static String VERSION = "1.2.0";
 
     /**
      * Secure random for shared use.
@@ -1961,21 +1961,27 @@ public class Agent {
 
     /**
      * Removes a port number from the list of ports given to this agent for constructing components.
+     *
      * @param port
-     * @return
+     * @return true if the port was removed, false otherwise
      */
     public boolean removePreAllocatedPort(int port) {
-        return allocatedPorts.remove(Integer.valueOf(port));
+        return allocatedPorts.remove(port);
     }
 
     /**
      * Adds a port number allocated to this agent for constructing components.
-     * @param port allocated for binding to the network. Zeros are not added.
-     * @return port.
+     *
+     * @param port allocated for binding to the network
+     * @return port whether or not its addition was successful
      */
     public int addPreAllocatedPort(int port) {
-        if (port == 0) {
-            return 0;
+        // a port value less than 1 is not valid valid here
+        if ((port > 0 && port < 65536) && allocatedPorts.add(port)) {
+            // we dont want no stinkin' zeros.
+            logger.debug("Added pre-allocated port: {}", port);
+        } else {
+            logger.debug("Failed to add pre-allocated port: {} already exists? {}", port, allocatedPorts.contains(port));
         }
         runningPorts.add(port);
         // we dont want no stinkin' zeros.
@@ -1985,11 +1991,11 @@ public class Agent {
 
     /**
      * Returns a copy of currently preallocated ports.
-     * @return set unmodifiable Set
+     *
+     * @return unmodifiable copy of the preallocated ports
      */
     public Set<Integer> getPreAllocatedPorts() {
-        Set<Integer> copy = Set.copyOf(allocatedPorts);
-        return copy;
+        return Set.of(allocatedPorts.toArray(new Integer[0]));
     }
 
     /**
@@ -2034,7 +2040,7 @@ public class Agent {
         try {
             callBack.call();
         } catch (Exception e) {
-            logger.error("Callback error on free()", e);
+            logger.warn("Callback error on free()", e);
         }
 
     }

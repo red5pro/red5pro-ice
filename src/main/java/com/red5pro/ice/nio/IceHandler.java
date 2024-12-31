@@ -970,5 +970,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         return closer.submit(runThis);
     }
 
+    public static Map<TransportAddress, StunStack> getStunStacks() {
+        return stunStacks;
+    }
+
 
 }

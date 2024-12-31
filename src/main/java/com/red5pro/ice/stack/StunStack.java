@@ -9,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -41,6 +42,7 @@ import com.red5pro.ice.message.MessageFactory;
 import com.red5pro.ice.message.Request;
 import com.red5pro.ice.message.Response;
 import com.red5pro.ice.nio.AcceptorStrategy;
+import com.red5pro.ice.nio.IceHandler;
 import com.red5pro.ice.nio.IceTransport;
 import com.red5pro.ice.security.CredentialsManager;
 import com.red5pro.ice.security.LongTermCredential;
@@ -88,11 +90,6 @@ public class StunStack implements MessageEventHandler {
     private final ConcurrentMap<TransactionID, StunClientTransaction> clientTransactions = new ConcurrentHashMap<>();
 
     /**
-     * The Future which expires the StunServerTransactions of this StunStack and removes them from {@link #serverTransactions}.
-     */
-    private Future<?> serverTransactionExpireFuture;
-
-    /**
      * Currently open server transactions. Contains transaction id's for transactions corresponding to all non-answered received requests.
      */
     private final ConcurrentMap<TransactionID, StunServerTransaction> serverTransactions = new ConcurrentHashMap<>();
@@ -112,6 +109,8 @@ public class StunStack implements MessageEventHandler {
      */
     private boolean useAllBinding;
 
+    private static AtomicBoolean sweeper = new AtomicBoolean();
+
     private AcceptorStrategy sessionAcceptorStrategy = AcceptorStrategy.DiscretePerSocket;
 
     private HashSet<TransportAddress> registrations = new HashSet<TransportAddress>();
@@ -119,7 +118,7 @@ public class StunStack implements MessageEventHandler {
     /**
      * Executor for all threads and tasks needed in this stacks agent.
      */
-    private ExecutorService executor = Executors.newCachedThreadPool(new ThreadFactory() {
+    private static ExecutorService executor = Executors.newCachedThreadPool(new ThreadFactory() {
         public Thread newThread(Runnable r) {
             Thread t = new Thread(r);
             t.setName(String.format("StunStack@%d", System.currentTimeMillis()));
@@ -168,13 +167,29 @@ public class StunStack implements MessageEventHandler {
             nsaex.printStackTrace();
         }
 
-        int ordinal = StackProperties.getInt(StackProperties.ACCEPTOR_STRATEGY, AcceptorStrategy.DiscretePerSocket.ordinal());
+        int ordinal = StackProperties.getInt(StackProperties.ACCEPTOR_STRATEGY, AcceptorStrategy.DiscretePerSession.ordinal());
         acceptorStrategy = AcceptorStrategy.valueOf(ordinal);
         boolean shared = StackProperties.getBoolean("NIO_SHARED_MODE", false);
         if (shared) {
             //If sharedAcceptors was set, override acceptorStrategy.
             acceptorStrategy = AcceptorStrategy.Shared;
         }
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                // stop the executor
+                if (executor != null) {
+                    try {
+                        List.of(executor.shutdownNow()).forEach(r -> {
+                            logger.warn("Task at shutdown: {}", r);
+                        });
+                    } catch (Exception e) {
+                        logger.warn("Exception during shutdown", e);
+                    } finally {
+                        executor = null;
+                    }
+                }
+            }
+        });
     }
 
     public StunStack() {
@@ -776,11 +791,6 @@ public class StunStack implements MessageEventHandler {
      */
     public void shutDown() {
         logger.debug("Shutting down");
-        // cancel the expire job if one exists
-        if (serverTransactionExpireFuture != null) {
-            serverTransactionExpireFuture.cancel(true);
-            serverTransactionExpireFuture = null;
-        }
         // remove all listeners
         eventDispatcher.removeAllListeners();
         // clientTransactions
@@ -797,18 +807,7 @@ public class StunStack implements MessageEventHandler {
                 tran.expire();
             }
         });
-        // stop the executor
-        if (executor != null) {
-            try {
-                List.of(executor.shutdownNow()).forEach(r -> {
-                    logger.debug("Task at shutdown: {}", r);
-                });
-            } catch (Exception e) {
-                logger.warn("Exception during shutdown", e);
-            } finally {
-                executor = null;
-            }
-        }
+
         // clear the collections
         clientTransactions.clear();
         serverTransactions.clear();
@@ -964,49 +963,58 @@ public class StunStack implements MessageEventHandler {
     /**
      * Initializes and starts {@link #serverTransactionExpireThread} if necessary.
      */
-    private void maybeStartServerTransactionExpireThread() {
-        if (executor != null && !serverTransactions.isEmpty() && serverTransactionExpireFuture == null) {
-            serverTransactionExpireFuture = submit(() -> {
-                // Expires the StunServerTransactions of this StunStack and removes them from {@link #serverTransactions}
-                final String oldName = Thread.currentThread().getName();
-                Thread.currentThread().setName("StunStack.txExpireThread");
-                try {
-                    long idleStartTime = -1;
-                    do {
-                        try {
-                            logger.debug("Going to sleep for {}s before cleaning up server txns", (StunServerTransaction.LIFETIME / 1000L));
-                            Thread.sleep(StunServerTransaction.LIFETIME);
-                        } catch (InterruptedException ie) {
-                            logger.debug("Interrupted while waiting for server txns to expire", ie);
-                            break;
-                        }
-                        long now = System.currentTimeMillis();
-                        // Has the current Thread been idle long enough to merit disposing of it?
-                        if (serverTransactions.isEmpty()) {
-                            if (idleStartTime == -1) {
-                                idleStartTime = now;
-                            } else if (now - idleStartTime > 60 * 1000) {
+    private static void maybeStartServerTransactionExpireThread() {
+
+        if (sweeper.compareAndSet(false, true)) {
+            if (!executor.isShutdown()) {
+                executor.submit(() -> {
+                    // Expires the StunServerTransactions of this StunStack and removes them from {@link #serverTransactions}
+                    final String oldName = Thread.currentThread().getName();
+                    Thread.currentThread().setName("StunStack.txExpireThread");
+                    logger.info("Stun stack sweeper starting.");
+                    try {
+                        do {
+
+                            try {
+                                logger.debug("Going to sleep for {}s before cleaning up server txns",
+                                        (StunServerTransaction.LIFETIME / 1000L));
+                                Thread.sleep(StunServerTransaction.LIFETIME);
+                            } catch (InterruptedException ie) {
+                                logger.debug("Interrupted while waiting for server txns to expire", ie);
                                 break;
                             }
-                        } else {
-                            // Expire the StunServerTransactions of this StunStack.
-                            idleStartTime = -1;
-                            serverTransactions.values().forEach(serverTransaction -> {
-                                if (serverTransaction.isExpired()) {
-                                    StunServerTransaction tx = serverTransactions.remove(serverTransaction.getTransactionID());
-                                    if (tx != null) {
-                                        logger.debug("Expired server transaction: {}", tx.getTransactionID());
-                                    }
-                                }
+                            Map<TransportAddress, StunStack> stacks = IceHandler.getStunStacks();
+                            if (stacks.isEmpty()) {
+                                break;
+                            }
+                            stacks.forEach((address, stack) -> {
+                                Thread.currentThread().setName(
+                                        "StunStack.txExpire:" + address.getTransport().toString() + String.valueOf(address.getPort()));
+                                logger.debug("Sweeping");
+                                stack.runCleanup();
                             });
-                        }
-                    } while (!executor.isShutdown());
-                } finally {
-                    serverTransactionExpireFuture = null;
-                    Thread.currentThread().setName(oldName);
-                }
-            });
+
+                        } while (!executor.isShutdown());
+
+                    } finally {
+                        sweeper.set(false);
+                        logger.info("Stun stack sweeper exiting.");
+                        Thread.currentThread().setName(oldName);
+                    }
+                });
+            }
         }
+    }
+
+    private void runCleanup() {
+        serverTransactions.values().forEach(serverTransaction -> {
+            if (serverTransaction.isExpired()) {
+                StunServerTransaction tx = serverTransactions.remove(serverTransaction.getTransactionID());
+                if (tx != null) {
+                    logger.debug("Expired server transaction: {}", tx.getTransactionID());
+                }
+            }
+        });
     }
 
     /**
