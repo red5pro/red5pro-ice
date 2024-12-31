@@ -15,9 +15,8 @@ import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.session.IoSessionRecycler;
 import org.apache.mina.transport.socket.DatagramSessionConfig;
 import org.apache.mina.transport.socket.nio.IceDatagramAcceptor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.socket.IceUdpSocketWrapper;
@@ -27,9 +26,9 @@ import com.red5pro.ice.stack.StunStack;
  * IceTransport for UDP connections.
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public class IceUdpTransport extends IceTransport {
-
     /**
      * Recycler's session map.
      */
@@ -102,30 +101,43 @@ public class IceUdpTransport extends IceTransport {
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
-    private IceUdpTransport() {
-        logger.info("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s", id, sharedAcceptor, acceptorTimeout,
-                timeout);
+    IceUdpTransport() {
+        logger.info("Creating Transport. id: {} strategy: {} accept timeout: {}s idle timeout: {}s", id,
+                StunStack.getDefaultAcceptorStrategy().toString(), acceptorTimeout, timeout);
         // add ourself to the transports map
         transports.put(id, this);
     }
 
-    protected static Logger log = LoggerFactory.getLogger(IceUdpTransport.class);
-
     /**
-     * Returns a static instance of this transport.
+     * Returns an instance of this transport.
      *
      * @param id transport / acceptor identifier
      * @return IceTransport
      */
     public static IceUdpTransport getInstance(String id) {
-        log.debug("IceUdpTransport  getInstance: {}", id);
-        IceUdpTransport instance = (IceUdpTransport) transports.get(id);
+        IceUdpTransport instance = null;
+        boolean isShared = false;
+        boolean isNew = false;
+        if (AcceptorStrategy.isNew(id)) {
+            isNew = true;
+        } else if (AcceptorStrategy.isShared(id)) {
+            isShared = true;
+        } else {
+            IceTransport it = transports.get(id);
+            // We may have been called when the caller did not know the type via IceTransport#getInstance.
+            if (thisIsSomethingButNot(it)) {
+                return null;//must be UDP
+            } else {
+                instance = (IceUdpTransport) it;
+            }
+        }
+
         // an id of "disconnected" is a special case where the socket is not associated with an IoSession
-        if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
-            if (IceTransport.isSharedAcceptor()) {
+        if (isNew || isShared) {
+            if (isShared) {
                 // loop through transport and if none are found for UDP, create a new one
                 for (Entry<String, IceTransport> entry : transports.entrySet()) {
-                    if (entry.getValue() instanceof IceUdpTransport) {
+                    if (entry.getValue() instanceof IceUdpTransport && entry.getValue().isShared()) {
                         instance = (IceUdpTransport) entry.getValue();
                         break;
                     }
@@ -139,18 +151,24 @@ public class IceUdpTransport extends IceTransport {
         }
         // create an acceptor if none exists for the instance
         if (instance != null && instance.getAcceptor() == null) {
+            if (isNew || isShared) {
+                instance.setAcceptorStrategy(AcceptorStrategy.valueOf(id));
+            }
             instance.createAcceptor();
         }
         //logger.trace("Instance: {}", instance);
         return instance;
     }
 
-    void createAcceptor() {
-        log.info("IceUdpTransport  createAcceptor: {}", acceptor);
+    private void createAcceptor() {
         if (acceptor == null) {
             // create the nio acceptor
             //acceptor = new NioDatagramAcceptor(); // mina base acceptor
-            acceptor = new IceDatagramAcceptor();
+            if (!sharedIoProcessor) {
+                acceptor = new IceDatagramAcceptor();
+            } else {
+                acceptor = new IceDatagramAcceptor(ioExecutor);//Shared cached thread pool
+            }
             acceptor.addListener(new IoServiceListener() {
 
                 @Override
@@ -170,11 +188,11 @@ public class IceUdpTransport extends IceTransport {
 
                 @Override
                 public void sessionCreated(IoSession session) throws Exception {
-                    logger.info("Acceptor sessionCreated: {}  for ice transport id: {}", session, id);
-                    //logger.debug("sessionCreated acceptor sessions: {}", acceptor.getManagedSessions());
-                    if (!session.containsAttribute(IceTransport.Ice.UUID)) {
-                        session.setAttribute(IceTransport.Ice.UUID, id);
+                    logger.debug("Acceptor sessionCreated: {} for ice-udp-transport id: {}", session, id);
+                    if (logger.isTraceEnabled()) {
+                        logger.debug("acceptor sessions: {}", acceptor.getManagedSessions());
                     }
+                    session.setAttribute(IceTransport.Ice.UUID, id);
                 }
 
                 @Override
@@ -231,45 +249,54 @@ public class IceUdpTransport extends IceTransport {
     }
 
     /**
-     * Adds a socket binding to the acceptor.
-     *
-     * @param addr
-     * @return true if successful and false otherwise
+     * {@inheritDoc}
      */
     @Override
-    public boolean addBinding(SocketAddress addr) {
+    public Long addBinding(String socketUUID, InetSocketAddress addr) {
         try {
-            logger.debug("Adding UDP binding: {}", addr);
-            acceptor.bind(addr);
-            // add the port to the bound list
-            if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
-                logger.debug("UDP binding added: {}", addr);
-            } else {
-                logger.debug("UDP binding already added: {}", addr);
+            acceptorUtilized = true;
+            if (myBoundAddresses.add(addr)) {
+                logger.debug("Adding UDP binding: {}", addr);
+                acceptor.bind(addr);
+                logger.debug("UDP Bound: {}", addr);
+                // add the port to the bound list
+                Long rsvp = cacheBoundAddressInfo(socketUUID, addr, addr.getPort());
+                if (rsvp != null) {
+                    logger.debug("UDP binding added: {}", addr);
+                } else {
+                    logger.debug("UDP binding already added: {}", addr);
+                }
+                // no exceptions? return true for adding the binding
+                return rsvp;
             }
-            // no exceptions? return true for adding the binding
-            return true;
         } catch (Throwable t) {
             logger.warn("Add binding failed on {}", addr, t);
+
+        } finally {
+            if (!acceptor.getLocalAddresses().contains(addr)) {
+                logger.warn("Failed to bind. Removing ref {}", addr);
+                myBoundAddresses.remove(addr);
+            }
         }
-        return false;
+        return null;
     }
 
     /** {@inheritDoc} */
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
         logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {}", stunStack, iceSocket);
-        boolean result = false;
+
         // Setting ID here because our 'IoServiceListener' session-created may be called AFTER ice handler is called to send resopnse.
         // Cant find any reason we should not set id here.
-        iceSocket.setId(id);
+        iceSocket.setTransportId(id);
         // add the stack and wrapper to a map which will hold them until an associated session is opened
         // when opened, the stack and wrapper will be added to the session as attributes
         iceHandler.registerStackAndSocket(stunStack, iceSocket);
         // get the local address
         TransportAddress localAddress = iceSocket.getTransportAddress();
         // attempt to add a binding to the server
-        result = addBinding(localAddress);
-        return result;
+        Long rsvp = addBinding(iceSocket.getId(), localAddress);
+        iceSocket.setRsvp(rsvp);
+        return rsvp != null;
     }
 
     /**
@@ -280,7 +307,7 @@ public class IceUdpTransport extends IceTransport {
      * @return IoSession or null if creation fails
      */
     public IoSession createSession(IceUdpSocketWrapper socketWrapper, SocketAddress destAddress) {
-        logger.info("createSession tid: {} - wrapper: {} remote: {}", id, socketWrapper, destAddress);
+        logger.debug("createSession tid: {} - wrapper: {} remote: {}", id, socketWrapper, destAddress);
         IoSession session = null;
         if (acceptor != null) {
             // get the local address
@@ -338,4 +365,25 @@ public class IceUdpTransport extends IceTransport {
         return sess;
     }
 
+    @Override
+    public Transport getTransport() {
+        return Transport.UDP;
+    }
+
+    /**
+     * Returns true if 'it' is not null and is not an IceUdpTransport
+     * @param it extension of IceTransport or null
+     * @return boolean true if parameter is not null and is not an IceUdpTransport
+     */
+    private static boolean thisIsSomethingButNot(IceTransport it) {
+        if (it != null) {
+            return !IceUdpTransport.class.isInstance(it);
+        }
+        return false;
+    }
+
+    @Override
+    public Transport getType() {
+        return Transport.UDP;
+    }
 }

@@ -11,6 +11,8 @@ import java.nio.channels.ClosedChannelException;
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.future.WriteFuture;
 import org.apache.mina.core.session.IoSession;
+
+import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.nio.IceDecoder;
 import com.red5pro.ice.nio.IceUdpTransport;
@@ -37,7 +39,7 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
     @SuppressWarnings("static-access")
     @Override
     public void send(IoBuffer buf, SocketAddress destAddress) throws IOException {
-        if (isClosed()) {
+        if (isSessionClosed()) {
             logger.debug("Connection is closed");
             throw new ClosedChannelException();
         } else {
@@ -55,7 +57,7 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
                 IoSession sess = getSession();
                 if (sess == null) {
                     // attempt to pull the session from the transport
-                    IceUdpTransport transport = IceUdpTransport.getInstance(id);
+                    IceUdpTransport transport = IceUdpTransport.getInstance(transportId);
                     // get session matching the remote address
                     sess = transport.getSessionByRemote(destAddress);
                     // if theres no registered session pointing to the destination, create one
@@ -153,8 +155,22 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
     }
 
     @Override
+    public Transport getTransport() {
+        return Transport.UDP;
+    }
+
+    @Override
+    public boolean isTCP() {
+        return false;
+    }
+
+    @Override
+    public boolean isUDP() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         return "IceUdpSocketWrapper [transportAddress=" + transportAddress + ", session=" + getSession() + "]";
     }
-
 }

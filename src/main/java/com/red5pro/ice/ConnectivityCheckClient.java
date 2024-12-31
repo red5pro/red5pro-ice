@@ -101,7 +101,7 @@ class ConnectivityCheckClient implements ResponseCollector {
             logger.debug("Start connectivity checks. Local ufrag {}", parentAgent.getLocalUfrag());
             startChecks(streamsWithPendingConnectivityEstablishment.get(0).getCheckList());
         } else {
-            logger.info("Not starting any checks, because there are no pending streams");
+            logger.debug("Not starting any checks, because there are no pending streams");
         }
     }
 
@@ -284,7 +284,7 @@ class ConnectivityCheckClient implements ResponseCollector {
             localCandidate.getRelayedCandidateConnection().processSuccess(response, request);
         } else {
             if (!checkSymmetricAddresses(ev)) {
-                logger.info("Received a non-symmetric response for pair: {}, Failing", checkedPair.toShortString());
+                logger.debug("Received a non-symmetric response for pair: {}, Failing", checkedPair.toShortString());
                 checkedPair.setStateFailed();
             } else {
                 char messageType = response.getMessageType();
@@ -474,7 +474,7 @@ class ConnectivityCheckClient implements ResponseCollector {
         // check request for use-candidate attribute
         Attribute attr = request.getAttribute(Attribute.Type.USE_CANDIDATE);
         //if (validPair.getParentComponent().getSelectedPair() == null) {
-        logger.info("IsControlling: {} USE-CANDIDATE: {} Local ufrag: {}", parentAgent.isControlling(),
+        logger.debug("IsControlling: {} USE-CANDIDATE: {} Local ufrag: {}", parentAgent.isControlling(),
                 (attr != null || checkedPair.useCandidateSent()), parentAgent.getLocalUfrag());
         //}
         //If the agent was a controlling agent, and it had included a USE-CANDIDATE attribute in the Binding request, the valid pair generated
@@ -492,7 +492,7 @@ class ConnectivityCheckClient implements ResponseCollector {
         //the pair learned from the original request.
         else if (!parentAgent.isControlling() && checkedPair.useCandidateReceived() && !checkedPair.isNominated()) {
             if (checkedPair.getParentComponent().getSelectedPair() == null) {
-                logger.info("Nomination confirmed for pair: {}", validPair.toShortString());
+                logger.debug("Nomination confirmed for pair: {}", validPair.toShortString());
                 parentAgent.nominationConfirmed(checkedPair);
             } else {
                 logger.trace("Keep alive for pair: {}", validPair.toShortString());
@@ -548,7 +548,7 @@ class ConnectivityCheckClient implements ResponseCollector {
             pair.getParentComponent().getParentStream().getCheckList().scheduleTriggeredCheck(pair);
         } else {
             int code = cl * 100 + co;
-            logger.info("Error response for pair: " + pair.toShortString() + ", failing.  Code = " + code + "(class=" + cl + "; number="
+            logger.debug("Error response for pair: " + pair.toShortString() + ", failing.  Code = " + code + "(class=" + cl + "; number="
                     + co + ")");
             pair.setStateFailed();
         }

@@ -2,32 +2,46 @@ package com.red5pro.ice.nio;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 
 import org.apache.mina.core.service.IoAcceptor;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.filter.codec.ProtocolCodecFilter;
-import org.apache.mina.util.CopyOnWriteMap;
-import com.red5pro.ice.socket.IceSocketWrapper;
-import com.red5pro.ice.stack.StunStack;
+import org.apache.mina.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.socket.IceSocketWrapper;
+import com.red5pro.ice.stack.StunStack;
 
 /**
  * IceTransport, the parent transport class.
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public abstract class IceTransport {
+
+    /** CachedThreadPool shared by both udp and tcp transports. */
+    protected static ExecutorService ioExecutor = Executors.newCachedThreadPool();
+
+    protected static Logger pluginLogger = LoggerFactory.getLogger(IceTransport.class);
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -56,21 +70,52 @@ public abstract class IceTransport {
     // used for binding and unbinding timeout, default 2s
     protected static long acceptorTimeout = StackProperties.getInt("ACCEPTOR_TIMEOUT", 2);
 
-    // whether or not to use a shared acceptor
-    protected final static boolean sharedAcceptor = false;//StackProperties.getBoolean("NIO_SHARED_MODE", true);//Shared mode disabled.
+    /** whether or not TCP Socket acceptors will use a shared IoProcessorPool and executor.*/
+    protected final static boolean sharedIoProcessor = StackProperties.getBoolean(StackProperties.NIO_USE_PROCESSOR_POOLS, false);
+
+    /** Number of processors created for the shared IoProceeor pool.*/
+    protected static int ioThreads = StackProperties.getInt(StackProperties.NIO_PROCESSOR_POOL_SIZE,
+            Runtime.getRuntime().availableProcessors() * 2);
+
+    /**
+     * @param ioThreads the ioThreads to set
+     */
+    public static void setIoThreads(int count) {
+        ioThreads = count;
+    }
 
     // whether or not to handle a hung acceptor aggressively
     protected static boolean aggressiveAcceptorReset = StackProperties.getBoolean("ACCEPTOR_RESET", false);
+    /**
+     * If true, ice-socket closure operations are performed by an internal thread to ensure disposing the acceptor does not risk deadlock from potentially using an IoThread.
+     *
+     * See {@link org.apache.mina.core.service.IoService#dispose(boolean)}
+     */
+    public static boolean handOffSocketClosure = true;
 
     // used to set QoS / traffic class option on the sockets
     public static int trafficClass = StackProperties.getInt("TRAFFIC_CLASS", 24);
 
     // thread-safe map containing ice transport instances
-    protected static Map<String, IceTransport> transports = new CopyOnWriteMap<>(1);
+    protected static Map<String, IceTransport> transports = new ConcurrentHashMap<>();
 
     // holder of bound ports; used to prevent blocking issues querying acceptors
-    protected static ConcurrentSkipListSet<Integer> boundPorts = new ConcurrentSkipListSet<>();
+    private static ConcurrentSkipListSet<ABPEntry> allBoundPorts = new ConcurrentSkipListSet<>();
 
+    /**
+     * The acceptor's bound-addresses list will contain an address until it is fully unbound.
+     * As a result, multiple threads can enter 'unbind' with the same target.
+     * This boundAddresses set prevents multiple threads from entering acceptor.unbind(address).
+     */
+    protected Set<SocketAddress> myBoundAddresses = new ConcurrentHashSet<>();
+    /**
+     * Prevents thread contention between calls to unbind and the call to stop.
+     */
+    private ReentrantLock unbindStopLocker = new ReentrantLock();
+    /**
+     * Prevents stop from being called twice.
+     */
+    private AtomicBoolean stopCalled = new AtomicBoolean();
     /**
      * Unique identifier.
      */
@@ -80,16 +125,16 @@ public abstract class IceTransport {
 
     protected int sendBufferSize = StackProperties.getInt("SO_SNDBUF", BUFFER_SIZE_DEFAULT);
 
-    protected int ioThreads = StackProperties.getInt("NIO_WORKERS", Runtime.getRuntime().availableProcessors() * 2);
-
     /**
      * Local / instance socket acceptor; depending upon the transport, this will be NioDatagramAcceptor for UDP or NioSocketAcceptor for TCP.
      */
     protected IoAcceptor acceptor;
+    /**
+     * Owning agent id, or null if using shared acceptor.
+     */
+    private String agentId;
 
-    protected ExecutorService executor = Executors.newCachedThreadPool();
-
-    protected ReentrantLock bindings = new ReentrantLock();
+    private boolean disposed;
 
     // constants for the session map or anything else
     public enum Ice {
@@ -109,7 +154,11 @@ public abstract class IceTransport {
         REMOTE_TRANSPORT_ADDR, // remote TransportAddress for the connected InetSocketAddress
         NEGOTIATING_TRANSPORT_ADDR,
         NEGOTIATING_ICESOCKET,
-        CLOSE_FUTURE;
+        CLOSED,
+        CLOSE_FUTURE,
+        EXCEPTION, //In case any end-users are reflecting 'exception', name as lower case maintains compatibility with previous versions.
+        /** Ice library has removed binding. */
+        DISPOSE_ADDRESS;
     }
 
     static {
@@ -120,24 +169,34 @@ public abstract class IceTransport {
             // https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-jvm-ttl.html
             System.setProperty("networkaddress.cache.ttl", "60");
         }
+
     }
+
+    /**
+     * Did the application add bindings either successfully or unsuccessfully? Once tried, this should always reflect true.
+     * False if the application never called 'addBinding'
+     */
+    protected boolean acceptorUtilized;
+
+    private AcceptorStrategy acceptorStrategy = StunStack.getDefaultAcceptorStrategy();
 
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     public IceTransport() {
         logger.info("Properties: Socket linger: {} DNS cache ttl: {}", soLinger, System.getProperty("networkaddress.cache.ttl"));
+
     }
 
     /**
-     * Returns a static instance of this transport.
+     * Returns an instance of this transport.
      *
-     * @param type the transport type requested, either UDP or TCP. null will search both.
-     * @param id transport / acceptor identifier
+     * @param type the transport type requested, either UDP or TCP. Passing null will look up either type if type is unknown.
+     * @param id transport / acceptor identifier. if type is null and id is IceSocketWrapper.DISCONNECTED, it will return a tcp type.
      * @return IceTransport
      */
     public static IceTransport getInstance(Transport type, String id) {
-        //logger.trace("getInstance - type: {} id: {}", type, id);
+
         if (type == Transport.TCP) {
             return IceTcpTransport.getInstance(id);
         } else if (type == null) {
@@ -147,6 +206,34 @@ public abstract class IceTransport {
             }
         }
         return IceUdpTransport.getInstance(id);
+    }
+
+    public void setAcceptorStrategy(AcceptorStrategy strategy) {
+        logger.debug("Session acceptor strategy {}", strategy.toString());
+        this.acceptorStrategy = strategy;
+    }
+
+    public boolean isShared() {
+        return acceptorStrategy == AcceptorStrategy.Shared;
+    }
+//    public static List<IceTransport> getTransportsForAgent(Transport type, String agentId) {
+//        List<IceTransport> ret = new ArrayList<>();
+//        transports.forEach((id, t) -> {
+//            if (!StunStack.isSharedAcceptor()) {
+//                if (agentId.equals(t.agentId) && type.equals(t.getTransport())) {
+//                    ret.add(t);
+//                }
+//            } else {
+//                if (type.equals(t.getTransport())) {
+//                    ret.add(t);
+//                }
+//            }
+//        });
+//        return ret;
+//    }
+
+    public String getId() {
+        return id;
     }
 
     /**
@@ -159,14 +246,12 @@ public abstract class IceTransport {
     }
 
     /**
-     * Adds a socket binding to the acceptor.
-     *
-     * @param addr
-     * @return true if successful and false otherwise
+     * Attempt to bind a port to a local address.
+     * @param socketUUID unique identifier for the socket bind-session. This identifier represents the intent to bind, successful or not. Subsequent connected IoSsessions will have their own uuid.
+     * @param addr address to bind to.
+     * @return bind ID or null if address failed to bind.
      */
-    public boolean addBinding(SocketAddress addr) {
-        return false;
-    }
+    public abstract Long addBinding(String socketUUID, InetSocketAddress addr);
 
     /**
      * Registers a StunStack and IceSocketWrapper to the internal maps to wait for their associated IoSession creation. This causes a bind on the given local address.
@@ -179,105 +264,175 @@ public abstract class IceTransport {
         return false;
     }
 
-    /**
-     * Removes a socket binding from the acceptor by port.
-     *
-     * @param port
-     * @return true if successful and false otherwise
-     */
-    public boolean removeBinding(int port) {
+    public void forceClose() {
         if (acceptor != null) {
-            for (SocketAddress addr : acceptor.getLocalAddresses()) {
-                if (((InetSocketAddress) addr).getPort() == port) {
-                    return removeBinding(addr);
-                }
-            }
-        } else {
-            logger.warn("Acceptor is null, cannot remove binding for port: {}", port);
+            acceptor.dispose(false);
+            acceptor = null;
         }
-        return false;
+    }
+
+    public boolean removeBinding(SocketAddress addr) throws Exception {
+        return removeBinding(null, addr);
     }
 
     /**
      * Removes a socket binding from the acceptor.
+     * Currently if the acceptor is not shared, there is a one-to-one acceptor-to-socket ratio, and removing binding will call stop.
      *
+     * @param rsvp id or null
      * @param addr
-     * @return true if successful and false otherwise
+     * @return
+     * @throws Exception
      */
-    public boolean removeBinding(SocketAddress addr) {
-        // if the acceptor is null theres nothing to do
-        if (acceptor != null) {
-            int port = ((InetSocketAddress) addr).getPort();
-            bindings.lock();
-            try {
-                // perform the unbinding, if bound
-                if (acceptor.getLocalAddresses().contains(addr)) {
-                    acceptor.unbind(addr); // do this only once, especially for TCP since it can block
-                    logger.debug("Binding removed: {}", addr);
-                    // no exceptions? return true for removing the binding
-                    return true;
-                }
+    public boolean removeBinding(Long rsvp, SocketAddress addr) throws Exception {
+        logger.debug("remove binding: {}  {} rsvp: {}", addr, myBoundAddresses.toString(), rsvp);
 
-            } catch (Throwable t) {
-                // if aggressive acceptor handling is enabled, reset the acceptor
-                if (aggressiveAcceptorReset) {
-                    logger.warn("Acceptor will be reset with extreme predudice, due to remove binding failed on {}", addr, t);
-                    acceptor.dispose(false);
-                    acceptor = null;
-                } else if (isDebug) {
-                    // putting on the debug guard to prevent flooding the log
-                    logger.warn("Remove binding failed on {}", addr, t);
-                }
-            } finally {
-                bindings.unlock();
-                // remove the address from the handler
-                if (iceHandler.remove(addr)) {
-                    logger.debug("Removed address: {} from handler", addr);
-                }
-                // remove the port from the list
-                if (boundPorts.remove(port)) {
-                    logger.debug("Port removed from bound ports: {}, now removing binding: {}", port, addr);
-                } else {
-                    logger.debug("Port already removed from bound ports: {}, now removing binding: {}", port, addr);
-                }
-                // not-shared, kill it
-                if (!sharedAcceptor) {
-                    try {
-                        stop();
-                    } catch (Exception e) {
-                        logger.warn("Exception stopping transport", e);
+        //Acceptor bound addresses list will contain an address until it is fully unbound.
+        //As a result, multiple threads can enter 'unbind' with the same target.
+        //This boundAddresses set prevents multiple threads from entering acceptor.unbind(addr).
+        if (myBoundAddresses.remove(addr)) {
+            // if the acceptor is null theres nothing to do
+            if (acceptor != null) {
+                int port = ((InetSocketAddress) addr).getPort();
+                // We dont want another thread calling stop while we are un-binding. We may have additional tasks to do afterwards.
+                unbindStopLocker.lock();
+
+                boolean didUnbind = false;
+                try {
+                    // Did another thread call stop while we waited for lock?
+                    // Or other thread called stop and is wating for lock.
+                    if (stopCalled.get()) {
+                        return true;//return from inside 'try' to release lock in finally.
                     }
+                    // perform the un-binding, if bound
+                    if (acceptor.getLocalAddresses().contains(addr)) {
+
+                        acceptor.unbind(addr); // do this only once, especially for TCP since it can block
+
+                        logger.debug("Binding removed: {}", addr);
+                        didUnbind = true;
+                        // no exceptions? return true for removing the binding
+                        return true;
+                    } else {
+                        logger.debug("Local address not bound by acceptor: {}", addr);
+                    }
+
+                } catch (Throwable t) {
+                    // if aggressive acceptor handling is enabled, reset the acceptor
+                    if (aggressiveAcceptorReset) {
+                        logger.warn("Acceptor will be reset with extreme predudice, due to remove binding failed on {}", addr, t);
+                        acceptor.dispose(false);
+                        acceptor = null;
+                    } else if (isDebug) {
+                        // putting on the debug guard to prevent flooding the log
+                        logger.warn("Remove binding failed on {}", addr, t);
+                    }
+                } finally {
+
+                    if (acceptor != null && acceptor.getLocalAddresses().contains(addr)) {
+                        logger.warn("unable to remove binding from acceptor.");
+                        //add it back
+                        myBoundAddresses.add(addr);
+                    }
+
+                    unbindStopLocker.unlock();
+
+                    // remove the address from the handler
+                    if (didUnbind) {
+                        if (iceHandler.remove(addr)) {
+                            logger.debug("Removed address: {} from handler", addr);
+                        }
+                        // remove the port from the list
+                        if (removeCachedBoundAddressInfo(rsvp, (InetSocketAddress) addr, port)) {
+                            logger.debug("Port {} removed from bound ports listing: {}", port, addr);
+                        } else {
+                            logger.debug("Port {} already removed from bound ports listing: {}", port, addr);
+                        }
+                    } else {
+                        logger.warn("Did not unbind address: {} from handler. transport-id: {}", id);
+                    }
+
+                    if (!AcceptorStrategy.Shared.equals(acceptorStrategy) && myBoundAddresses.isEmpty()) {
+                        // Acceptor is not shared and the last binding was removed. kill it
+                        stop();
+                    }
+
                 }
+            } else {
+                logger.debug("cant unbind address, Acceptor is null {}  id: {}", addr, id);
             }
+        } else {
+            logger.debug("address was already unbound {}  id: {}", addr, id);
         }
         return false;
     }
 
     /**
-     * Ports and addresses are unbound (stop listening).
+     * Admin/maintenance method.
      */
-    public void stop() throws Exception {
-        if (executor != null && !executor.isShutdown()) {
-            executor.shutdown();
-        }
-        if (acceptor != null) {
-            acceptor.unbind();
-            acceptor.dispose(true);
-            logger.info("Disposed acceptor: {} {}", id);
-        }
+    public void unregister() {
         transports.remove(id);
     }
 
     /**
-     * Review all ports in-use for a conflict with the given port.
      *
-     * @param port
-     * @return true if already bound and false otherwise
+     * @return true if acceptor is released.
+     * @throws Exception,
      */
-    public static boolean isBound(int port) {
-        //logger.info("isBound: {}", port);
-        return boundPorts.contains(port);
+    public boolean stop() throws Exception {
+        //Can only be called once.
+        if (stopCalled.compareAndSet(false, true)) {
+            logger.info("Stop {}", id);
+            if (this.myBoundAddresses.size() > 0) {
+                logger.debug("Stopping with bindings {}", myBoundAddresses.toString());
+            }
+
+            //Cannot be called while other thread is still calling remove address.
+            unbindStopLocker.lock();
+            disposed = false;
+            Set<SocketAddress> copy = new HashSet<>();
+            try {
+                if (acceptor != null) {
+                    //Normal closure. Check for bound ports.
+                    if (!acceptor.getLocalAddresses().isEmpty()) {
+                        logger.debug("Acceptor has addresses at 'stop' event. Unbind.");
+                        copy.addAll(acceptor.getLocalAddresses());
+                        acceptor.unbind();
+                    }
+                    //Forced closure. Dont wait.
+                    acceptor.dispose(true);
+                    disposed = true;
+                    logger.debug("Disposed acceptor: {} {}", id);
+                }
+            } catch (Throwable t) {
+                logger.warn("Exception stopping transport", t);
+                throw t;
+            } finally {
+                unbindStopLocker.unlock();
+                // un-forced normal closure.
+                if (disposed) {
+                    logger.info("Disposed {}", id);
+                    copy.forEach(addy -> {
+                        removeCachedBoundAddressInfo(((InetSocketAddress) addy));
+                    });
+                    transports.remove(id);
+                    logger.debug("Unregistered self: {}", id);
+                } else {
+                    //Thread never made it to or past 'dispose'
+                    // Sweeper will catch us
+                    logger.debug("Could not unregistered self: {}", id);
+                }
+            }
+        }
+        return disposed;
     }
+
+    boolean isUnbound() {
+        return disposed;
+    }
+
+
+    public abstract Transport getTransport();
 
     /**
      * Returns the static ProtocolCodecFilter.
@@ -321,28 +476,12 @@ public abstract class IceTransport {
     }
 
     /**
-     * @param ioThreads the ioThreads to set
-     */
-    public void setIoThreads(int ioThreads) {
-        this.ioThreads = ioThreads;
-    }
-
-    /**
      * Returns the IoHandler for ICE connections.
      *
      * @return iceHandler
      */
     public static IceHandler getIceHandler() {
         return iceHandler;
-    }
-
-    /**
-     * Returns whether or not a shared acceptor is in-use.
-     *
-     * @return true if shared and false otherwise
-     */
-    public static boolean isSharedAcceptor() {
-        return sharedAcceptor;
     }
 
     /**
@@ -354,6 +493,11 @@ public abstract class IceTransport {
         return acceptorTimeout;
     }
 
+    /**
+     * Replaces a connectivity checking session with the actual media session.
+     * @param session
+     * @return
+     */
     protected boolean associateSession(IoSession session) {
         logger.debug("Associate socket with session {}", session);
         TransportAddress address = (TransportAddress) session.getAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR);
@@ -368,6 +512,24 @@ public abstract class IceTransport {
         return false;
     }
 
+    /**
+     * Has no effect if acceptor is shared.
+     * @param aid
+     */
+    public void setAgentId(String aid) {
+        if (!AcceptorStrategy.Shared.equals(acceptorStrategy)) {
+            agentId = aid;
+        }
+    }
+
+    /**
+     * Returns null if acceptor is shared.
+     * @return
+     */
+    public String getAgentId() {
+        return agentId;
+    }
+
     public static boolean transportExists(String id) {
         return transports.containsKey(id);
     }
@@ -375,4 +537,336 @@ public abstract class IceTransport {
     public static int transportCount() {
         return transports.size();
     }
+
+    protected String getStoppedAndAddresses() {
+        Set<SocketAddress> arr = Collections.emptySet();
+        if (acceptor != null) {
+            arr = acceptor.getLocalAddresses();
+        }
+        return String.format("stopped %s lck: %b, refs: %s, sox: %s", String.valueOf(stopCalled.get()), unbindStopLocker.isLocked(),
+                myBoundAddresses.toString(), arr.toString());
+    }
+
+    public boolean isStopped() {
+        return stopCalled.get();
+    }
+
+    public Set<SocketAddress> getBoundAddresses() {
+        return Set.copyOf(acceptor.getLocalAddresses());
+    }
+
+    public int getEstimatedBoundAddressCount() {
+        int size = 0;
+        try {
+            size = acceptor.getLocalAddresses().size();
+        } catch (Throwable t) {//ignore null pointer exception.
+        }
+        return size;
+    }
+
+    protected boolean updateReservedPortWithHost(Long rid, InetSocketAddress addy) {
+        Predicate<ABPEntry> pred = entry -> entry.port == addy.getPort();
+        Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+        if (ret.isPresent()) {
+            ret.get().update(rid, addy);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Add successfully bound address and port to the lookup index.
+     * @param iceSocketUUID IceSocket UUID
+     * @param addy address to bind to.
+     * @param port port to bind to.
+     * @return Long Reservation id
+     */
+    protected Long cacheBoundAddressInfo(String iceSocketUUID, InetSocketAddress addy, int port) {
+        logger.debug("add reservation for port {} with {}  for {}", port, addy, iceSocketUUID);
+        boolean results = false;
+        long start = System.currentTimeMillis();
+        synchronized (allBoundPorts) {
+            try {
+                Predicate<ABPEntry> pred = entry -> entry.port == port;
+                Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+                if (ret.isPresent()) {
+                    int numAddresses = ret.get().binds.incrementAndGet();
+                    ReservationEntry rsvp = RE().id(iceSocketUUID).with(addy);
+                    results = ret.get().hosts.add(rsvp);
+                    Long rid = rsvp.rid;
+                    logger.debug("added reservation {}. num binds for port {} = {}", results, port, numAddresses);
+                    return results ? rid : null;
+                } else {
+                    ABPEntry entry = new ABPEntry();
+                    entry.port = port;
+                    entry.binds.incrementAndGet();
+                    ReservationEntry rsvp = RE().id(iceSocketUUID).with(addy);
+                    entry.hosts.add(rsvp);
+                    Long rid = rsvp.rid;
+                    results = allBoundPorts.add(entry);
+                    logger.debug("added reservation {}. num binds for port {} = {}", results, port, 1);
+                    return results ? rid : null;
+                }
+            } finally {
+                logger.info("addReservedPort dur: {}", System.currentTimeMillis() - start);
+            }
+        }
+    }
+
+    public boolean removeCachedBoundAddressInfo(Long rid, int port) {
+        return removeCachedBoundAddressInfo(rid, null, port);
+    }
+
+    public boolean removeCachedBoundAddressInfo(InetSocketAddress addy) {
+        return removeCachedBoundAddressInfo(null, addy, addy.getPort());
+    }
+
+    public boolean removeCachedBoundAddressInfo(Long rid, InetSocketAddress addy, int port) {
+        logger.debug("remove reservation. for port {} with rid: {} and tid: {}", port, rid, addy);
+        synchronized (allBoundPorts) {
+            Predicate<ABPEntry> pred = entry -> entry.port == port;
+            Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+            if (ret.isPresent()) {
+
+                if (ret.get().removeRid(rid) || ret.get().removeTid(addy)) {
+                    int numAddresses = ret.get().binds.decrementAndGet();
+                    logger.debug("num binds for port {} = {}", port, numAddresses);
+                    if (numAddresses == 0) {
+                        allBoundPorts.remove(ret.get());
+                        logger.debug("cleared reservations {}", port);
+                    }
+                    ReservationEntry owner = ReservationEntry.reservation.get();
+                    if (owner != null) {
+                        ReservationEntry.reservation.set(null);
+                        iceHandler.notifyReservationRemoved(owner.rid, owner.socketUUID, owner.address);
+                    }
+
+                    return true;//rid or tid was removed.
+                }
+            } else {
+                logger.debug("optional not present for entry of port {}", port);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Review all ports in-use for a conflict with the given port.
+     *
+     * @param port
+     * @return true if already bound and false otherwise
+     */
+    public static boolean isBound(int port) {
+        Predicate<ABPEntry> pred = entry -> entry.port == port;
+        Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+        return ret.isPresent();
+    };
+
+    /** Check if a bind reservation id is still present.
+    *
+    * @param port
+    * @return true if already bound and false otherwise
+    */
+    public static boolean didBind(Long rsvp, int port) {
+        if (rsvp != null) {
+            Predicate<ABPEntry> pred = entry -> entry.port == port && entry.hasRsvp(rsvp);
+            Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
+            return ret.isPresent();
+        }
+        return false;
+    }
+
+    public abstract Transport getType();
+
+    public boolean wasAcceptorUtilized() {
+        return acceptorUtilized;
+    }
+
+    /**
+     * Returns a current snapshot of bound ports mapping.
+     * @return
+     */
+    public static Set<ABPEntry> getGlobalListing() {
+        return Set.copyOf(allBoundPorts);
+    }
+
+
+    /**
+     * All-Bound-Ports reservation table entry.
+     * @author Andy
+     *
+     */
+    public static class ABPEntry implements Comparable<ABPEntry> {
+
+        Integer port;
+        AtomicInteger binds = new AtomicInteger();
+        Set<ReservationEntry> hosts = new ConcurrentSkipListSet<>();
+
+        /**
+         * Hash on the Integer.
+         * @return
+         */
+        public int hashCode() {
+            return port.hashCode();
+        }
+
+        public boolean hasRsvp(Long rid) {
+            //first try look up with value of instance.
+            if (hosts.contains(ReservationEntry.valueOf(rid))) {
+                return true;
+            }
+            // Now just iterate and compare with direct instance.
+            for (ReservationEntry rsvp : hosts) {
+                if (rid == rsvp.rid) {
+                    if (ReservationEntry.reservation.get() == null) {
+                        ReservationEntry.reservation.set(rsvp);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void update(Long rid, InetSocketAddress addy) {
+            for (ReservationEntry rsvp : hosts) {
+                if (rid == rsvp.rid) {
+                    rsvp.address = addy;
+                    break;
+                }
+            }
+        }
+
+        public boolean removeTid(InetSocketAddress tid) {
+            if (tid == null) {
+                return false;
+            }
+            ReservationEntry found = null;
+            for (ReservationEntry rsvp : hosts) {
+                if (tid.equals(rsvp.address)) {
+                    found = rsvp;
+                    break;
+                }
+            }
+            if (found != null) {
+                ReservationEntry.reservation.set(found);
+                return hosts.remove(found);
+            }
+
+            return false;
+        }
+
+        public boolean removeRid(Long rid) {
+            if (rid == null) {
+                return false;
+            }
+            //lookup object will have null socektUUID and helps determine which entry to return in 'compare' or 'equals'
+            ReservationEntry lookup = ReservationEntry.valueOf(rid);
+            try {
+                if (hosts.remove(lookup)) {
+                    return true;
+                }
+            } finally {
+                lookup = null;
+            }
+            return false;
+        }
+
+        /**
+         * Compare by Integer.
+         */
+        @Override
+        public int compareTo(ABPEntry o) {
+            if (o == null) {
+                throw new NullPointerException();
+            }
+
+            return Integer.compare(port, o.port);
+        }
+
+        @Override
+        public boolean equals(Object what) {
+            if (ABPEntry.class.isInstance(what)) {
+                ABPEntry that = (ABPEntry) what;
+                return port.equals(that.port);
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("{ port:%d, address count:%d }", port, binds.get());
+        }
+
+    }
+
+    public static ReservationEntry RE() {
+        return new ReservationEntry();
+    }
+
+    public static class ReservationEntry implements Comparable<ReservationEntry> {
+        /** Holder for reading ReservationEntry objects from a ConcurrentSkipListSet when calling 'remove' or 'contains'  */
+        public static ThreadLocal<ReservationEntry> reservation = new ThreadLocal<>();
+
+        private static long ridCount = 0;
+        private final long rid;
+        public String socketUUID = null;
+        public InetSocketAddress address;
+
+        private ReservationEntry(Long rsvp) {
+            rid = rsvp;
+        }
+
+        private ReservationEntry() {
+            rid = ++ridCount;
+        }
+
+        public ReservationEntry id(String socketUUID) {
+            this.socketUUID = socketUUID;
+            return this;
+        }
+
+        public ReservationEntry with(InetSocketAddress address) {
+            this.address = address;
+            return this;
+        }
+
+        public boolean equals(Object o) {
+
+            if (ReservationEntry.class.isInstance(o)) {
+                ReservationEntry that = (ReservationEntry) o;
+                if (this.rid == that.rid) {
+                    if (reservation.get() == null) {
+                        if (this.socketUUID == null && that.socketUUID != null) {
+                            reservation.set(that);
+                        } else if (that.socketUUID == null && this.socketUUID != null) {
+                            reservation.set(this);
+                        }
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public int compareTo(ReservationEntry o) {
+            int asCompared = (int) (this.rid - o.rid);
+            if (asCompared == 0) {
+                if (reservation.get() == null) {
+                    if (this.socketUUID == null && o.socketUUID != null) {
+                        reservation.set(o);
+                    } else if (o.socketUUID == null && this.socketUUID != null) {
+                        reservation.set(this);
+                    }
+                }
+            }
+            return asCompared;
+        }
+
+        private static ReservationEntry valueOf(Long rsvp) {
+            return new ReservationEntry(rsvp);
+        }
+    }
+
 }

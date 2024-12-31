@@ -1,17 +1,29 @@
 package com.red5pro.ice.nio;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.mina.core.buffer.IoBuffer;
 import org.apache.mina.core.service.IoHandlerAdapter;
@@ -22,8 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import com.red5pro.ice.Agent;
 import com.red5pro.ice.IceProcessingState;
+import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.nio.IceTransport.ABPEntry;
+import com.red5pro.ice.nio.IceTransport.Ice;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.RawMessage;
 import com.red5pro.ice.stack.StunStack;
@@ -38,11 +53,20 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(IceHandler.class);
 
-    private static final Logger sweeperLogger = LoggerFactory.getLogger("ice.handler.sweeper");
+    protected static final Logger sweeperLogger = LoggerFactory.getLogger("ice.handler.sweeper");
 
     private static boolean isTrace = logger.isTraceEnabled();
 
     private static boolean isDebug = logger.isDebugEnabled();
+
+    /**
+     * Interval for cleaning up dead transports in seconds.
+     */
+    protected static int cleanSweepingInterval = StackProperties.getInt(StackProperties.ICE_SWEEPER_INTERVAL, 60);
+    /**
+     * number of seconds for a nonshared transport to be considered abandoned.
+     */
+    protected static int deadTransportTimeout = StackProperties.getInt(StackProperties.ICE_SWEEPER_TIMEOUT, 60);
 
     // temporary holding area for stun stacks awaiting session creation
     private static ConcurrentMap<TransportAddress, StunStack> stunStacks = new ConcurrentHashMap<>();
@@ -52,17 +76,23 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     // temporary holding area for ice sockets awaiting session creation
     private static ConcurrentMap<TransportAddress, IceSocketWrapper> iceSockets = new ConcurrentHashMap<>();
 
-    private ScheduledExecutorService cleanSweeper = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
+    private ExecutorService closer = Executors.newCachedThreadPool();
+    /**
+     * Periodic check for abandoned transports. ThreadFactory used to create daemon threads.
+     */
+    private ScheduledExecutorService cleanSweeper = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors() * 2);
 
     private long sweepJob = 0;
 
     protected IceHandler() {
-        logger.info("Waking up");
+        sweeperLogger.info("Waking up");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             cleanSweeper.shutdown();
+            closer.shutdown();
         }));
-
-        cleanSweeper.scheduleWithFixedDelay(this, 10, 10, TimeUnit.SECONDS);
+        // Sweeper Job looks for orphaned Acceptors and Sockets.
+        // Fixed delay between iterations. Not a fixed interval.
+        cleanSweeper.scheduleWithFixedDelay(this, 60, cleanSweepingInterval, TimeUnit.SECONDS);
     }
 
     /**
@@ -175,23 +205,23 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         StunStack stunStack = stunStacks.get(addr);
         if (stunStack != null) {
             session.setAttribute(IceTransport.Ice.STUN_STACK, stunStack);
-            session.setAttribute(IceTransport.Ice.AGENT, stunStack.getAgent());
+            Agent agent = agents.get(stunStack.getAgentId());
+            session.setAttribute(IceTransport.Ice.AGENT, agent);
             IceSocketWrapper iceSocket = iceSockets.get(addr);
             if (iceSocket != null) {
-                logger.debug("New session on Socket id: {}, session {}, current session {}", iceSocket.getId(), session,
+                logger.debug("New session on Socket id: {}, session {}, current session {}", iceSocket.getTransportId(), session,
                         iceSocket.getSession());
                 // No longer setting socket ID here because ice transport might not have set attribute yet.
                 if (!session.containsAttribute(IceTransport.Ice.UUID)) {
-                    session.setAttribute(IceTransport.Ice.UUID, iceSocket.getId());
+                    session.setAttribute(IceTransport.Ice.UUID, iceSocket.getTransportId());
                 }
                 session.setAttribute(IceTransport.Ice.NEGOTIATING_ICESOCKET, iceSocket);
                 // XXX create socket registration
                 if (transport == Transport.TCP) {
-                    iceSocket.addRef();
                     // get the remote address
                     inetAddr = (InetSocketAddress) session.getRemoteAddress();
                     TransportAddress remoteAddress = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transport);
-                    logger.debug("Socket {} current remote address: {} Session remote address: {}", iceSocket.getId(),
+                    logger.debug("Socket {} current remote address: {} Session remote address: {}", iceSocket.getTransportId(),
                             iceSocket.getRemoteTransportAddress(), remoteAddress);
                     session.setAttribute(IceTransport.Ice.NEGOTIATING_TRANSPORT_ADDR, remoteAddress);
                     iceSocket.negotiateRemoteAddress(remoteAddress);
@@ -309,7 +339,6 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         //Were we negotiating?
         IceSocketWrapper iceSocket = (IceSocketWrapper) session.removeAttribute(IceTransport.Ice.NEGOTIATING_ICESOCKET);
         if (iceSocket != null) {
-            iceSocket.releaseRef();
             TransportAddress remoteAddress = (TransportAddress) session.removeAttribute(IceTransport.Ice.NEGOTIATING_TRANSPORT_ADDR);
             if (remoteAddress != null) {
                 if (iceSocket.negotiationFinished(remoteAddress)) {
@@ -321,8 +350,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         // remove any existing reference to an ice socket
         Optional<Object> socket = Optional.ofNullable(session.removeAttribute(IceTransport.Ice.CONNECTION));
         if (socket.isPresent()) {
+            ((IceSocketWrapper) socket.get()).close();
             // update total message/byte counters
-            ((IceSocketWrapper) socket.get()).close(session);
+            ((IceSocketWrapper) socket.get()).notifySessionClosed(session, IceTransport.Ice.CLOSED);
         } else {
             logger.debug("No socket associated with session: {} at close", session.getId());
         }
@@ -337,16 +367,16 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         if (causeMessage != null && causeMessage.contains("Hexdump: 15")) {
             // only log it at trace level if we're debugging
             if (isTrace) {
-                logger.warn("Exception on session: {}", session.getId(), cause);
+                logger.debug("Exception on session: {}", session.getId(), cause);
             } else {
-                logger.warn("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
+                logger.debug("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
             }
         } else if (isTrace) {
-            logger.warn("Exception on session: {}", session.getId(), cause);
+            logger.debug("Exception on session: {}", session.getId(), cause);
         } else {
-            logger.warn("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
+            logger.debug("Exception on session: {}", session.getId(), cause.getClass().getSimpleName());
         }
-        session.setAttribute("exception", cause);
+        session.setAttribute(IceTransport.Ice.EXCEPTION.name().toLowerCase(), cause);
         //Look for application API.
         Agent agent = (Agent) session.getAttribute(IceTransport.Ice.AGENT);
         // determine transport type
@@ -354,13 +384,12 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         InetSocketAddress inetAddr = (InetSocketAddress) session.getLocalAddress();
         TransportAddress addr = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transportType);
         if (agent != null) {
-            agent.setException(addr, cause);
             if (agent.isClosing() || !agent.isActive()) {
-                logger.warn("Session agent is shutting down ");
+                logger.info("Session agent is shutting down ");
                 return;
             }
         }
-
+        IceSocketWrapper iceSocket = iceSockets.get(addr);
         logger.warn("Session: {} exception on transport: {} connection-less? {} address: {}", session.getId(), transportType,
                 session.getTransportMetadata().isConnectionless(), addr);
         // get the transport / acceptor identifier
@@ -368,14 +397,12 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         // get transport by type
         IceTransport transport = IceTransport.getInstance(transportType, id);
         // remove binding
-        transport.removeBinding(addr);
-        if (!IceTransport.isSharedAcceptor()) {
-            // not-shared, kill it
-            transport.stop();
+        if (transport != null) {
+            transport.removeBinding(iceSocket.getRsvp(), addr);
         }
         // remove any map entries
         stunStacks.remove(addr);
-        IceSocketWrapper iceSocket = iceSockets.remove(addr);
+
         if (iceSocket == null && session.containsAttribute(IceTransport.Ice.CONNECTION)) {
             iceSocket = (IceSocketWrapper) session.removeAttribute(IceTransport.Ice.CONNECTION);
         }
@@ -383,15 +410,13 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             // Invoked when any exception is thrown by user IoHandler implementation or by MINA. If cause is an
             // instance of IOException, MINA will close the connection automatically.
             // handle closing of the socket
-            if (!iceSocket.isClosed()) {
-                iceSocket.close(session);
-            }
+            iceSocket.notifySessionClosed(session, IceTransport.Ice.EXCEPTION);
         }
     }
 
     /**
      * Removes an address entry from this handler. This includes the STUN stack and ICE sockets collections.
-     *
+     * It does not close the socket or stunstack.
      * @param addr
      * @return true if removed from sockets list and false if not
      */
@@ -406,27 +431,501 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         return false;
     }
 
-    public boolean unregisterAgent(String id) {
-        Agent agent = agents.remove(id);
-        if (agent != null) {
-            if (!agent.hasEolHandler()) {
-                Set<Integer> history = agent.getPortAllocationHistory();
-                boolean clean = false;
-                try {
-                    clean = agent.getEndOfLifeStateLogger().call();
-                } catch (Exception e) {
+    public void notifyReservationRemoved(Long rid, String socketUUID, InetSocketAddress address) {
+        logger.debug("notifyReservationRemoved rid: {}, socketUUID: {}   address:{} ", rid, socketUUID, address);
+        this.submitTask(() -> {
+            logger.debug("Running notification to agent for {}", socketUUID);
+            IceSocketWrapper wrapper = IceSocketWrapper.getInstance(socketUUID);
+            if (wrapper != null) {
+                //set reservation to null.
+                wrapper.setRsvp(null);
+                Agent agent = wrapper.getAgent();
+                if (agent != null) {
+                    agent.notifySessionChanged(wrapper, wrapper.getSession(), Ice.DISPOSE_ADDRESS);
+                } else {
+                    logger.debug("No agent");
                 }
-                if (!clean) {
-                    logger.warn("Unclean exit for {}. Check if these ports are disposed. {}", agent.getLocalUfrag(), history.toString());
-                    forceCleanUp(agent);
-                }
+            } else {
+                logger.debug("No wrapper");
+            }
+        });
+    }
+
+    public void cleanUpTransport(String id, Transport type, Set<SocketAddress> killed) {
+        try {
+            //get all the sockets owned by the transport id
+            IceSocketWrapper[] mySockets = (IceSocketWrapper[]) iceSockets.entrySet().stream().filter((entry) -> {
+                return entry.getValue().getTransportId().equals(id);
+            }).toArray();
+
+            //Call their agents if their address was listed in killed
+            for (IceSocketWrapper socket : mySockets) {
+                String agentId = null;
                 try {
-                    agent.getNuker().call();
-                } catch (Exception e) {
+                    Agent agent = socket.getAgent();
+                    if (agent != null) {
+                        submitTask(() -> {
+                            for (SocketAddress addy : killed) {
+                                InetSocketAddress target = (InetSocketAddress) addy;
+                                if (target.getAddress().equals(socket.getTransportAddress().getAddress())
+                                        && type == socket.getTransportAddress().getTransport()) {
+
+                                    //Owner here. Tell them to relaese ownership of TransportAddress.
+                                    agent.notifySessionChanged(socket, null, Ice.DISPOSE_ADDRESS);
+                                    agent.unregisterIfEmpty();
+                                }
+                            }
+                        });
+
+
+                        agentId = agent.getId();
+
+                        StunStack stack = stunStacks.get(socket.getTransportAddress());
+                        ///Does this agent own the stunstack listed under this address?
+                        if (stack != null && stack.getAgentId().equals(agentId)) {
+                            //yes remove if the same instance.
+                            stunStacks.remove(socket.getTransportAddress(), stack);
+                        }
+                    }
+
+                    if (!socket.isSocketClosed()) {
+                        socket.close();
+                    }
+                } catch (Exception | Error e) {
+                    logger.warn("", e);
+                } finally {
+                    iceSockets.remove(socket.getTransportAddress(), socket);
+                }
+            }
+
+        } catch (Throwable throwable) {
+
+        }
+    }
+
+    /**
+     * Management API. Removes a binding from acceptor and disposes the associated socket
+     * @param address
+     * @param type tcp or udp
+     * @param port
+     * @return true if acceptor was found and address unbound.
+     */
+    public boolean unbindSocketByAddress(String address, String type, int port) {
+        Transport t = Transport.valueOf(type.toUpperCase());
+        TransportAddress target = new TransportAddress(address, port, t);
+        AtomicBoolean ret = new AtomicBoolean();
+
+        for (Entry<String, IceTransport> transport : IceTransport.transports.entrySet()) {
+            IceTransport trans = transport.getValue();
+            if (trans.getTransport() == t) {
+                for (SocketAddress addy : trans.getAcceptor().getLocalAddresses()) {
+                    TransportAddress reflect = new TransportAddress((InetSocketAddress) addy, t);
+                    if (reflect.equals(target)) {
+                        try {
+                            ret.set(trans.removeBinding(null, target));
+                        } catch (Exception e) {
+                            logger.warn("", e);
+                        }
+
+                    }
                 }
             }
         }
-        return agent != null;
+        //Now remove the owner socket if found.
+        IceSocketWrapper iceTarget = null;
+        for (Entry<TransportAddress, IceSocketWrapper> socketEntry : iceSockets.entrySet()) {
+            if (socketEntry.getKey().equals(target)) {
+                iceTarget = socketEntry.getValue();
+                break;
+
+            }
+        }
+        if (iceTarget != null) {
+            iceSockets.remove(target);
+            iceTarget.close();
+        }
+        return ret.get();
+    }
+
+
+    /**
+     * Management API. Warning. This closes all sockets owned by the acceptor. Not just the address listed.
+     * @param address
+     * @param type tcp or udp
+     * @param port
+     * @return true if acceptor was unbound.
+     */
+    public boolean closeAcceptorByAddress(String address, String type, int port) {
+        Transport t = Transport.valueOf(type.toUpperCase());
+        TransportAddress target = new TransportAddress(address, port, t);
+        AtomicBoolean ret = new AtomicBoolean();
+        for (Entry<TransportAddress, IceSocketWrapper> socketEntry : iceSockets.entrySet()) {
+            if (socketEntry.getKey().equals(target)) {
+                String id = socketEntry.getValue().getTransportId();
+                IceTransport transport = IceTransport.getInstance(t, id);
+                if (transport != null) {
+                    try {
+                        ret.set(transport.stop());
+                    } catch (Exception e) {
+                    }
+                }
+                return socketEntry.getValue().close();
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Management API
+     * @return map of sockets owned by each acceptor-id.
+     */
+    public Map<String, Set<String>> getBindings() {
+        Map<String, Set<String>> ret = new HashMap<>();
+        IceTransport.transports.forEach((String id, IceTransport trans) -> {
+            HashSet<String> sub = new HashSet<>();
+            trans.getBoundAddresses().forEach(addys -> {
+                sub.add(addys.toString().substring(1).concat("/").concat(trans.getType().toString()));
+            });
+
+            ret.put(id, sub);
+        });
+        return ret;
+    }
+
+    /**
+     * Management API Close a socket matching parameters
+     * @param address
+     * @param type tcp or udp
+     * @param port
+     * @return true if listening address was closed
+     */
+    public boolean closeSocketByAddress(String address, String type, int port) {
+        Transport t = Transport.valueOf(type.toUpperCase());
+        TransportAddress target = new TransportAddress(address, port, t);
+
+        for (Entry<TransportAddress, IceSocketWrapper> socketEntry : iceSockets.entrySet()) {
+            if (socketEntry.getKey().equals(target)) {
+                return socketEntry.getValue().close();
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Management API close all sockets with a given type and port.
+     * @param type tcp or udp
+     * @param port
+     * @return number of sockets closed.
+     */
+    public int closeSocket(String type, int port) {
+        AtomicInteger ret = new AtomicInteger();
+        Transport transType = Transport.valueOf(type.toUpperCase());
+        iceSockets.forEach((addy, socket) -> {
+            if (addy.getTransport().equals(transType) && addy.getPort() == port) {
+                if (socket.close()) {
+                    ret.incrementAndGet();
+                }
+            }
+        });
+        return ret.get();
+    }
+
+    /**
+     * Management API Close all sockets with the given port.
+     * @param port
+     * @return number of sockets closed.
+     */
+    public int closeSocket(int port) {
+        AtomicInteger ret = new AtomicInteger();
+        iceSockets.forEach((addy, socket) -> {
+            if (addy.getPort() == port) {
+                if (socket.close()) {
+                    ret.incrementAndGet();
+                }
+            }
+        });
+        return ret.get();
+    }
+
+    public void unregisterAgent(String id) {
+        Agent agent = agents.get(id);
+        if (agent != null) {
+            boolean clean = agent.isCleanExit();
+
+            if (!clean) {
+                logger.warn("Unclean exit for {}. Check if these ports were owned by this agent and disposed. {}", agent.getLocalUfrag(),
+                        agent.getPortAllocationHistory().toString());
+                forceCleanUp(agent);
+            }
+            agents.remove(id);
+            callEolHandlerFor(agent);
+        }
+    }
+
+    /**
+     * Sweeper Job looks for orphaned Acceptors and Sockets.
+     */
+    @Override
+    public void run() {
+        Thread.currentThread().setName("sweeper job-" + sweepJob++);
+        sweeperLogger.trace("Starting");
+        if (sweeperLogger.isDebugEnabled()) {
+            Set<Thread> threads = Thread.getAllStackTraces().keySet();
+
+            sweeperLogger.debug("JVM thread count {}", threads.size());
+
+            ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+            long[] deadlockedThreads = threadMXBean.findDeadlockedThreads();
+            if (deadlockedThreads != null) {
+                sweeperLogger.warn("Number of deadlocked threads: " + deadlockedThreads.length);
+            } else {
+                sweeperLogger.debug("No deadlocks detected.");
+            }
+        }
+
+        sweeperLogger.debug("ICE Transport count: {}", IceTransport.transportCount());
+
+
+        IceTransport.transports.forEach((id, t) -> {
+
+            if (sweeperLogger.isTraceEnabled()) {
+                sweeperLogger.trace("IceTransport: {}  shared: {}, stopped: {}", id, t.isShared(), t.getStoppedAndAddresses());
+            }
+
+            //Iterate on known addresses.
+            t.getBoundAddresses().forEach((SocketAddress sockAddy) -> {
+                IceSocketWrapper iceSocket = iceSockets.get(sockAddy);
+                if (iceSocket != null && iceSocket.getTransportId() == id) {
+                    doCheckups(t, iceSocket);
+                }
+            });
+
+            //Iterate on lost/unknown addresses.
+            iceSockets.forEach((addy, iceSocket) -> {
+                if (iceSocket != null && iceSocket.getTransportId() == id) {
+                    doCheckups(t, iceSocket);
+                }
+            });
+        });
+
+        if (sweeperLogger.isTraceEnabled() && !stunStacks.isEmpty()) {
+            sweeperLogger.trace("---Stun Stacks---");
+            stunStacks.forEach((hood, stunna) -> {
+                if (stunna != null) {
+                    sweeperLogger.trace("Stack age: {}, reg-count: {}, agent id: {}", stunna.getAge(), stunna.getRegistrationCount(),
+                            stunna.getAgentId());
+                    sweeperLogger.trace(hood.toString());
+                } else {
+                    sweeperLogger.trace("No stack for {}", hood);
+                }
+            });
+        }
+
+        if (sweeperLogger.isTraceEnabled() && !iceSockets.isEmpty()) {
+            sweeperLogger.info("---ICE Sockets---");
+            iceSockets.forEach((addy, socket) -> {
+                if (socket != null) {
+                    sweeperLogger.info(socket.toSweeperInfo());
+                    sweeperLogger.info("Socket age: {}, has-transport: {}", socket.getAge(),
+                            IceTransport.transportExists(socket.getTransportId()));
+                } else {
+                    sweeperLogger.info("No socket for {}", addy);
+                }
+            });
+        }
+
+        if (sweeperLogger.isTraceEnabled() && !agents.isEmpty()) {
+            sweeperLogger.trace("--- Agents ---");
+
+            List<Agent> toRemove = new ArrayList<>();
+            agents.forEach((id, agent) -> {
+
+                if (agent.mustBeDead()) {
+                    toRemove.add(agent);
+                }
+
+                if (sweeperLogger.isTraceEnabled()) {
+                    if (agent.getState() == IceProcessingState.WAITING) {
+                        sweeperLogger.info("Wating agent {}, age: {}, allocated ports: {}", agent.getLocalUfrag(), agent.getAge(),
+                                agent.getPreAllocatedPorts());
+                    } else if (agent.getState() == IceProcessingState.RUNNING && !agent.isClosing()) {
+                        sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-age: {}, allocated ports: {}",
+                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getIceAge(), agent.getPreAllocatedPorts());
+                    } else if (!agent.isClosing()) {
+                        sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                                agent.getPreAllocatedPorts());
+                    } else if (!agent.isActive()) {
+                        sweeperLogger.info("Agent is closed {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                                agent.getPreAllocatedPorts());
+                    } else if (agent.isClosing()) {
+                        sweeperLogger.info("Agent is closing {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                                agent.getPreAllocatedPorts());
+                    }
+                }
+            });
+
+            toRemove.forEach(agent -> {
+                unorderlyClosure(agent.getId());
+
+            });
+        }
+
+        if (sweeperLogger.isTraceEnabled()) {
+            Iterator<ABPEntry> iter = IceTransport.getGlobalListing().iterator();
+            while (iter.hasNext()) {
+                ABPEntry entry = iter.next();
+                sweeperLogger.warn(entry.toString());
+            }
+        }
+
+        sweeperLogger.trace("Exiting");
+    }
+
+    private void doCheckups(IceTransport transport, IceSocketWrapper sock) {
+
+        Agent agent = sock.getAgent();
+
+        if (!agent.isActive() && agent.closedDuration() > deadTransportTimeout) {
+
+            sweeperLogger.warn("Agent has been closed for {} seconds. Active duration: {} seconds. Clearing up socket {}.",
+                    agent.closedDuration() / 1000.0, (agent.getAge() - agent.closedDuration()) / 1000.0, sock.getTransportAddress());
+            try {
+                if (!sock.isSocketClosed()) {
+                    sock.close();
+                    if (iceSockets.remove(sock.getTransportAddress(), sock)) {
+                        sweeperLogger.debug("IceSocketRemoved.");
+                    }
+                }
+            } catch (Throwable t) {
+                sweeperLogger.warn("", t);
+            }
+            if (!agents.containsKey(agent.getId())) {
+                sweeperLogger.debug("Agent did unregister self.");
+
+            } else {
+                sweeperLogger.debug("Unregistering Agent.");
+                agents.remove(agent.getId());
+            }
+            if (agent.getStunStack() != null) {
+                //Remove if the current stunstack is ours.
+                if (stunStacks.remove(sock.getTransportAddress(), agent.getStunStack())) {
+                    sweeperLogger.debug("Old Stunstack removed.");
+                }
+            }
+        }
+    }
+
+    private static ThreadLocal<Map<String, Object>> report = new ThreadLocal<Map<String, Object>>();
+
+    public static Set<String> getAgentIds() {
+        return Set.copyOf(agents.keySet());
+    }
+
+    public Map<String, Object> doForcedCleanup(String aid) {
+        Map<String, Object> ret = new HashMap<>();
+        report.set(ret);
+        try {
+            Agent agent = agents.remove(aid);
+            if (agent != null) {
+                report.get().put("agent", true);
+                report.get().put("agent.active", agent.isActive());
+                forceCleanUp(agent);
+            } else {
+                report.get().put("agent", false);
+            }
+        } catch (Exception e) {
+            report.get().put("error", e.getClass().getSimpleName());
+            report.get().put("error.cause", e.getCause());
+            report.get().put("error.message", e.getMessage());
+
+        } finally {
+            report.set(null);
+        }
+        return ret;
+    }
+
+    private void forceCleanUp(Agent agent) {
+        logger.debug("Force cleanup , todo!");
+        if (report.get() == null) {
+            report.set(new HashMap<>());
+        }
+        List<String> sockets = agent.getSocketIds();
+        report.get().put("socketIds", sockets.toString());
+        for (String socketid : sockets) {
+            IceSocketWrapper socket = IceSocketWrapper.getInstance(socketid);
+            if (socket != null) {
+                report.get().put("socket", socket.toSweeperInfo());
+                if (!socket.isSocketClosed()) {
+                    try {
+                        socket.close();
+                    } catch (Exception e) {
+
+                    }
+                }
+
+
+                IceTransport transport = socket.getIceTransportRef();
+                if (transport != null) {
+                    report.get().put("socket.transport", transport.toString());
+                    Set<SocketAddress> addresses = transport.getBoundAddresses();
+                    if (addresses.contains(socket.getTransportAddress())) {
+                        report.get().put("socket.addresses", addresses.toString());
+                        try {
+                            if (transport.removeBinding(socket.getRsvp(), socket.getTransportAddress())) {
+                                logger.warn("Binding removed");
+                                report.get().put("socket.unbound", true);
+                            } else {
+                                report.get().put("socket.unbound", false);
+                            }
+                            Thread.sleep(1000);
+                        } catch (Exception e) {
+                            logger.warn("Forced cleanup", e);
+                        }
+                    }
+
+                    report.get().put("socket.rsvp", socket.getRsvp());
+                    if (socket.getRsvp() != null) {
+                        boolean isBound = IceTransport.didBind(socket.getRsvp(), socket.getTransportAddress().getPort());
+                        report.get().put("transport.isStillBound", isBound);
+                        logger.warn("is still bound? {}", isBound);
+                    }
+
+                    if (socket.getRsvp() != null) {
+                        boolean ret = transport.removeCachedBoundAddressInfo(socket.getRsvp(), socket.getTransportAddress().getPort());
+                        report.get().put("transport.removed.rsvp", ret);
+                    }
+                } else {
+                    report.get().put("socket.transport", "null");
+                }
+            } else {
+                report.get().put("socket", "null");
+            }
+        }
+
+        unorderlyClosure(agent.getId());
+    }
+
+    private void unorderlyClosure(String id) {
+        Agent agent = agents.remove(id);
+        if (agent != null) {
+            report.get().put("agent.removed", true);
+            logger.warn("Unorderly closure for Agent. ufrag: {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                    agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(), agent.getPreAllocatedPorts());
+            callEolHandlerFor(agent);
+        }
+    }
+
+    public void callEolHandlerFor(Agent agent) {
+
+        Agent.EndOfLifeStateHandler handler = agent.getEolHandler();
+        if (handler != null) {
+            cleanSweeper.schedule(() -> {
+                handler.agentEndOfLife(agent);
+            }, 200, TimeUnit.MILLISECONDS);
+        }
     }
 
     /* From BC TlsUtils for debugging */
@@ -444,104 +943,32 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         return ((long) (hi & 0xffffffffL) << 24) | (long) (lo & 0xffffffffL);
     }
 
-    @Override
-    public void run() {
-        Thread.currentThread().setName("sweeper job-" + sweepJob++);
-        sweeperLogger.info("Starting");
-
-        sweeperLogger.info("ICE Transport count: {}", IceTransport.transportCount());
-
-        if (!stunStacks.isEmpty()) {
-            sweeperLogger.info("---Stun Stacks---");
-            stunStacks.forEach((hood, stunna) -> {
-                if (stunna != null) {
-                    sweeperLogger.info("Stack age: {}, reg-count: {}, has-agent: {}", stunna.getAge(), stunna.getRegistrationCount(),
-                            stunna.hasAgent());
-                    sweeperLogger.info(hood.toString());
-                } else {
-                    sweeperLogger.info("No stack for {}", hood);
-                }
-
-            });
-        } else {
-            sweeperLogger.info("No stun stacks to evaluate");
-        }
-        if (!iceSockets.isEmpty()) {
-            sweeperLogger.info("---ICE Sockets---");
-            iceSockets.forEach((addy, socket) -> {
-                if (socket != null) {
-                    sweeperLogger.info(socket.toSweeperInfo());
-                    sweeperLogger.info("Socket age: {}, has-StunStack: {}, has-transport: {}", socket.getAge(),
-                            stunStacks.containsKey(addy), IceTransport.transportExists(socket.getId()));
-                } else {
-                    sweeperLogger.info("No socket for {}", addy);
-                }
-            });
-        } else {
-            sweeperLogger.info("No ice sockets to evaluate");
-        }
-        if (!agents.isEmpty()) {
-            sweeperLogger.info("--- Agents ---");
-
-            List<Agent> toRemove = new ArrayList<>();
-
-
-            agents.forEach((id, agent) -> {
-
-                if (agent.getState() == IceProcessingState.WAITING) {
-                    sweeperLogger.info("Wating agent {}, age: {}, allocated ports: {}", agent.getLocalUfrag(), agent.getAge(),
-                            agent.getPreAllocatedPorts());
-                } else if (agent.getState() == IceProcessingState.RUNNING && !agent.isClosing()) {
-                    sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-age: {}, allocated ports: {}", agent.getLocalUfrag(),
-                            agent.getState(), agent.getAge(), agent.getIceAge(), agent.getPreAllocatedPorts());
-                } else if (!agent.isClosing()) {
-                    sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
-                            agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
-                            agent.getPreAllocatedPorts());
-                } else if (!agent.isActive()) {
-                    sweeperLogger.info("Agent is closed {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
-                            agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
-                            agent.getPreAllocatedPorts());
-                } else if (agent.isClosing()) {
-                    sweeperLogger.info("Agent is closing {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
-                            agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
-                            agent.getPreAllocatedPorts());
-                } else if (agent.mustBeDead()) {
-                    toRemove.add(agent);
-                    Throwable ce = agent.getClosingError();
-                    if (ce != null) {
-                        logger.error("Closing error for frag: {}", agent.getLocalUfrag(), ce);
-                    }
-                    agent.getUncleanExits().forEach((m, t) -> {
-                        sweeperLogger.error("Error in agent {} freeing {}, {}", agent.getLocalUfrag(), m, t);
-                        sweeperLogger.error("Failed agent {} allocated ports: {}  ports-tried: {}", agent.getLocalUfrag(),
-                                agent.getPreAllocatedPorts(), agent.getPortAllocationHistory());
-                    });
-                }
-            });
-
-            toRemove.forEach(agent -> {
-                unregisterAgent(agent.getId());
-
-            });
-        } else {
-            sweeperLogger.info("No ice agents to evaluate");
-        }
-        sweeperLogger.info("Exiting");
+    /**
+     * Create thread to handle closing sockets and transports.
+     * Transport cleanup may not complete when performed by IO Future 'closed' callback.
+     * @param closeJob
+     * @return
+     */
+    public Future<Boolean> runSocketCloseJob(Callable<Boolean> closeJob) {
+        String name = Thread.currentThread().getName();
+        return this.closer.submit(() -> {
+            if (!name.endsWith("-close-socket")) {
+                Thread.currentThread().setName(name.concat("-close-socket"));
+            }
+            return closeJob.call();
+        });
 
     }
 
-    public void callEolHandlerFor(Agent agent) {
-        Agent.EndOfLifeStateHandler handler = agent.getEolHandler();
-        if (handler != null) {
-            cleanSweeper.schedule(() -> {
-                forceCleanUp(agent);
-                handler.agentEndOfLife(agent, agent.getEndOfLifeStateLogger(), agent.getNuker());
-            }, 200, TimeUnit.MILLISECONDS);
-        }
+    /**
+     * Submits a Runnable task for execution and returns a Future representing that task.
+     * The Future's method will return null on successful completion.
+     * @param runThis runnable
+     * @return a Future representing pending completion of the task.
+     */
+    public Future<?> submitTask(Runnable runThis) {
+        return closer.submit(runThis);
     }
 
-    private void forceCleanUp(Agent agent) {
-        logger.debug("Force cleanup , todo!");
-    }
+
 }
