@@ -3,9 +3,11 @@ package com.red5pro.ice.stack;
 
 import java.io.IOException;
 import java.lang.Thread.UncaughtExceptionHandler;
+import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,13 +20,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.crypto.Mac;
 
+import org.apache.mina.core.session.IoSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.Agent;
 import com.red5pro.ice.ResponseCollector;
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.StunMessageEvent;
+import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.attribute.Attribute;
 import com.red5pro.ice.attribute.ErrorCodeAttribute;
@@ -36,14 +41,12 @@ import com.red5pro.ice.message.Message;
 import com.red5pro.ice.message.MessageFactory;
 import com.red5pro.ice.message.Request;
 import com.red5pro.ice.message.Response;
+import com.red5pro.ice.nio.AcceptorStrategy;
 import com.red5pro.ice.nio.IceHandler;
-import com.red5pro.ice.nio.IceTcpTransport;
 import com.red5pro.ice.nio.IceTransport;
-import com.red5pro.ice.nio.IceUdpTransport;
 import com.red5pro.ice.security.CredentialsManager;
 import com.red5pro.ice.security.LongTermCredential;
 import com.red5pro.ice.socket.IceSocketWrapper;
-import com.red5pro.ice.socket.IceUdpSocketWrapper;
 import com.red5pro.ice.util.Utils;
 
 /**
@@ -65,6 +68,11 @@ public class StunStack implements MessageEventHandler {
      */
     @SuppressWarnings("unused")
     private static Mac mac;
+
+    /**
+     * The Default system AcceptorStrategy. For each Transport type utilized(TCP and UDP), AcceptorStrategy represents the three basic ways to manage IceTransports for users.
+     */
+    private static AcceptorStrategy acceptorStrategy;
 
     /**
      * Our network gateway.
@@ -103,6 +111,10 @@ public class StunStack implements MessageEventHandler {
 
     private static AtomicBoolean sweeper = new AtomicBoolean();
 
+    private AcceptorStrategy sessionAcceptorStrategy = AcceptorStrategy.DiscretePerSocket;
+
+    private HashSet<TransportAddress> registrations = new HashSet<TransportAddress>();
+
     /**
      * Executor for all threads and tasks needed in this stacks agent.
      */
@@ -123,6 +135,29 @@ public class StunStack implements MessageEventHandler {
         }
     });
 
+    private long creationTime;
+
+    /**
+     * Used when strategy is DiscretePerSession.
+     * This allows StunStack to look up the same IceTransport for each of the user's candidates
+     */
+    private String udpTransportSessionId;
+
+    /**
+     * Used when strategy is DiscretePerSession.
+     * This allows StunStack to look up the same IceTransport for each of the user's candidates
+     */
+    private String tcpTransportSessionId;
+
+    /**
+     * Owning agent.
+     */
+    private WeakReference<Agent> agent;
+    /**
+     * True if Stack property overides.
+     */
+    private boolean overrides = false;
+
     static {
         // The Mac instantiation used in MessageIntegrityAttribute could take several hundred milliseconds so we don't
         // want it instantiated only after we get a response because the delay may cause the transaction to fail.
@@ -132,6 +167,13 @@ public class StunStack implements MessageEventHandler {
             nsaex.printStackTrace();
         }
 
+        int ordinal = StackProperties.getInt(StackProperties.ACCEPTOR_STRATEGY, AcceptorStrategy.DiscretePerSession.ordinal());
+        acceptorStrategy = AcceptorStrategy.valueOf(ordinal);
+        boolean shared = StackProperties.getBoolean("NIO_SHARED_MODE", false);
+        if (shared) {
+            //If sharedAcceptors was set, override acceptorStrategy.
+            acceptorStrategy = AcceptorStrategy.Shared;
+        }
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
                 // stop the executor
@@ -152,18 +194,35 @@ public class StunStack implements MessageEventHandler {
 
     public StunStack() {
         logger.trace("ctor: {}", this);
+        //set default on session.
+        sessionAcceptorStrategy = acceptorStrategy;
+        StackPropertyOverrides propOverrides = StackPropertyOverrides.getOverrides();
+        if (propOverrides != null) {
+            this.overrides = true;
+            if (propOverrides.useAllBinding != null) {
+                useAllBinding = propOverrides.useAllBinding;
+            }
+            if (propOverrides.useIPv6 != null) {
+                useIPv6 = propOverrides.useIPv6;
+            }
+            if (propOverrides.strategy != null) {
+                sessionAcceptorStrategy = propOverrides.strategy;
+            }
+        }
         // create a new network access manager
         netAccessManager = new NetAccessManager(this);
+        creationTime = System.currentTimeMillis();
     }
 
     /**
      * Creates and starts a Network Access Point (Connector) based on the specified socket and the specified remote address.
+     * Synchronized to prevent racing when using {@code AcceptorStrategy.DiscretePerSession} where we need to store the transport id for subsequent sockets added.
      *
      * @param iceSocket the socket wrapper that the new access point should represent
      * @param remoteAddress of the Connector to be created if it is a TCP socket or null if it is UDP
      * @param doBind perform bind on the wrappers local address if true and not if false
      */
-    public boolean addSocket(IceSocketWrapper iceSocket, TransportAddress remoteAddress, boolean doBind) {
+    synchronized public boolean addSocket(IceSocketWrapper iceSocket, TransportAddress remoteAddress, boolean doBind) {
         logger.debug("addSocket: {} remote address: {} bind? {}", iceSocket, remoteAddress, doBind);
         boolean added = false;
         InetAddress addr = iceSocket.getLocalAddress();
@@ -176,11 +235,36 @@ public class StunStack implements MessageEventHandler {
         } else {
             // add the wrapper for binding
             if (doBind) {
-                if (iceSocket instanceof IceUdpSocketWrapper) {
-                    IceUdpTransport transport = IceUdpTransport.getInstance(iceSocket.getId());
-                    transport.registerStackAndSocket(this, iceSocket);
-                } else {
-                    IceTcpTransport transport = IceTcpTransport.getInstance(iceSocket.getId());
+                Transport type = iceSocket.getTransport();
+                IceTransport transport = null;
+                if (Transport.UDP.equals(type)) {
+                    //If discrete per session, we create one transport for all UDP sockets for this user.
+                    if (sessionAcceptorStrategy == AcceptorStrategy.DiscretePerSession) {
+                        if (udpTransportSessionId == null) {//Save the first transport ID to use for subsequent udp sockets.
+                            transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                            udpTransportSessionId = transport.getId();
+                        } else {
+                            transport = IceTransport.getInstance(type, udpTransportSessionId);
+                        }
+                    } else {
+                        transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                    }
+                } else if (Transport.TCP.equals(type)) {
+                    //If discrete per session, we create one transport for all TCP sockets for this user.
+                    if (sessionAcceptorStrategy == AcceptorStrategy.DiscretePerSession) {
+                        if (tcpTransportSessionId == null) {//Save the first transport ID to use for susequent tcp sockets.
+                            transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                            tcpTransportSessionId = transport.getId();
+                        } else {
+                            transport = IceTransport.getInstance(type, tcpTransportSessionId);
+                        }
+                    } else {
+                        transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                    }
+                }
+
+                if (transport != null) {
+                    iceSocket.setIceTransportRef(transport);
                     transport.registerStackAndSocket(this, iceSocket);
                 }
             } else {
@@ -190,6 +274,7 @@ public class StunStack implements MessageEventHandler {
             // add the socket to the net access manager
             netAccessManager.buildConnectorLink(iceSocket, remoteAddress);
             added = true;
+            registeredWith(iceSocket.getTransportAddress());
         }
         return added;
     }
@@ -222,6 +307,8 @@ public class StunStack implements MessageEventHandler {
         if (connector != null) {
             connector.stop();
         }
+
+        removeRegistration(localAddr);
     }
 
     /**
@@ -966,4 +1053,105 @@ public class StunStack implements MessageEventHandler {
         return null;
     }
 
+    public String toString() {
+
+        StringBuilder b = new StringBuilder();
+
+        long age = System.currentTimeMillis() - creationTime;
+        b.append("StunStack ");
+        b.append("age: ").append(age);
+
+        registrations.forEach(addy -> {
+            AtomicBoolean progress = new AtomicBoolean();
+            b.append(", socket:[ ").append(addy.toString());
+            try {
+                IceSocketWrapper socket = IceTransport.getIceHandler().lookupBinding(addy);
+                if (socket != null) {
+                    b.append(" id: ").append(socket.getTransportId());
+                    b.append(", session:[ ");
+                    progress.set(true);
+                    IoSession sess = socket.getSession();
+                    if (sess != null) {
+                        b.append(sess.getId());
+                        b.append(", connected: ").append(sess.isConnected());
+                        b.append(", read-bps: ").append(sess.getReadBytesThroughput() * 8);
+                        b.append(", write-bps: ").append(sess.getWrittenBytesThroughput() * 8);
+                    } else {
+                        b.append("null");
+                    }
+
+                }
+
+            } catch (Throwable t) {
+                logger.error("", t);
+                b.append(" Error reading stunstack: ");
+                b.append(t);
+            } finally {
+                if (progress.get()) {
+                    b.append("]");
+                }
+                b.append("]");
+            }
+        });
+
+
+        return b.toString();
+    }
+
+    private void registeredWith(TransportAddress addr) {
+        if (registrations.add(addr)) {
+            logger.debug("Registered with {} ", addr);
+        } else {
+            logger.debug("Already registered with {} ", addr);
+        }
+    }
+
+    private boolean removeRegistration(TransportAddress addr) {
+        return registrations.remove(addr);
+    }
+
+    public int getRegistrationCount() {
+        return registrations.size();
+    }
+
+    public long getAge() {
+        return System.currentTimeMillis() - creationTime;
+    }
+
+    /**
+     * Returns agent id or null if agent was garbage collected.
+     * @return
+     */
+    public String getAgentId() {
+        Agent ref = agent.get();
+        return ref == null ? null : ref.getId();
+    }
+
+    public AcceptorStrategy getSessionAcceptorStrategy() {
+        return sessionAcceptorStrategy;
+    }
+
+    public void setSessionAcceptorStrategy(AcceptorStrategy strategy) {
+        this.sessionAcceptorStrategy = strategy;
+    }
+
+    public static AcceptorStrategy getDefaultAcceptorStrategy() {
+        return acceptorStrategy;
+    }
+
+    public static void setDefaultAcceptorStrategy(AcceptorStrategy strategy) {
+        acceptorStrategy = strategy;
+    }
+
+    public void setAgent(Agent agent) {
+        this.agent = new WeakReference<Agent>(agent);
+    }
+
+    /**
+     * True if using stack property overrides.
+     * @return
+     */
+    public boolean hasOverrides() {
+        return overrides;
+    }
 }

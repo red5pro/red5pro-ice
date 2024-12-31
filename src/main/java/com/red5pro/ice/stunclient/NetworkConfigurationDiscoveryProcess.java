@@ -113,7 +113,7 @@ public class NetworkConfigurationDiscoveryProcess {
      * Shuts down the underlying stack and prepares the object for garbage collection.
      */
     public void shutDown() {
-        stunStack.removeSocket(sock.getId(), localAddress);
+        stunStack.removeSocket(sock.getTransportId(), localAddress);
         sock.close();
         sock = null;
         localAddress = null;

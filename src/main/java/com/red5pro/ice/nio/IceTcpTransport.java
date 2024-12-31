@@ -1,18 +1,24 @@
 package com.red5pro.ice.nio;
 
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.mina.core.service.IoProcessor;
 import org.apache.mina.core.service.IoService;
 import org.apache.mina.core.service.IoServiceListener;
+import org.apache.mina.core.service.SimpleIoProcessorPool;
 import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.transport.socket.SocketSessionConfig;
+import org.apache.mina.transport.socket.nio.NioProcessor;
+import org.apache.mina.transport.socket.nio.NioSession;
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
+
+import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.stack.StunStack;
@@ -21,36 +27,63 @@ import com.red5pro.ice.stack.StunStack;
  * IceTransport for TCP connections.
  *
  * @author Paul Gregoire
+ * @author Andy Shaules
  */
 public class IceTcpTransport extends IceTransport {
 
+    private static AtomicReference<IoProcessor<NioSession>> processingPool = new AtomicReference<IoProcessor<NioSession>>(null);
+
+    {//Non static
+        if (sharedIoProcessor && processingPool.get() == null) {
+            processingPool.compareAndSet(null, new SimpleIoProcessorPool<NioSession>(NioProcessor.class, ioThreads));
+        }
+    }
     /**
      * Socket linger for this instance.
      */
     private int localSoLinger = -1;
 
+
     /**
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
-    private IceTcpTransport() {
-        logger.debug("Creating Transport. id: {} shared: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id, sharedAcceptor,
-                acceptorTimeout, timeout, ioThreads);
+    IceTcpTransport() {
+        logger.info("Creating Transport. id: {} policy: {} accept timeout: {}s idle timeout: {}s I/O threads: {}", id,
+                StunStack.getDefaultAcceptorStrategy().toString(), acceptorTimeout, timeout, ioThreads);
+        // add ourself to the transports map
+        transports.put(id, this);
     }
 
     /**
-     * Returns a static instance of this transport.
+     * Returns an instance of this transport.
      *
      * @param id transport / acceptor identifier
      * @return IceTransport
      */
     public static IceTcpTransport getInstance(String id) {
-        IceTcpTransport instance = (IceTcpTransport) transports.get(id);
-        // an id of "disconnected" is a special case where the socket is not associated with an IoSession
-        if (instance == null || IceSocketWrapper.DISCONNECTED.equals(id)) {
-            if (IceTransport.isSharedAcceptor()) {
+        IceTcpTransport instance = null;
+        boolean isShared = false;
+        boolean isNew = false;
+        // IceTransport creation strategy
+        if (AcceptorStrategy.isNew(id)) {
+            isNew = true;
+        } else if (AcceptorStrategy.isShared(id)) {
+            isShared = true;
+        } else {
+            IceTransport it = transports.get(id);
+            // We may have been called when the caller did not know the type via IceTransport#getInstance.
+            if (thisIsSomethingButNot(it)) {
+                return null;//must be UDP
+            } else {
+                instance = (IceTcpTransport) it;
+            }
+        }
+
+        if (isNew || isShared) {
+            if (isShared) {
                 // loop through transport and if none are found for TCP, create a new one
                 for (Entry<String, IceTransport> entry : transports.entrySet()) {
-                    if (entry.getValue() instanceof IceTcpTransport) {
+                    if (entry.getValue() instanceof IceTcpTransport && entry.getValue().isShared()) {
                         instance = (IceTcpTransport) entry.getValue();
                         break;
                     }
@@ -62,18 +95,25 @@ public class IceTcpTransport extends IceTransport {
                 instance = new IceTcpTransport();
             }
         }
-        // create an acceptor if none exists for the instance
+        // Assume this transport is new and create an acceptor if none exists for the instance
         if (instance != null && instance.getAcceptor() == null) {
+            if (isNew || isShared) {// AcceptorStrategy as string id
+                instance.setAcceptorStrategy(AcceptorStrategy.valueOf(id));
+            }
             instance.createAcceptor();
         }
         //logger.trace("Instance: {}", instance);
         return instance;
     }
 
-    void createAcceptor() {
+    private void createAcceptor() {
         if (acceptor == null) {
             // create the nio acceptor
-            acceptor = new NioSocketAcceptor(ioThreads);
+            if (!sharedIoProcessor) {
+                acceptor = new NioSocketAcceptor(ioThreads);
+            } else {
+                acceptor = new NioSocketAcceptor(ioExecutor, processingPool.get());
+            }
             acceptor.addListener(new IoServiceListener() {
 
                 @Override
@@ -93,6 +133,7 @@ public class IceTcpTransport extends IceTransport {
 
                 @Override
                 public void sessionCreated(IoSession session) throws Exception {
+                    logger.debug("Acceptor sessionCreated: {} for ice-tcp-transport id: {}", session, id);
                     //logger.debug("sessionCreated: {}", session);
                     //logger.trace("Acceptor sessions: {}", acceptor.getManagedSessions());
                     session.setAttribute(IceTransport.Ice.UUID, id);
@@ -143,46 +184,50 @@ public class IceTcpTransport extends IceTransport {
                 logger.trace("Acceptor sizes - send: {} recv: {}", sessionConf.getSendBufferSize(), sessionConf.getReadBufferSize());
             }
             // add ourself to the transports map
-            transports.put(id, this);
         }
     }
 
     /**
-     * Adds a socket binding to the acceptor.
-     *
-     * @param addr
-     * @return true if successful and false otherwise
+     * {@inheritDoc}
      */
     @Override
-    public boolean addBinding(SocketAddress addr) {
+    public Long addBinding(String socketUUID, InetSocketAddress addr) {
         try {
-            Future<Boolean> bindFuture = (Future<Boolean>) executor.submit(new Callable<Boolean>() {
+            acceptorUtilized = true;
+            if (myBoundAddresses.add(addr)) {
+                Future<Long> bindFuture = (Future<Long>) ioExecutor.submit(new Callable<Long>() {
 
-                @Override
-                public Boolean call() throws Exception {
-                    logger.debug("Adding TCP binding: {}", addr);
-                    acceptor.bind(addr);
-                    // add the port to the bound list
-                    if (boundPorts.add(((InetSocketAddress) addr).getPort())) {
+                    @Override
+                    public Long call() throws Exception {
+                        logger.debug("Adding TCP binding: {}", addr);
+                        acceptor.bind(addr);
+                        logger.debug("TCP Bound: {}", addr);
+                        Long rsvp = cacheBoundAddressInfo(socketUUID, (InetSocketAddress) addr, ((InetSocketAddress) addr).getPort());
                         logger.debug("TCP binding added: {}", addr);
+                        return rsvp;
                     }
-                    return Boolean.TRUE;
-                }
 
-            });
-            // wait a maximum of x seconds for this to complete the binding
-            return bindFuture.get(acceptorTimeout, TimeUnit.SECONDS);
+                });
+                // wait a maximum of x seconds for this to complete the binding
+                return bindFuture.get(acceptorTimeout, TimeUnit.SECONDS);
+            }
         } catch (Throwable t) {
             logger.warn("Add binding failed on {}", addr, t);
+        } finally {
+            if (!acceptor.getLocalAddresses().contains(addr)) {
+                logger.warn("Removing ref {}", addr);
+                myBoundAddresses.remove(addr);
+            }
         }
-        return false;
+
+        return null;
     }
 
     /** {@inheritDoc} */
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
         logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {} soLinger: {}", stunStack, iceSocket, localSoLinger);
         boolean result = false;
-        iceSocket.setId(id);
+        iceSocket.setTransportId(id);
         // add the stack and wrapper to a map which will hold them until an associated session is opened
         // when opened, the stack and wrapper will be added to the session as attributes
         iceHandler.registerStackAndSocket(stunStack, iceSocket);
@@ -191,7 +236,9 @@ public class IceTcpTransport extends IceTransport {
             // get the local address
             TransportAddress localAddress = iceSocket.getTransportAddress();
             // attempt to add a binding to the server
-            result = addBinding(localAddress);
+            Long rsvp = addBinding(iceSocket.getId(), localAddress);
+            result = rsvp != null;
+            iceSocket.setRsvp(rsvp);
         }
         return result;
     }
@@ -205,4 +252,25 @@ public class IceTcpTransport extends IceTransport {
         ((NioSocketAcceptor) acceptor).getSessionConfig().setSoLinger(localSoLinger);
     }
 
+    @Override
+    public Transport getTransport() {
+        return Transport.TCP;
+    }
+
+    /**
+     * Returns true if 'it' is not null and is not an IceTcpTransport
+     * @param it extension of IceTransport or null
+     * @return boolean true if parameter is not null and is not an IceTcpTransport
+     */
+    private static boolean thisIsSomethingButNot(IceTransport it) {
+        if (it != null) {
+            return !IceTcpTransport.class.isInstance(it);
+        }
+        return false;
+    }
+
+    @Override
+    public Transport getType() {
+        return Transport.TCP;
+    }
 }

@@ -12,37 +12,39 @@ public enum Transport {
     /**
      * Represents a TCP transport.
      */
-    TCP("tcp", (byte) 6),
+    TCP("tcp", (byte) 6, "Tcp"),
 
     /**
      * Represents a UDP transport.
      */
-    UDP("udp", (byte) 17),
+    UDP("udp", (byte) 17, "Udp"),
 
     /**
      * Represents a TLS transport.
      */
-    TLS("tls", (byte) 0),
+    TLS("tls", (byte) 0, "Tls"),
 
     /**
      * Represents a datagram TLS (DTLS) transport.
      */
-    DTLS("dtls", (byte) 0),
+    DTLS("dtls", (byte) 0, "Dtls"),
 
     /**
      * Represents an SCTP transport.
      */
-    SCTP("sctp", (byte) 0),
+    SCTP("sctp", (byte) 0, "Sctp"),
 
     /**
      * Represents an Google's SSL TCP transport.
      */
-    SSLTCP("ssltcp", (byte) 0);
+    SSLTCP("ssltcp", (byte) 0, "SslTcp");
 
     /**
      * The name of this Transport.
      */
     private final String transportName;
+
+    private final String classNameTag;
 
     /**
      * The protocol number; used in messages to differentiate between transports.
@@ -54,9 +56,10 @@ public enum Transport {
      *
      * @param transportName the name of the Transport instance we'd like to create.
      */
-    private Transport(String transportName, byte protocolNumber) {
+    private Transport(String transportName, byte protocolNumber, String classNameTag) {
         this.transportName = transportName;
         this.protocolNumber = protocolNumber;
+        this.classNameTag = classNameTag;
     }
 
     public String getTransportName() {
@@ -65,6 +68,10 @@ public enum Transport {
 
     public byte getProtocolNumber() {
         return protocolNumber;
+    }
+
+    public String getClassTypeTag() {
+        return classNameTag;
     }
 
     /**
