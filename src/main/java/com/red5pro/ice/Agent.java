@@ -11,9 +11,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.apache.mina.core.session.IoSession;
+import org.apache.mina.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,11 +129,11 @@ public class Agent {
     /**
      * List of ports given to the agent when constructing components.
      */
-    private final ConcurrentSkipListSet<Integer> allocatedPorts = new ConcurrentSkipListSet<>();
+    private final ConcurrentHashMap<Transport, Set<Integer>> allocatedPorts = new ConcurrentHashMap<>();
     /**
      * History of allocated ports given
      */
-    private final ConcurrentSkipListSet<Integer> runningPorts = new ConcurrentSkipListSet<>();
+    private final ConcurrentHashMap<Transport, Set<Integer>> runningPorts = new ConcurrentHashMap<>();
 
     /**
      * The candidate harvester that we use to gather candidate on the local machine.
@@ -171,7 +172,7 @@ public class Agent {
      * are not running. Once they start, we are able to determine whether the addresses in here are actually peer-reflexive or not, and schedule
      * the necessary triggered checks.
      */
-    private final Set<CandidatePair> preDiscoveredPairsQueue = new HashSet<>();
+    private final Set<CandidatePair> preDiscoveredPairsQueue = new ConcurrentHashSet<>();
 
     /**
      * The user fragment that we should use for the ice-ufrag attribute.
@@ -1961,12 +1962,17 @@ public class Agent {
 
     /**
      * Removes a port number from the list of ports given to this agent for constructing components.
-     *
      * @param port
-     * @return true if the port was removed, false otherwise
+     * @param transport
+     * @return
      */
-    public boolean removePreAllocatedPort(int port) {
-        return allocatedPorts.remove(port);
+    public boolean removePreAllocatedPort(Transport transport, int port) {
+        AtomicBoolean ret = new AtomicBoolean();
+        allocatedPorts.compute(transport, (t, set) -> {
+            ret.set(set.remove(port));
+            return set;
+        });
+        return ret.get();
     }
 
     /**
@@ -1975,17 +1981,23 @@ public class Agent {
      * @param port allocated for binding to the network
      * @return port whether or not its addition was successful
      */
-    public int addPreAllocatedPort(int port) {
+    public int addPreAllocatedPort(Transport transport, int port) {
+
+        allocatedPorts.computeIfAbsent(transport, t -> {
+            return new ConcurrentHashSet<Integer>();
+        });
+        runningPorts.computeIfAbsent(transport, t -> {
+            return new ConcurrentHashSet<Integer>();
+        });
         // a port value less than 1 is not valid valid here
-        if ((port > 0 && port < 65536) && allocatedPorts.add(port)) {
+        if ((port > 0 && port < 65536)) {
+            allocatedPorts.get(transport).add(port);
+            runningPorts.get(transport).add(port);
             // we dont want no stinkin' zeros.
             logger.debug("Added pre-allocated port: {}", port);
         } else {
             logger.debug("Failed to add pre-allocated port: {} already exists? {}", port, allocatedPorts.contains(port));
         }
-        runningPorts.add(port);
-        // we dont want no stinkin' zeros.
-        allocatedPorts.add(Integer.valueOf(port));
         return port;
     }
 
@@ -1994,16 +2006,16 @@ public class Agent {
      *
      * @return unmodifiable copy of the preallocated ports
      */
-    public Set<Integer> getPreAllocatedPorts() {
-        return Set.of(allocatedPorts.toArray(new Integer[0]));
+    public Map<Transport, Set<Integer>> getPreAllocatedPorts() {
+        return Map.copyOf(allocatedPorts);
     }
 
     /**
      * Returns a copy of all ports that had been allocated to this agent, used or not.
      * @return
      */
-    public Set<Integer> getPortAllocationHistory() {
-        return Set.copyOf(runningPorts);
+    public Map<Transport, Set<Integer>> getPortAllocationHistory() {
+        return Map.copyOf(runningPorts);
     }
 
     /**
@@ -2101,6 +2113,7 @@ public class Agent {
                 shouldBeDead = true;
                 logger.debug("removing sockets from socket mapping : {}", socketUUIDs.toString());
                 IceSocketWrapper.removeSocketsFromMap(socketUUIDs);
+                logger.warn("Curent ice sockets {}", IceSocketWrapper.getSocketCount());
             }
         }
     }
@@ -2429,17 +2442,25 @@ public class Agent {
     }
 
     /**
+     * Informational events bubble to the application through this interface.
      * Optionally set handler to agent prior to freeing .
      * @author Andy
      *
      */
     public static interface EndOfLifeStateHandler {
         /**
+         * Agent is exiting stage left.
          * @param agent
          */
         void agentEndOfLife(Agent agent);
 
         void addressReleased(TransportAddress address);
+
+        void sessionClosed(TransportAddress transportAddress);
+
+        void socketClosed(TransportAddress transportAddress);
+
+        void exceptionCaught(TransportAddress transportAddress);
     }
 
     /**
@@ -2552,6 +2573,19 @@ public class Agent {
                 }
                 break;
             case CLOSED://closed_future and closed are called about the same time.
+                if (eolHandler != null) {
+                    eolHandler.sessionClosed(iceSocketWrapper.getTransportAddress());
+                }
+                break;
+            case CLOSE_FUTURE://closed_future and closed are called about the same time.
+                if (eolHandler != null) {
+                    eolHandler.socketClosed(iceSocketWrapper.getTransportAddress());
+                }
+                break;
+            case EXCEPTION://closed_future and closed are called about the same time.
+                if (eolHandler != null) {
+                    eolHandler.exceptionCaught(iceSocketWrapper.getTransportAddress());
+                }
                 break;
             default:
         }

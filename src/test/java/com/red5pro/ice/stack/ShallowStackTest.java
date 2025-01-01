@@ -5,6 +5,7 @@ import java.net.DatagramPacket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -171,7 +172,7 @@ public class ShallowStackTest extends TestCase {
         for (int a = 0; a < agentCount; a++) {
             Agent agent = new Agent();
             agent.setProperty("proref", String.format("agent#%d", a));
-            agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+            agent.addPreAllocatedPort(selectedTransport, PortManager.getRTPServerPort(udp));
             agents.add(agent);
         }
         if (agents.size() < agentCount) {
@@ -181,9 +182,12 @@ public class ShallowStackTest extends TestCase {
         logger.info("Cleaning up agents");
         agents.forEach(agent -> {
             agent.free();
-            agent.getPreAllocatedPorts().forEach(port -> {
-                PortManager.clearRTPServerPort(port);
-                agent.removePreAllocatedPort(port);
+            agent.getPreAllocatedPorts().forEach((transport, set) -> {
+                set.forEach(port -> {
+                    PortManager.clearRTPServerPort(port);
+                    agent.removePreAllocatedPort(transport, port);
+                });
+
             });
         });
     }
@@ -201,7 +205,7 @@ public class ShallowStackTest extends TestCase {
         for (int a = 0; a < agentCount; a++) {
             Agent agent = new Agent();
             agent.setProperty("proref", String.format("agent#%d", a));
-            agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+            agent.addPreAllocatedPort(selectedTransport, PortManager.getRTPServerPort(udp));
             agent.setProperty("remotePort", String.format("%d", 60000 + a));
             agents.add(agent);
         }
@@ -216,10 +220,10 @@ public class ShallowStackTest extends TestCase {
                 CountDownLatch iceSetupLatch = new CountDownLatch(1);
                 // use a property change listener
                 agent.addStateChangeListener((evt) -> {
-                    Set<Integer> allocatedPorts = agent.getPreAllocatedPorts();
+                    Map<Transport, Set<Integer>> allocatedPorts = agent.getPreAllocatedPorts();
                     logger.debug("Change event: {} pre-allocated ports: {}", evt, allocatedPorts);
                     String id = agent.getProperty("proref");
-                    int allocatedPort = allocatedPorts.iterator().next();
+                    int allocatedPort = allocatedPorts.values().iterator().next().iterator().next();
                     long iceStartTime = Long.valueOf(agent.getProperty("iceStartTime"));
                     final IceProcessingState state = (IceProcessingState) evt.getNewValue();
                     switch (state) {
@@ -240,7 +244,7 @@ public class ShallowStackTest extends TestCase {
                 });
                 try {
                     IceMediaStream stream = agent.createMediaStream("media-0");
-                    int port = agent.getPreAllocatedPorts().iterator().next();
+                    int port = agent.getPreAllocatedPorts().values().iterator().next().iterator().next();
                     Component component = agent.createComponent(stream, selectedTransport, port);
                     int allocatedPort = component.getSocket(selectedTransport).getLocalPort();
                     assertEquals(port, allocatedPort);
@@ -295,9 +299,11 @@ public class ShallowStackTest extends TestCase {
         logger.info("Cleaning up agents");
         agents.forEach(agent -> {
             agent.free();
-            agent.getPreAllocatedPorts().forEach(port -> {
-                PortManager.clearRTPServerPort(port);
-                agent.removePreAllocatedPort(port);
+            agent.getPreAllocatedPorts().forEach((transport, set) -> {
+                set.forEach(port -> {
+                    PortManager.clearRTPServerPort(port);
+                    agent.removePreAllocatedPort(transport, port);
+                });
             });
         });
         //server.shutDown();

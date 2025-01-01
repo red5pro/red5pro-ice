@@ -184,7 +184,7 @@ public abstract class IceTransport {
      * Creates the i/o handler and nio acceptor; ports and addresses are bound.
      */
     public IceTransport() {
-        logger.info("Properties: Socket linger: {} DNS cache ttl: {}", soLinger, System.getProperty("networkaddress.cache.ttl"));
+        logger.debug("Properties: Socket linger: {} DNS cache ttl: {}", soLinger, System.getProperty("networkaddress.cache.ttl"));
 
     }
 
@@ -410,7 +410,7 @@ public abstract class IceTransport {
                 unbindStopLocker.unlock();
                 // un-forced normal closure.
                 if (disposed) {
-                    logger.info("Disposed {}", id);
+                    logger.debug("Disposed {}", id);
                     copy.forEach(addy -> {
                         removeCachedBoundAddressInfo(((InetSocketAddress) addy));
                     });
@@ -608,7 +608,7 @@ public abstract class IceTransport {
                     return results ? rid : null;
                 }
             } finally {
-                logger.info("addReservedPort dur: {}", System.currentTimeMillis() - start);
+                logger.debug("addReservedPort dur: {}", System.currentTimeMillis() - start);
             }
         }
     }
@@ -662,12 +662,13 @@ public abstract class IceTransport {
         return ret.isPresent();
     };
 
-    /** Check if a bind reservation id is still present.
-    *
-    * @param port
-    * @return true if already bound and false otherwise
-    */
-    public static boolean didBind(Long rsvp, int port) {
+    /**
+     * Check if a specific binding is still present.
+     * @param rsvp
+     * @param port
+     * @return
+     */
+    public static boolean isStillBound(Long rsvp, int port) {
         if (rsvp != null) {
             Predicate<ABPEntry> pred = entry -> entry.port == port && entry.hasRsvp(rsvp);
             Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();

@@ -240,7 +240,7 @@ public class IceUdpTransport extends IceTransport {
             acceptor.getFilterChain().addLast("protocol", iceCodecFilter);
             // add our handler
             acceptor.setHandler(iceHandler);
-            logger.info("Started socket transport id: {}", id);
+            logger.debug("Started socket transport id: {}", id);
             if (isTrace) {
                 logger.trace("Acceptor sizes - send: {} recv: {}", sessionConf.getSendBufferSize(), sessionConf.getReadBufferSize());
             }
