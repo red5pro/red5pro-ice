@@ -123,6 +123,34 @@ public class StackProperties {
     public static final String NO_KEEP_ALIVES = "com.red5pro.ice.NO_KEEP_ALIVES";
 
     /**
+     * Specifies if the TCP NioSocketAcceptors use a shared pool of IoProcessors or if each NioSocketAcceptor has its own.
+     * It also specifies if both TCP and UDP acceptors will use a shared thread pool.
+     */
+    public static final String NIO_USE_PROCESSOR_POOLS = "com.red5pro.ice.NIO_USE_PROCESSOR_POOLS";
+
+    /**
+     * When NIO_USE_PROCESSOR_POOLS is true, this is the number of IOProcessors NioSocketAcceptors will use.
+     */
+    public static final String NIO_PROCESSOR_POOL_SIZE = "com.red5pro.ice.NIO_PROCESSOR_POOL_SIZE";
+
+    /**
+     * Periodic worker that checks for abandoned or fouled IceSocket sessions.
+     */
+    public static final String ICE_SWEEPER_INTERVAL = "com.red5pro.ice.ICE_SWEEPER_INTERVAL";
+
+    /**
+     * If a session is suspected of being abandoned, ICE_SWEEPER_TIMEOUT is the number of seconds before the sweeper will take action to free resources.
+     */
+    public static final String ICE_SWEEPER_TIMEOUT = "com.red5pro.ice.ICE_SWEEPER_TIMEOUT";
+
+    /** Besides sharedAcceptor property, acceptor strategy can inform stun stack how to manage acceptors per Transport type, TCP and UDP.
+     * Generally there will be one acceptor per transport type, TCP and UDP.
+     *  0 = one acceptor per socket. 1 = one acceptor for each type(UDP,TCP) for each user-session. 2 = one acceptor for each type(UDP,TCP) per application.
+     *  Mode 2 is the same as shared mode. If shared mode is activated, ACCEPTOR_STRATEGY will be overridden.
+     */
+    public static final String ACCEPTOR_STRATEGY = "com.red5pro.ice.ACCEPTOR_STRATEGY";
+
+    /**
      * THIS PROPERTY IS CURRENTLY UNUSED. IF YOU WANT TO SPEED UP NOMINATIONS THEN CONSIDER SPEEDING UP TRANSACTION FAILURE FOR THE TIME BEING.
      * The maximum number of milliseconds that we should wait for a check list to complete before nominating one of its valid pairs (unless there are
      * none in which case we may have to wait until one appears or the whole list fails). Default value is -1 which causes the nominator

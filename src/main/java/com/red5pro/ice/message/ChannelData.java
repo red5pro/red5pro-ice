@@ -115,8 +115,9 @@ public class ChannelData {
      *
      * @return a non padded binary representation of this message
      * @throws StunException if the channel number is invalid
-     * @deprecated
+     * @Deprecated
      */
+    @Deprecated
     public byte[] encode() throws StunException {
         return encode(false);
     }
@@ -159,6 +160,7 @@ public class ChannelData {
      * @throws StunException ILLEGAL_ARGUMENT if one or more of the arguments have invalid values
      * @deprecated
      */
+    @Deprecated
     public static ChannelData decode(byte[] binMessage, char offset, char arrayLen) throws StunException {
         return decode(binMessage, offset);
     }

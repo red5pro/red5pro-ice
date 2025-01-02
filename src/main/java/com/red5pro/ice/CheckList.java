@@ -281,7 +281,7 @@ public class CheckList extends PriorityBlockingQueue<CandidatePair> {
         if (cmp.getSelectedPair() != null) {
             return;
         }
-        logger.info("Selected pair for stream {}: {}", cmp.toShortString(), nominatedPair.toShortString());
+        logger.debug("Selected pair for stream {}: {}", cmp.toShortString(), nominatedPair.toShortString());
         cmp.setSelectedPair(nominatedPair);
         Iterator<CandidatePair> pairsIter = iterator();
         while (pairsIter.hasNext()) {

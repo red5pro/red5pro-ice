@@ -83,12 +83,39 @@ public class ComponentSocket implements PropertyChangeListener {
         }
     }
 
-    public void close() {
-        try {
-            socketWrappers.forEach(IceSocketWrapper::close);
-        } catch (Exception e) {
-            logger.warn("Error closing socket wrappers", e);
+    public void close(Transport t, int port) {
+        logger.info("close {}  {} ", t, port);
+
+        Set<IceSocketWrapper> toClose = new HashSet<>();
+        socketWrappers.forEach(wrapper -> {
+
+            if (wrapper.getTransport() == t && wrapper.getLocalPort() == port) {
+                try {
+                    wrapper.close();
+                } catch (Throwable te) {
+                    logger.warn("", te);
+                }
+                toClose.add(wrapper);
+
+            }
+        });
+        socketWrappers.removeAll(toClose);
+
+        if (socketWrappers.isEmpty()) {
+            logger.info("close self {} ", this);
+            close();
         }
+    }
+
+    public void close() {
+        socketWrappers.forEach(wrapper -> {
+            try {
+                wrapper.close();
+            } catch (Throwable te) {
+                logger.warn("", te);
+            }
+        });
+
         Component component = this.component;
         if (component != null) {
             component.getParentStream().removePairStateChangeListener(this);
@@ -103,6 +130,7 @@ public class ComponentSocket implements PropertyChangeListener {
      * @param socketWrapper
      */
     public void addSocketWrapper(IceSocketWrapper socketWrapper) {
+        logger.debug("Adding socket to listings. {}  {}", socketWrapper.getTransportId(), socketWrapper.getTransportAddress());
         socketWrappers.add(socketWrapper);
     }
 
@@ -112,17 +140,13 @@ public class ComponentSocket implements PropertyChangeListener {
      * @param socketWrapper
      */
     public void removeSocketWrapper(IceSocketWrapper socketWrapper) {
+        logger.debug("Removing socket from listings. {}  {}", socketWrapper.getTransportId(), socketWrapper.getTransportAddress());
         socketWrappers.remove(socketWrapper);
     }
 
-    /**
-     * Returns the active socket wrapper.
-     *
-     * @return socketWrapper
-     */
-    //public IceSocketWrapper getSocketWrapper() {
-    //    return getSocketWrapper(Transport.UDP);
-    //}
+    public Set<IceSocketWrapper> getSockets() {
+        return socketWrappers;
+    }
 
     /**
      * Returns the socket wrapper for the specified transport.

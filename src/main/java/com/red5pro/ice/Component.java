@@ -698,4 +698,9 @@ public class Component implements PropertyChangeListener {
         }
     }
 
+    public IceSocketWrapper getSockets() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
 }

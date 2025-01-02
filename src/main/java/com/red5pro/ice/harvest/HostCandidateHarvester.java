@@ -315,7 +315,7 @@ public class HostCandidateHarvester {
                     component.addLocalCandidate(candidate);
                     component.getComponentSocket().addSocketWrapper(iceSocket);
                 } else {
-                    logger.warn("Socket not added to stack: {}", iceSocket);
+                    logger.warn("Socket not added to stack. remove from component: {}", iceSocket);
                 }
             } catch (Throwable t) {
                 // There seems to be a problem with this particular address let's just move on for now and hope we will find better

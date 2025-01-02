@@ -5,6 +5,7 @@ import java.net.DatagramPacket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,6 +41,7 @@ import com.red5pro.ice.message.MessageFactory;
 import com.red5pro.ice.message.Request;
 import com.red5pro.ice.message.Response;
 import com.red5pro.ice.socket.IceSocketWrapper;
+import com.red5pro.ice.socket.IceTcpSocketWrapper;
 import com.red5pro.ice.socket.IceUdpSocketWrapper;
 import com.red5pro.ice.util.Utils;
 import com.red5pro.server.util.PortManager;
@@ -70,7 +72,7 @@ public class ShallowStackTest extends TestCase {
     private IceSocketWrapper localSock;
 
     /**
-     * Transport type to be used for the test.
+     * Transport type to be used for the test. Default is UDP, set this to TCP for TCP testing.
      */
     static Transport selectedTransport = Transport.UDP;
 
@@ -102,13 +104,20 @@ public class ShallowStackTest extends TestCase {
         //System.setProperty("com.red5pro.ice.harvest.NAT_HARVESTER_PUBLIC_ADDRESS", IPAddress);
         System.setProperty("com.red5pro.ice.harvest.ALLOWED_ADDRESSES", IPAddress);
         System.setProperty("com.red5pro.ice.ipv6.DISABLED", "true");
+        // set the port ranges
+        int portBase = 50000;
+        PortManager.setRtpPortBase(portBase);
+        PortManager.setRtpPortCeiling(portBase + 34); // 35 ports total (unless the system/service allocated some)
+        // initial transport for setup is UDP
+        boolean udp = selectedTransport == Transport.UDP;
         // initializes the mapping harvesters
         MappingCandidateHarvesters.getHarvesters();
         //logger.info("setup");
         msgFixture = new MsgFixture();
-        // XXX Paul: ephemeral port selection using 0 isnt working since the InetSocketAddress used by TransportAddress doesnt show the selected port
+        // XXX Paul: ephemeral port selection using 0 isnt working since the InetSocketAddress used by TransportAddress
+        // doesnt show the selected port
         // this causes connector lookups to fail due to port being still set to 0
-        int serverPort = PortManager.findFreeUdpPort();
+        int serverPort = PortManager.getRTPServerPort(udp); //PortManager.findFreeUdpPort();
         serverAddress = new TransportAddress(IPAddress, serverPort, selectedTransport);
         // create and start listening here
         dgramCollector = new DatagramCollector();
@@ -116,7 +125,8 @@ public class ShallowStackTest extends TestCase {
         // init the stack
         stunStack = new StunStack();
         // access point
-        localAddress = new TransportAddress(IPAddress, PortManager.findFreeUdpPort(), selectedTransport);
+        int localPort = PortManager.getRTPServerPort(udp);
+        localAddress = new TransportAddress(IPAddress, localPort, selectedTransport);
         logger.info("Server: {} Client: {}", serverPort, localAddress.getPort());
         if (selectedTransport == Transport.UDP) {
             localSock = IceSocketWrapper.build(localAddress, null);
@@ -138,18 +148,51 @@ public class ShallowStackTest extends TestCase {
     protected void tearDown() throws Exception {
         //logger.info("teardown");
         dgramCollector.stopListening();
-        stunStack.removeSocket(localSock.getId(), localAddress);
+        stunStack.removeSocket(localSock.getTransportId(), localAddress);
         localSock.close();
         msgFixture = null;
         stunStack.shutDown();
+        // clear ports from setUp
+        PortManager.clearRTPServerPort(serverAddress.getPort());
+        PortManager.clearRTPServerPort(localAddress.getPort());
+        logger.info("Port manager allocations at tearDown: {} (should be 0)", PortManager.getCount());
         super.tearDown();
         logger.info("======================================================================================\nTorn down {}",
                 getClass().getName());
     }
 
+    @Test
+    public void testPortExhaustion() throws Exception {
+        logger.info("\nPortExhaustion");
+        boolean udp = selectedTransport == Transport.UDP;
+        // create some agents that would exceed port range
+        int agentCount = 36;
+        final List<Agent> agents = new ArrayList<>();
+        for (int a = 0; a < agentCount; a++) {
+            Agent agent = new Agent();
+            agent.setProperty("proref", String.format("agent#%d", a));
+            agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+            agents.add(agent);
+        }
+        if (agents.size() < agentCount) {
+            logger.warn("Agent count: {} less than expected: {}", agents.size(), agentCount);
+            fail("Agent count less than expected");
+        }
+        logger.info("Cleaning up agents");
+        agents.forEach(agent -> {
+            agent.free();
+            agent.getPreAllocatedPorts().forEach(port -> {
+                PortManager.clearRTPServerPort(port);
+                agent.removePreAllocatedPort(port);
+            });
+        });
+    }
+
     @SuppressWarnings("incomplete-switch")
     @Test
     public void testMassBindings() throws Exception {
+        logger.info("\nMassBindings");
+        boolean udp = selectedTransport == Transport.UDP;
         // setup the acceptor
         //IceUdpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
         // create some agents
@@ -158,8 +201,8 @@ public class ShallowStackTest extends TestCase {
         for (int a = 0; a < agentCount; a++) {
             Agent agent = new Agent();
             agent.setProperty("proref", String.format("agent#%d", a));
-            agent.setProperty("allocatedPort", String.format("%d", 49160 + a));
-            agent.setProperty("remotePort", String.format("%d", 49260 + a));
+            agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+            agent.setProperty("remotePort", String.format("%d", 60000 + a));
             agents.add(agent);
         }
         // spawn n agents
@@ -173,9 +216,10 @@ public class ShallowStackTest extends TestCase {
                 CountDownLatch iceSetupLatch = new CountDownLatch(1);
                 // use a property change listener
                 agent.addStateChangeListener((evt) -> {
-                    logger.debug("Change event: {}", evt);
+                    Set<Integer> allocatedPorts = agent.getPreAllocatedPorts();
+                    logger.debug("Change event: {} pre-allocated ports: {}", evt, allocatedPorts);
                     String id = agent.getProperty("proref");
-                    int allocatedPort = Integer.valueOf(agent.getProperty("allocatedPort"));
+                    int allocatedPort = allocatedPorts.iterator().next();
                     long iceStartTime = Long.valueOf(agent.getProperty("iceStartTime"));
                     final IceProcessingState state = (IceProcessingState) evt.getNewValue();
                     switch (state) {
@@ -196,15 +240,15 @@ public class ShallowStackTest extends TestCase {
                 });
                 try {
                     IceMediaStream stream = agent.createMediaStream("media-0");
-                    int port = Integer.valueOf(agent.getProperty("allocatedPort"));
-                    Component component = agent.createComponent(stream, Transport.UDP, port, port, port);
-                    int allocatedPort = component.getSocket(Transport.UDP).getLocalPort();
+                    int port = agent.getPreAllocatedPorts().iterator().next();
+                    Component component = agent.createComponent(stream, selectedTransport, port);
+                    int allocatedPort = component.getSocket(selectedTransport).getLocalPort();
                     assertEquals(port, allocatedPort);
                     // may want to check port
                     LocalCandidate localCand = component.getDefaultCandidate();
                     // create server-end / remote
                     int remotePort = Integer.valueOf(agent.getProperty("remotePort"));
-                    TransportAddress serverAddr = new TransportAddress(IPAddress, remotePort, Transport.UDP);
+                    TransportAddress serverAddr = new TransportAddress(IPAddress, remotePort, selectedTransport);
                     // create remote candidate
                     RemoteCandidate remoteCand = new RemoteCandidate(serverAddr, component, CandidateType.HOST_CANDIDATE,
                             localCand.getFoundation(), localCand.getComponentId(), 1686052607L, null);
@@ -215,8 +259,13 @@ public class ShallowStackTest extends TestCase {
                     remoteCand.setProperty("proref", agent.getProperty("proref"));
                     // server socket and its own stunstack
                     StunStack stnStack = new StunStack();
-                    IceUdpSocketWrapper serverSock = (IceUdpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
-                    stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true); // do socket binding
+                    if (selectedTransport == Transport.UDP) {
+                        IceUdpSocketWrapper serverSock = (IceUdpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
+                        stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true);
+                    } else {
+                        IceTcpSocketWrapper serverSock = (IceTcpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
+                        stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true); // do socket binding
+                    }
                     // instance a remote server
                     //ResponseSequenceServer server = new ResponseSequenceServer(stnStack, serverAddr);
                     //server.start();
@@ -246,6 +295,10 @@ public class ShallowStackTest extends TestCase {
         logger.info("Cleaning up agents");
         agents.forEach(agent -> {
             agent.free();
+            agent.getPreAllocatedPorts().forEach(port -> {
+                PortManager.clearRTPServerPort(port);
+                agent.removePreAllocatedPort(port);
+            });
         });
         //server.shutDown();
     }
@@ -288,9 +341,9 @@ public class ShallowStackTest extends TestCase {
         logger.info("\n ReceiveRequest");
         // we're expecting to receive on the ice4j side (non-controlling)
         if (selectedTransport == Transport.UDP) {
-            IceUdpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceUdpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         } else {
-            IceTcpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceTcpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         }
         SimpleRequestCollector requestCollector = new SimpleRequestCollector();
         stunStack.addRequestListener(requestCollector);
@@ -318,9 +371,9 @@ public class ShallowStackTest extends TestCase {
         logger.info("\n SendResponse");
         // we're expecting to receive on the ice4j side (non-controlling)
         if (selectedTransport == Transport.UDP) {
-            IceUdpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceUdpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         } else {
-            IceTcpTransport.getInstance(localSock.getId()).registerStackAndSocket(stunStack, localSock);
+            IceTcpTransport.getInstance(localSock.getTransportId()).registerStackAndSocket(stunStack, localSock);
         }
         //---------- send & receive the request --------------------------------
         SimpleRequestCollector requestCollector = new SimpleRequestCollector();

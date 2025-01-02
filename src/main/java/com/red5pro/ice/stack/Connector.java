@@ -71,7 +71,7 @@ class Connector implements Comparable<Connector> {
      */
     protected void stop() {
         if (alive.compareAndSet(true, false)) {
-            // stun stack also calls socket close as part of the process
+            // stun stack, component socket, and others all calls socket close as part of the process
             sock.close();
         }
     }
@@ -108,6 +108,10 @@ class Connector implements Comparable<Connector> {
         this.remoteAddress = remoteAddress;
     }
 
+    boolean canNegotiate(TransportAddress remoteAddress) {
+        return sock.canNegotiate(remoteAddress);
+    }
+
     /**
      * Returns the remote TransportAddress or null if none is specified.
      *
@@ -129,7 +133,7 @@ class Connector implements Comparable<Connector> {
      */
     @Override
     public String toString() {
-        return "ice4j.Connector@" + listenAddress;
+        return "ice4j.Connector@" + listenAddress + " -> " + remoteAddress + "  Negotiations:" + sock.getNegotiations();
     }
 
 }

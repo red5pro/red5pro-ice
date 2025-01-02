@@ -119,7 +119,7 @@ public class SimpleAddressDetector {
             // handle exception they are not responsible for.
             logger.warn("Internal Error. We apparently constructed a faulty request", exc);
         } finally {
-            stunStack.removeSocket(socket.getId(), localAddress, serverAddress);
+            stunStack.removeSocket(socket.getTransportId(), localAddress, serverAddress);
         }
         return null;
     }
