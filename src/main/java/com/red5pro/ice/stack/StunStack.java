@@ -7,7 +7,6 @@ import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -228,7 +227,7 @@ public class StunStack implements MessageEventHandler {
         boolean added = false;
         InetAddress addr = iceSocket.getLocalAddress();
         boolean isIPv6Address = addr.getHostAddress().contains(":");
-        logger.info("Use IPv6: {} Use all binding: {} Is IPv6 address: {}", useIPv6, useAllBinding, isIPv6Address);
+        logger.debug("Use IPv6: {} Use all binding: {} Is IPv6 address: {}", useIPv6, useAllBinding, isIPv6Address);
         if (!useAllBinding && (useIPv6 && !isIPv6Address)) {
             logger.debug("Skipping IPv4 address: {}", addr);
         } else if (!useAllBinding && (!useIPv6 && isIPv6Address)) {

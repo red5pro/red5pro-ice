@@ -294,6 +294,8 @@ public class Agent {
 
     private long closingTime;
 
+    private String usercookie;
+
     private List<String> socketUUIDs = new CopyOnWriteArrayList<String>();
 
     static {
@@ -2113,7 +2115,7 @@ public class Agent {
                 shouldBeDead = true;
                 logger.debug("removing sockets from socket mapping : {}", socketUUIDs.toString());
                 IceSocketWrapper.removeSocketsFromMap(socketUUIDs);
-                logger.warn("Curent ice sockets {}", IceSocketWrapper.getSocketCount());
+                logger.debug("Curent ice sockets {}", IceSocketWrapper.getSocketCount());
             }
         }
     }
@@ -2405,9 +2407,8 @@ public class Agent {
     public void signalAgentClosing() {
         if (!closing) {
             closing = true;
-            logger.warn("Agent is about to be closed.");
+            logger.warn("Agent {} is about to be closed.", usercookie == null ? "" : usercookie);
         }
-
     }
 
     /**
@@ -2565,7 +2566,7 @@ public class Agent {
     }
 
     public void notifySessionChanged(IceSocketWrapper iceSocketWrapper, IoSession session, Ice context) {
-        logger.info("notifySessionChanged: {}  adress: {}  session: {}", context, iceSocketWrapper.getTransportAddress(), session);
+        logger.debug("notifySessionChanged: {}  adress: {}  session: {}", context, iceSocketWrapper.getTransportAddress(), session);
         switch (context) {
             case DISPOSE_ADDRESS:
                 if (eolHandler != null) {
@@ -2610,6 +2611,14 @@ public class Agent {
 
     public void addSocketUUID(String socketId) {
         socketUUIDs.add(socketId);
+    }
+
+    public String getUsercookie() {
+        return usercookie;
+    }
+
+    public void setUsercookie(String usercookie) {
+        this.usercookie = usercookie;
     }
 
     /*

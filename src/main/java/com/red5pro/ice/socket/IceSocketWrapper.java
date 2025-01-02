@@ -186,7 +186,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         creationTime = System.currentTimeMillis();
         logger.debug("my uuid {}", id);
         iceSockets.put(id, this);
-        logger.warn("Current iceSocket count {}", iceSockets.size());
+        logger.debug("Current iceSocket count {}", iceSockets.size());
         localAgent.addSocketUUID(id);
     }
 
