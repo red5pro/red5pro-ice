@@ -143,9 +143,13 @@ public class StackProperties {
      */
     public static final String ICE_SWEEPER_TIMEOUT = "com.red5pro.ice.ICE_SWEEPER_TIMEOUT";
 
-    /** Besides sharedAcceptor property, acceptor strategy can inform stun stack how to manage acceptors per Transport type, TCP and UDP.
+    /** 
+     * Besides sharedAcceptor property, acceptor strategy can inform stun stack how to manage acceptors per Transport type, TCP and UDP.
      * Generally there will be one acceptor per transport type, TCP and UDP.
-     *  0 = one acceptor per socket. 1 = one acceptor for each type(UDP,TCP) for each user-session. 2 = one acceptor for each type(UDP,TCP) per application.
+     *  0 = one acceptor per socket
+     *  1 = one acceptor for each type (UDP,TCP) for each user-session
+     *  2 = one acceptor for each type(UDP,TCP) per application
+     * 
      *  Mode 2 is the same as shared mode. If shared mode is activated, ACCEPTOR_STRATEGY will be overridden.
      */
     public static final String ACCEPTOR_STRATEGY = "com.red5pro.ice.ACCEPTOR_STRATEGY";
