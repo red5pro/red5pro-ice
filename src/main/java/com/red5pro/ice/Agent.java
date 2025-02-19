@@ -74,7 +74,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.2.0";
+    private final static String VERSION = "1.2.1";
 
     /**
      * Secure random for shared use.

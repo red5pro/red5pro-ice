@@ -18,11 +18,13 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.Collectors;
 
-import com.red5pro.ice.socket.IceSocketWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.red5pro.ice.socket.IceSocketWrapper;
 
 /**
  * A component is a piece of a media stream requiring a single transport address; a media stream may require multiple components, each of which has
@@ -66,6 +68,7 @@ public class Component implements PropertyChangeListener {
             } else if (cand1.getDefaultPreference() > cand2.getDefaultPreference()) {
                 result += 1;
             }
+            /*
             // add network-id and network-cost to the mix
             if (cand1.getNetworkId() < cand2.getNetworkId()) {
                 result -= 1;
@@ -78,6 +81,7 @@ public class Component implements PropertyChangeListener {
                     result += 1;
                 }
             }
+            */
             return result;
         }
 
@@ -100,7 +104,7 @@ public class Component implements PropertyChangeListener {
     /**
      * The list locally gathered candidates for this media stream.
      */
-    private final Queue<LocalCandidate> localCandidates = new PriorityQueue<>(3, candidateComparator);
+    private final Set<LocalCandidate> localCandidates = new ConcurrentSkipListSet<>(candidateComparator);
 
     /**
      * The list of candidates that the peer agent sent for this stream.
