@@ -905,7 +905,6 @@ public class Agent {
         } else {
             logger.info("Start ICE connectivity establishment. Local ufrag {}  {}", getLocalUfrag(), allocatedPorts.toString());
         }
-
         shutdown = false;
         pruneNonMatchedStreams();
         try {
@@ -1047,7 +1046,8 @@ public class Agent {
     private boolean setState(IceProcessingState newState) {
         IceProcessingState oldState = state.getAndSet(newState);
         if (!oldState.equals(newState)) {
-            logger.info("ICE state changed from {} to {}. Local ufrag {}", oldState, newState, getLocalUfrag());
+            long elapsed = System.currentTimeMillis() - iceStartTime;
+            logger.info("ICE state changed from {} to {} elapsed time: {}ms. Local ufrag {}", oldState, newState, elapsed, getLocalUfrag());
             fireStateChange(oldState, newState);
             return true;
         }
@@ -2392,7 +2392,8 @@ public class Agent {
     public void signalAgentClosing() {
         if (!closing) {
             closing = true;
-            logger.warn("Agent is about to be closed.");
+            long elapsed = System.currentTimeMillis() - iceStartTime;
+            logger.warn("Agent is about to be closed: {} elapsed time: {}ms", getLocalUfrag(), elapsed);
         }
 
     }
