@@ -10,6 +10,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.red5pro.ice.socket.IceSocketWrapper;
+
+import org.apache.mina.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +36,7 @@ public class ComponentSocket implements PropertyChangeListener {
     /**
      * IceSocketWrapper(s) associated with this ComponentSocket.
      */
-    private Set<IceSocketWrapper> socketWrappers = new HashSet<>();
+    private Set<IceSocketWrapper> socketWrappers = new ConcurrentHashSet<>();
 
     /**
      * Initializes a new {@link MergingDatagramSocket} instance.

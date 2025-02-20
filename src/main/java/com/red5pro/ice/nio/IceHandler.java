@@ -888,7 +888,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
 
                     report.get().put("socket.rsvp", socket.getRsvp());
                     if (socket.getRsvp() != null) {
-                        boolean isBound = IceTransport.didBind(socket.getRsvp(), socket.getTransportAddress().getPort());
+                        boolean isBound = IceTransport.isStillBound(socket.getRsvp(), socket.getTransportAddress().getPort());
                         report.get().put("transport.isStillBound", isBound);
                         logger.warn("is still bound? {}", isBound);
                     }

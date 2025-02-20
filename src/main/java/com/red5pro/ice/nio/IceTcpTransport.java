@@ -179,7 +179,7 @@ public class IceTcpTransport extends IceTransport {
             acceptor.getFilterChain().addLast("protocol", iceCodecFilter);
             // add our handler
             acceptor.setHandler(iceHandler);
-            logger.info("Started socket transport");
+            logger.debug("Started socket transport");
             if (logger.isTraceEnabled()) {
                 logger.trace("Acceptor sizes - send: {} recv: {}", sessionConf.getSendBufferSize(), sessionConf.getReadBufferSize());
             }
