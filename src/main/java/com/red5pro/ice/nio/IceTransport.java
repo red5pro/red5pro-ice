@@ -662,12 +662,13 @@ public abstract class IceTransport {
         return ret.isPresent();
     };
 
-    /** Check if a bind reservation id is still present.
-    *
-    * @param port
-    * @return true if already bound and false otherwise
+    /**
+     * Check if a specific binding is still present.
+     * @param rsvp
+     * @param port
+     * @return
     */
-    public static boolean didBind(Long rsvp, int port) {
+    public static boolean isStillBound(Long rsvp, int port) {
         if (rsvp != null) {
             Predicate<ABPEntry> pred = entry -> entry.port == port && entry.hasRsvp(rsvp);
             Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();
