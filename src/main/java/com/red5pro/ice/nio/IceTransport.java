@@ -196,7 +196,6 @@ public abstract class IceTransport {
      * @return IceTransport
      */
     public static IceTransport getInstance(Transport type, String id) {
-
         if (type == Transport.TCP) {
             return IceTcpTransport.getInstance(id);
         } else if (type == null) {
@@ -216,6 +215,7 @@ public abstract class IceTransport {
     public boolean isShared() {
         return acceptorStrategy == AcceptorStrategy.Shared;
     }
+
 //    public static List<IceTransport> getTransportsForAgent(Transport type, String agentId) {
 //        List<IceTransport> ret = new ArrayList<>();
 //        transports.forEach((id, t) -> {

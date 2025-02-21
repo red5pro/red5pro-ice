@@ -169,11 +169,7 @@ public class StunStack implements MessageEventHandler {
 
         int ordinal = StackProperties.getInt(StackProperties.ACCEPTOR_STRATEGY, AcceptorStrategy.DiscretePerSession.ordinal());
         acceptorStrategy = AcceptorStrategy.valueOf(ordinal);
-        boolean shared = StackProperties.getBoolean("NIO_SHARED_MODE", false);
-        if (shared) {
-            //If sharedAcceptors was set, override acceptorStrategy.
-            acceptorStrategy = AcceptorStrategy.Shared;
-        }
+
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
                 // stop the executor
@@ -262,7 +258,6 @@ public class StunStack implements MessageEventHandler {
                         transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
                     }
                 }
-
                 if (transport != null) {
                     iceSocket.setIceTransportRef(transport);
                     transport.registerStackAndSocket(this, iceSocket);
@@ -307,7 +302,6 @@ public class StunStack implements MessageEventHandler {
         if (connector != null) {
             connector.stop();
         }
-
         removeRegistration(localAddr);
     }
 
