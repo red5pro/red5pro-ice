@@ -7,7 +7,6 @@ import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Mac;
 
 import org.apache.mina.core.session.IoSession;
+import org.apache.mina.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,7 +113,7 @@ public class StunStack implements MessageEventHandler {
 
     private AcceptorStrategy sessionAcceptorStrategy = AcceptorStrategy.DiscretePerSocket;
 
-    private HashSet<TransportAddress> registrations = new HashSet<TransportAddress>();
+    private ConcurrentHashSet<TransportAddress> registrations = new ConcurrentHashSet<TransportAddress>();
 
     /**
      * Executor for all threads and tasks needed in this stacks agent.
@@ -227,7 +227,7 @@ public class StunStack implements MessageEventHandler {
         boolean added = false;
         InetAddress addr = iceSocket.getLocalAddress();
         boolean isIPv6Address = addr.getHostAddress().contains(":");
-        logger.info("Use IPv6: {} Use all binding: {} Is IPv6 address: {}", useIPv6, useAllBinding, isIPv6Address);
+        logger.debug("Use IPv6: {} Use all binding: {} Is IPv6 address: {}", useIPv6, useAllBinding, isIPv6Address);
         if (!useAllBinding && (useIPv6 && !isIPv6Address)) {
             logger.debug("Skipping IPv4 address: {}", addr);
         } else if (!useAllBinding && (!useIPv6 && isIPv6Address)) {
@@ -974,22 +974,21 @@ public class StunStack implements MessageEventHandler {
                     logger.info("Stun stack sweeper starting.");
                     try {
                         do {
-
+                            Map<TransportAddress, StunStack> stacks = IceHandler.getStunStacks();
                             try {
-                                logger.debug("Going to sleep for {}s before cleaning up server txns",
+                                logger.debug("Going to sleep for {}s before cleaning up server txns", stacks.size(),
                                         (StunServerTransaction.LIFETIME / 1000L));
                                 Thread.sleep(StunServerTransaction.LIFETIME);
                             } catch (InterruptedException ie) {
                                 logger.debug("Interrupted while waiting for server txns to expire", ie);
                                 break;
                             }
-                            Map<TransportAddress, StunStack> stacks = IceHandler.getStunStacks();
                             if (stacks.isEmpty()) {
                                 break;
                             }
                             stacks.forEach((address, stack) -> {
-                                Thread.currentThread().setName(
-                                        "StunStack.txExpire:" + address.getTransport().toString() + String.valueOf(address.getPort()));
+                                Thread.currentThread().setName("StunStack.txExpire:" + address.getTransport().toString() + "-"
+                                        + String.valueOf(address.getPort()));
                                 logger.debug("Sweeping");
                                 stack.runCleanup();
                             });
