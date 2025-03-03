@@ -154,6 +154,11 @@ public class MessageFactory {
     public static Response createBindingResponse(Request request, TransportAddress mappedAddress) throws IllegalArgumentException {
         Response bindingResponse = new Response();
         bindingResponse.setMessageType(Message.BINDING_SUCCESS_RESPONSE);
+        try {
+            bindingResponse.setTransactionID(request.transactionID);
+        } catch (StunException e) {
+            e.printStackTrace();
+        }
         // xor mapped address
         XorMappedAddressAttribute xorMappedAddressAttribute = AttributeFactory.createXorMappedAddressAttribute(mappedAddress,
                 request.getTransactionID());

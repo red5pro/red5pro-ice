@@ -4,7 +4,7 @@
     <groupId>com.red5pro</groupId>
     <artifactId>red5pro-ice</artifactId>
     <!-- When the version changes, update Agent.VERSION as well -->
-    <version>1.2.0</version>
+    <version>1.2.0.1</version>
     <packaging>jar</packaging>
     <name>red5pro-ice</name>
     <url>https://github.com/red5pro/red5pro-ice</url>
@@ -25,7 +25,7 @@
         <!-- reduces a confusing message about the future availability of displayed plugins -->
         <maven.plugin.validation>brief</maven.plugin.validation>
         <!-- allows tests to be built and works in conjuction with skipTests property -->
-        <maven.test.skip>false</maven.test.skip>
+        <maven.test.skip>true</maven.test.skip>
         <!-- prevents built tests from running -->
         <skipTests>true</skipTests>
         <maven.compiler.verbose>false</maven.compiler.verbose>

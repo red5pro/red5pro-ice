@@ -240,6 +240,7 @@ public class NetAccessManager {
             throw new IllegalArgumentException("No connector for " + localAddress + "->" + remoteAddress);
         }
         if (connector != null) {
+            logger.debug("Send message  to {}", remoteAddress);
             connector.sendMessage(bytes, remoteAddress);
         }
     }

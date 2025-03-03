@@ -17,6 +17,8 @@ import com.red5pro.ice.message.Response;
 import com.red5pro.ice.security.CredentialsAuthority;
 import com.red5pro.ice.stack.RequestListener;
 import com.red5pro.ice.stack.StunStack;
+import com.red5pro.ice.stack.TransactionID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +32,7 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
 
     private static final Logger logger = LoggerFactory.getLogger(ConnectivityCheckServer.class);
 
+    public static boolean isDebug = logger.isDebugEnabled();
     /**
      * The agent that created us.
      */
@@ -84,15 +87,15 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
      * @throws IllegalArgumentException if the request is malformed and the stack needs to reply with a 400 Bad Request response
      */
     public void processRequest(StunMessageEvent evt) throws IllegalArgumentException {
-        if (logger.isDebugEnabled()) {
-            logger.debug("Received request {}", evt);
+        if (isDebug) {
+            logger.debug("Received request {}  ra: {}  sa:{}", evt, evt.getRemoteAddress(), evt.getSourceAddress());
         }
         alive = true;
         Request request = (Request) evt.getMessage();
         // Ignore incoming requests that are not meant for the local user. normally the stack will get rid of faulty user names but we could
         // still see messages not meant for this server if both peers are running on this same instance of the stack.
         UsernameAttribute uname = (UsernameAttribute) request.getAttribute(Attribute.Type.USERNAME);
-        if (logger.isDebugEnabled()) {
+        if (isDebug) {
             logger.debug("Username: {}", uname);
         }
         String username = new String(uname.getUsername());
@@ -105,7 +108,7 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         long priority = extractPriority(request);
         // if we're not controlling and use candidate is false, set it anyway to work around an Edge bug
         boolean useCandidate = (request.getAttribute(Attribute.Type.USE_CANDIDATE) != null) || !parentAgent.isControlling();
-        if (logger.isDebugEnabled()) {
+        if (isDebug) {
             logger.debug("useCandidate: {}", useCandidate);
         }
         // caller gave us the entire username
@@ -138,7 +141,10 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         Attribute messageIntegrityAttribute = AttributeFactory.createMessageIntegrityAttribute(username);
         response.putAttribute(messageIntegrityAttribute);
         try {
-            logger.debug("Sending response: {}", response);
+            if (isDebug) {
+                logger.debug("Sending response: {} for tid:{}   {} ", response, TransactionID.toString(response.getTransactionID()),
+                        evt.getRemoteAddress());
+            }
             stunStack.sendResponse(evt.getTransactionID().getBytes(), response, evt.getLocalAddress(), evt.getRemoteAddress());
         } catch (Exception e) {
             logger.warn("Failed to send {} through {}", response, evt.getLocalAddress(), e);
@@ -164,11 +170,11 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         // extract priority
         if (priorityAttr != null) {
             priority = priorityAttr.getPriority();
-            if (logger.isDebugEnabled()) {
+            if (isDebug) {
                 logger.debug("Priority: {}", Long.toUnsignedString(priority));
             }
         } else {
-            if (logger.isDebugEnabled()) {
+            if (isDebug) {
                 logger.debug("Received a connectivity check with no PRIORITY attribute");
             }
             //throw new IllegalArgumentException("Missing PRIORITY attribute!");
