@@ -336,20 +336,26 @@ public class StunStack implements MessageEventHandler {
     }
 
     /**
-     * Cancels the {@link StunClientTransaction} with the specified transactionID. Cancellation means that the stack will not
-     * retransmit the request, will not treat the lack of response to be a failure, but will wait the duration of the transaction timeout for a
-     * response.
+     * Flawed implementation, called by triggered check and citing RFC 5245 rules, which specify:<br><br>
+     * {@code Cancellation means that the stack will not retransmit the request, will not treat the lack of response to be a failure,
+     * but will wait the duration of the transaction timeout for a response.}
+     *<br><br> However this implementation nukes the transaction and makes it impossible to switch states if a response is received.
+     * The result can cause an endless loop of failures marked by binding requests from the peer getting a successful response,
+     * but local requests never getting a successful response, and so the pair is never nominated. The stunstack repeats 'dropped response' until the controlling agent decides to give up.
+     * Until this implementation is corrected such that canceled transactions can be paired with response for the duration of the transaction life cycle,
+     * we will allow the transaction to remain in the list as is until garbage collected by the sweeper after natural timeout.
      *
      * @param transactionID the {@link TransactionID} of the {@link StunClientTransaction} to cancel
      */
     public void cancelTransaction(TransactionID transactionID) {
-        StunClientTransaction clientTransaction = clientTransactions.get(transactionID);
-        if (clientTransaction != null) {
-            if (clientTransactions.remove(transactionID) != null) {
-                logger.debug("Cancelling client transaction: {}", clientTransaction.getTransactionID());
-            }
-            clientTransaction.cancel();
-        }
+        logger.debug("skipping cancelTransaction: {}", transactionID);
+        // StunClientTransaction clientTransaction = clientTransactions.get(transactionID);
+        // if (clientTransaction != null) {
+        //     if (clientTransactions.remove(transactionID) != null) {
+        //         logger.debug("Cancelling client transaction: {}", clientTransaction.getTransactionID());
+        //     }
+        //     clientTransaction.cancel();
+        // }
     }
 
     /**

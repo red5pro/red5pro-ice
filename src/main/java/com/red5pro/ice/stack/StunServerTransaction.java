@@ -118,8 +118,8 @@ public class StunServerTransaction {
     }
 
     /**
-     * Sends the specified response through the <code>sendThrough</code> NetAccessPoint descriptor to the specified destination and changes
-     * the transaction's state to retransmitting.
+     * Sends the specified response through the <code>sendThrough</code> NetAccessPoint descriptor to the specified
+     * destination and changes the transaction's state to retransmitting.
      *
      * @param response the response to send the transaction to.
      * @param sendThrough the local address through which responses are to be sent
@@ -130,13 +130,14 @@ public class StunServerTransaction {
      */
     public void sendResponse(Response response, TransportAddress sendThrough, TransportAddress sendTo)
             throws StunException, IOException, IllegalArgumentException {
+        logger.debug("send response - retransmit? {} resp: {} thru: {} to: {}", isRetransmitting, response, sendThrough, sendTo);
+        this.localSendingAddress = sendThrough;
+        this.responseDestination = sendTo;
         if (!isRetransmitting) {
             this.response = response;
-            // the transaction id might already have been set, but its our job to make sure of that
-            response.setTransactionID(transactionID.getBytes());
-            this.localSendingAddress = sendThrough;
-            this.responseDestination = sendTo;
         }
+        // the transaction id might already have been set, but its our job to make sure of that
+        response.setTransactionID(transactionID.getBytes());
         isRetransmitting = true;
         retransmitResponse();
     }
@@ -149,6 +150,7 @@ public class StunServerTransaction {
      * @throws StunException if message encoding fails
      */
     protected void retransmitResponse() throws StunException, IOException, IllegalArgumentException {
+        logger.debug("Retransmit transaction {}", transactionID);
         // don't retransmit if we are expired or if the user application hasn't yet transmitted a first response
         if (isExpired() || !isRetransmitting) {
             return;

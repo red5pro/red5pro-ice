@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.mina.core.buffer.IoBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
 
@@ -15,6 +18,10 @@ import com.red5pro.ice.socket.IceSocketWrapper;
  * @author Emil Ivov
  */
 class Connector implements Comparable<Connector> {
+
+    private static final Logger logger = LoggerFactory.getLogger(Connector.class);
+
+    public static boolean isDebug = logger.isDebugEnabled();
 
     /**
      * The socket object that used by this access point to access the network.
@@ -88,6 +95,10 @@ class Connector implements Comparable<Connector> {
         sock.updateSTUNWriteCounters((message != null ? message.length : 0));
         // send the message
         sock.send(IoBuffer.wrap(message), address);
+        if (isDebug) {
+            logger.debug("Sent message from: {} to: {} writes: {} alive: {}ms", listenAddress, address, sock.getWrittenMessages(),
+                    sock.getTimeAlive());
+        }
     }
 
     /**
