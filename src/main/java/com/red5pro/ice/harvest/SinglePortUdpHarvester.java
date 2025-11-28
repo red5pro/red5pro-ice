@@ -29,12 +29,12 @@ import com.red5pro.ice.TransportAddress;
 
 /**
  * A harvester implementation which binds to a single DatagramSocket and provides local candidates of type "host". It runs a thread
- * ({@link #thread}) which perpetually reads from the socket.
- *
- * When {@link #harvest(com.red5pro.ice.Component)} is called, this harvester creates and adds to the component a
- * {@link com.red5pro.ice.harvest.SinglePortUdpHarvester.MyCandidate} instance, and associates the component's local username fragment (ufrag) with this
+ * which perpetually reads from the socket.
+ * <p>
+ * When {@link #harvest(Component)} is called, this harvester creates and adds to the component a
+ * {@link SinglePortUdpHarvester.MyCandidate} instance, and associates the component's local username fragment (ufrag) with this
  * candidate.
- *
+ * <p>
  * When a STUN Binding Request with a given ufrag is received, if the ufrag matches one of the registered candidates, then a new socket is created, which
  * is to receive further packets from the remote address, and the socket is added to the candidate.
  *

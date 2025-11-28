@@ -358,8 +358,8 @@ public class Agent {
     /**
      * Submits a runnable task to the executor.
      *
-     * @param task
-     * @return Future<?>
+     * @param task the runnable task to submit
+     * @return the Future representing pending completion of the task
      */
     public Future<?> submit(Runnable task) {
         return stunStack.submit(task);
@@ -1876,16 +1876,42 @@ public class Agent {
     /**
      * Calculates the value of the retransmission timer to use in STUN transactions, used in connectivity checks (not to confused with the RTO
      * for the STUN address harvesting).
+     * <p>
+     * RFC 8445 Section 14.3: For connectivity checks, RTO SHOULD be configurable and SHOULD have a default of:
+     * RTO = MAX(100ms, Ta * N * (Num-Waiting + Num-In-Progress))
+     * where Num-Waiting is the number of checks in the Waiting state, Num-In-Progress is the number of checks
+     * in the In-Progress state, and N is the number of checks to be performed.
      *
      * @return the value of the retransmission timer to use in STUN connectivity check transactions
      */
     protected long calculateStunConnCheckRTO() {
-        /*
-         * RFC 5245 says: For connectivity checks, RTO SHOULD be configurable and SHOULD have a default of: RTO = MAX (100ms, Ta*N * (Num-Waiting + Num-In-Progress)) where
-         * Num-Waiting is the number of checks in the check list in the Waiting state, Num-In-Progress is the number of checks in the In-Progress state, and N is the number of
-         * checks to be performed. Emil: I am not sure I like the formula so we'll simply be returning 100 for the time being.
-         */
-        return 100;
+        long ta = calculateTa();
+        int numWaiting = 0;
+        int numInProgress = 0;
+        int totalChecks = 0;
+        for (IceMediaStream stream : getStreams()) {
+            CheckList checkList = stream.getCheckList();
+            if (checkList != null) {
+                for (CandidatePair pair : checkList) {
+                    totalChecks++;
+                    CandidatePairState state = pair.getState();
+                    if (state == CandidatePairState.WAITING) {
+                        numWaiting++;
+                    } else if (state == CandidatePairState.IN_PROGRESS) {
+                        numInProgress++;
+                    }
+                }
+            }
+        }
+        // N is the total number of checks, use at least 1 to avoid zero RTO
+        int n = Math.max(1, totalChecks);
+        int activeChecks = numWaiting + numInProgress;
+        // If no active checks yet, use a reasonable default multiplier
+        if (activeChecks == 0) {
+            activeChecks = 1;
+        }
+        // RFC formula: RTO = MAX(100ms, Ta * N * (Num-Waiting + Num-In-Progress))
+        return Math.max(100, ta * n * activeChecks);
     }
 
     /**
@@ -2471,8 +2497,13 @@ public class Agent {
 
     /**
      * Returns the system property for the UDP priority modifier.
+     * <p>
+     * <b>WARNING: Non-Standard Extension</b> - This modifier is NOT part of RFC 8445.
+     * Using non-zero values may cause interoperability issues with strict RFC implementations.
+     * The default value of 0 maintains RFC-compliant behavior.
      *
-     * @return priority modifier
+     * @return priority modifier to add to UDP candidate priorities (default: 0)
+     * @see StackProperties#UDP_PRIORITY_MODIFIER
      */
     public static int getUdpPriorityModifier() {
         return StackProperties.getInt(StackProperties.UDP_PRIORITY_MODIFIER, 0);
@@ -2480,8 +2511,13 @@ public class Agent {
 
     /**
      * Returns the system property for the TCP priority modifier.
+     * <p>
+     * <b>WARNING: Non-Standard Extension</b> - This modifier is NOT part of RFC 8445.
+     * Using non-zero values may cause interoperability issues with strict RFC implementations.
+     * The default value of 0 maintains RFC-compliant behavior.
      *
-     * @return priority modifier
+     * @return priority modifier to add to TCP candidate priorities (default: 0)
+     * @see StackProperties#TCP_PRIORITY_MODIFIER
      */
     public static int getTcpPriorityModifier() {
         return StackProperties.getInt(StackProperties.TCP_PRIORITY_MODIFIER, 0);

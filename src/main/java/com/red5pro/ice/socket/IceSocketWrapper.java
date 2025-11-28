@@ -247,7 +247,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Closes the connected session as well as the acceptor, if its non-shared.
-     * @throws Exception
+     *
+     * @return true if closed successfully
      */
     public boolean close() {
         return close(getSession());

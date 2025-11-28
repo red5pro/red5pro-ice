@@ -207,8 +207,48 @@ public class StackProperties {
      */
     public static final String HARVESTING_TIMEOUT = "com.red5pro.ice.harvest.HARVESTING_TIMEOUT";
 
+    /**
+     * Priority modifier applied to UDP transport candidates.
+     * <p>
+     * <b>WARNING: Non-Standard Extension</b>
+     * <p>
+     * This is a Red5 Pro extension and is NOT part of RFC 8445. The RFC specifies that candidate
+     * priority should be computed solely using the formula:
+     * <pre>
+     * priority = (2^24 * type_preference) + (2^8 * local_preference) + (256 - component_id)
+     * </pre>
+     * Adding transport-based modifiers may cause interoperability issues with strict RFC implementations.
+     * <p>
+     * Use cases for this modifier:
+     * <ul>
+     *   <li>Force preference for UDP over TCP in mixed environments</li>
+     *   <li>Work around network configurations that favor one transport</li>
+     * </ul>
+     * <p>
+     * Default value: 0 (no modification, RFC-compliant behavior)
+     */
     public static final String UDP_PRIORITY_MODIFIER = "UDP_PRIORITY_MODIFIER";
 
+    /**
+     * Priority modifier applied to TCP transport candidates.
+     * <p>
+     * <b>WARNING: Non-Standard Extension</b>
+     * <p>
+     * This is a Red5 Pro extension and is NOT part of RFC 8445. The RFC specifies that candidate
+     * priority should be computed solely using the formula:
+     * <pre>
+     * priority = (2^24 * type_preference) + (2^8 * local_preference) + (256 - component_id)
+     * </pre>
+     * Adding transport-based modifiers may cause interoperability issues with strict RFC implementations.
+     * <p>
+     * Use cases for this modifier:
+     * <ul>
+     *   <li>Force preference for TCP over UDP in firewall-heavy environments</li>
+     *   <li>Work around network configurations that block or penalize UDP</li>
+     * </ul>
+     * <p>
+     * Default value: 0 (no modification, RFC-compliant behavior)
+     */
     public static final String TCP_PRIORITY_MODIFIER = "TCP_PRIORITY_MODIFIER";
 
     /**

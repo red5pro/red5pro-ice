@@ -13,6 +13,14 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Implements ice4j internal nomination strategies.
+ * <p>
+ * RFC 8445 Section 8 describes nomination procedures. The RFC recommends "regular nomination"
+ * where the controlling agent waits for connectivity checks to complete before nominating
+ * the highest priority valid pair. The default strategy is NOMINATE_HIGHEST_PRIO which aligns
+ * with this recommendation.
+ * <p>
+ * Note: NOMINATE_FIRST_VALID is essentially "aggressive nomination" which was deprecated in RFC 8445
+ * but is still supported for backward compatibility.
  *
  * @author Emil Ivov
  */
@@ -27,8 +35,9 @@ public class DefaultNominator implements PropertyChangeListener {
 
     /**
      * The strategy that this nominator should use to nominate valid pairs.
+     * Default is NOMINATE_HIGHEST_PRIO per RFC 8445 "regular nomination" recommendation.
      */
-    private NominationStrategy strategy = NominationStrategy.NOMINATE_FIRST_VALID;
+    private NominationStrategy strategy = NominationStrategy.NOMINATE_HIGHEST_PRIO;
 
     /**
      * Map that will remember association between validated relayed candidate
@@ -68,9 +77,10 @@ public class DefaultNominator implements PropertyChangeListener {
                 stream.getCheckList().addStateChangeListener(this);
             }
         }
-        // CONTROLLED agents cannot nominate, but only enforce this if trickling is enabled
-        if (!parentAgent.isControlling() && parentAgent.isTrickling()) {
-            logger.debug("Non-controlling agent, cannot nominate");
+        // RFC 8445 Section 8.1.1: Only the controlling agent nominates pairs.
+        // Controlled agents MUST NOT nominate, regardless of trickle mode.
+        if (!parentAgent.isControlling()) {
+            logger.debug("Non-controlling (controlled) agent cannot nominate per RFC 8445");
             return;
         }
         if (ev.getSource() instanceof CandidatePair) {

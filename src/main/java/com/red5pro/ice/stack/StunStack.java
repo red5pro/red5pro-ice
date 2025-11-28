@@ -276,7 +276,7 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Stops and deletes the connector listening on the specified local address.
-     * Note this removes connectors with UDP sockets only, use {@link #removeSocket(com.red5pro.ice.TransportAddress, com.red5pro.ice.TransportAddress)}
+     * Note this removes connectors with UDP sockets only, use {@link #removeSocket(String, TransportAddress, TransportAddress)}
      * with the appropriate remote address for TCP.
      *
      * @param id transport / acceptor identifier

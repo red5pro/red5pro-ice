@@ -28,8 +28,7 @@ import com.red5pro.ice.socket.IceSocketWrapper;
 
 /**
  * A component is a piece of a media stream requiring a single transport address; a media stream may require multiple components, each of which has
- * to work for the media stream as a whole to work. For media streams based on RTP, there are two components per media stream (1 RTP & 1 RTCP).
- * <p>
+ * to work for the media stream as a whole to work. For media streams based on RTP, there are two components per media stream (1 RTP and 1 RTCP).
  *
  * @author Emil Ivov
  * @author Sebastien Vincent
@@ -558,7 +557,7 @@ public class Component implements PropertyChangeListener {
      * Returns the local LocalCandidate with the specified address if it belongs to this component or null
      * if it doesn't. If {@code base} is also specified, tries to find a candidate whose base matches {@code base}.
      *
-     * @param address the {@link TransportAddress} we are looking for
+     * @param localAddress the {@link TransportAddress} we are looking for
      * @param base an optional base to match
      *
      * @return  the local LocalCandidate with the specified address if it belongs to this component or null
@@ -637,8 +636,10 @@ public class Component implements PropertyChangeListener {
     }
 
     /**
-     * @return the internal merging socket for this component. This is for ice4j use only.
-     * For reading/writing application data, use {@link #getSocket()}.
+     * Returns the internal merging socket for this component. This is for ice4j use only.
+     * For reading/writing application data, use {@link #getSockets()}.
+     *
+     * @return the component socket
      */
     public ComponentSocket getComponentSocket() {
         return componentSocket;

@@ -46,11 +46,10 @@ import com.red5pro.ice.StackProperties;
 
 /**
  * Reimagining for NioDatagramAcceptor within ice4j.
- *
+ * <p>
  * {@link IoAcceptor} for datagram transport (UDP/IP).
  *
- * @author <a href="http://mina.apache.org">Apache MINA Project</a>
- * @org.apache.xbean.XBean
+ * @author Apache MINA Project
  */
 public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramAcceptor, IoProcessor<NioSession> {
 
@@ -296,7 +295,7 @@ public class IceDatagramAcceptor extends AbstractIoAcceptor implements DatagramA
         if (handle == null) {
             throw new IllegalArgumentException("Unknown local address: " + localAddress);
         }
-        IoSession session = sessionRecycler.recycle(remoteAddress);
+        IoSession session = sessionRecycler.recycle(remoteAddress, ((InetSocketAddress) localAddress).getPort());
         if (session == null) {
             // If a new session needs to be created.
             session = newSession(this, handle, remoteAddress);

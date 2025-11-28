@@ -71,8 +71,8 @@ public class IceUdpTransport extends IceTransport {
         }
 
         @Override
-        public IoSession recycle(SocketAddress remoteAddress) {
-            logger.trace("Recycle remote address: {}", remoteAddress);
+        public IoSession recycle(SocketAddress remoteAddress, int port) {
+            logger.trace("Recycle remote address: {} port: {}", remoteAddress, port);
             // recycler is locked by NioDatagramAcceptor.newSessionWithoutLock so we'll attempt to prevent deadlocking
             // by using our concurrent map from outside the recycler itself
             return getSessionByRemote(remoteAddress);

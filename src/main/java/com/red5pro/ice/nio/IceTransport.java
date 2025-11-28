@@ -78,7 +78,9 @@ public abstract class IceTransport {
             Runtime.getRuntime().availableProcessors() * 2);
 
     /**
-     * @param ioThreads the ioThreads to set
+     * Sets the number of IO threads for the processor pool.
+     *
+     * @param count the number of IO threads to set
      */
     public static void setIoThreads(int count) {
         ioThreads = count;
@@ -374,9 +376,10 @@ public abstract class IceTransport {
     }
 
     /**
+     * Stops the transport and releases the acceptor.
      *
-     * @return true if acceptor is released.
-     * @throws Exception,
+     * @return true if acceptor is released
+     * @throws Exception if stopping fails
      */
     public boolean stop() throws Exception {
         //Can only be called once.
