@@ -32,10 +32,10 @@
         <maven.compiler.release>11</maven.compiler.release>
         <maven.build.timestamp.format>MM.dd.yyyy HH:mm</maven.build.timestamp.format>
         <timestamp>${maven.build.timestamp}</timestamp>
-        <mina.version>2.0.23</mina.version>
-        <red5pro-common.version>12.6.0.64</red5pro-common.version>
+        <mina.version>2.0.27</mina.version>
+        <red5pro-common.version>15.1.0.0</red5pro-common.version>
         <jmdns.version>3.5.8</jmdns.version>
-        <logback.version>1.5.6</logback.version>
+        <logback.version>1.5.18</logback.version>
         <junit.version>[4.13.1,)</junit.version>
     </properties>
     <!-- private location for red5pro deploy -->
