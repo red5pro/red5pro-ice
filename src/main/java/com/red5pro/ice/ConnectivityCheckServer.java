@@ -187,6 +187,10 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
      * Resolves a role conflicts by either sending a 487 Role Conflict response or by changing this server's parent agent role. The method
      * returns true if the role conflict is silently resolved and processing can continue. It returns false if we had to reply
      * with a 487 and processing needs to stop until a repaired request is received.
+     * <p>
+     * Per RFC 8445 Section 2.5: ICE-LITE agents MUST always remain in the controlled role and cannot switch roles.
+     * When an ICE-LITE agent receives a request with ICE-CONTROLLED (both controlled conflict), it should send a 487
+     * error since the remote peer should be controlling.
      *
      * @param evt the {@link StunMessageEvent} containing the ICE-CONTROLLING or ICE-CONTROLLED attribute that allowed us to detect the role conflict
      * @return true if the role conflict is silently resolved and processing can continue and false otherwise
@@ -206,6 +210,22 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         if (!(bothControllingConflict || bothControlledConflict)) {
             // we don't have a role conflict
             return true;
+        }
+        // ICE-LITE agents MUST always remain controlled per RFC 8445 Section 2.5
+        // They cannot switch roles, so we must send 487 Role Conflict to force the peer to become controlling
+        if (parentAgent.isIceLite() && bothControlledConflict) {
+            logger.debug("ICE-LITE agent received ICE-CONTROLLED conflict - sending 487 to force peer to controlling role");
+            UsernameAttribute requestUserName = (UsernameAttribute) req.getAttribute(Attribute.Type.USERNAME);
+            Response response = MessageFactory.createBindingErrorResponse(ErrorCodeAttribute.ROLE_CONFLICT);
+            Attribute messageIntegrityAttribute = AttributeFactory
+                    .createMessageIntegrityAttribute(new String(requestUserName.getUsername()));
+            response.putAttribute(messageIntegrityAttribute);
+            try {
+                stunStack.sendResponse(evt.getTransactionID().getBytes(), response, evt.getLocalAddress(), evt.getRemoteAddress());
+                return false;
+            } catch (Exception exc) {
+                throw new RuntimeException("Failed to send a 487", exc);
+            }
         }
         long selfTieBreaker = parentAgent.getTieBreaker();
         long theirTieBreaker = theirIceControl.getTieBreaker();

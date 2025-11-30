@@ -94,8 +94,16 @@ class ConnectivityCheckClient implements ResponseCollector {
     /**
      * Starts client connectivity checks for the first {@link IceMediaStream} in our parent {@link Agent}. This method should only be called by
      * the parent {@link Agent} when connectivity establishment starts for a particular check list.
+     * <p>
+     * Note: ICE-LITE agents do not initiate connectivity checks per RFC 8445 Section 2.5, so this method returns
+     * immediately without starting checks when in ICE-LITE mode.
      */
     public void startChecks() {
+        // ICE-LITE agents do not initiate connectivity checks - they only respond to incoming checks
+        if (parentAgent.isIceLite()) {
+            logger.debug("ICE-LITE mode: skipping outgoing connectivity checks. Local ufrag {}", parentAgent.getLocalUfrag());
+            return;
+        }
         List<IceMediaStream> streamsWithPendingConnectivityEstablishment = parentAgent.getStreamsWithPendingConnectivityEstablishment();
         if (streamsWithPendingConnectivityEstablishment.size() > 0) {
             logger.debug("Start connectivity checks. Local ufrag {}", parentAgent.getLocalUfrag());

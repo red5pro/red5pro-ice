@@ -257,6 +257,24 @@ public class StackProperties {
     public static final String TA = "com.red5pro.ice.TA_PACE_TIMER";
 
     /**
+     * Enables ICE-LITE mode for this agent.
+     * <p>
+     * ICE-LITE is a simplified ICE implementation defined in RFC 8445 Section 2.5.
+     * When enabled, the agent:
+     * <ul>
+     *   <li>MUST always be in the controlled role (never controlling)</li>
+     *   <li>Only gathers host candidates (no STUN/TURN server-reflexive or relayed candidates)</li>
+     *   <li>Does not initiate connectivity checks (only responds to incoming checks)</li>
+     *   <li>Accepts nominations from the full ICE (controlling) agent</li>
+     * </ul>
+     * <p>
+     * ICE-LITE is suitable for servers with public IP addresses that don't need NAT traversal.
+     * <p>
+     * Default value: false (full ICE implementation)
+     */
+    public static final String ICE_LITE = "com.red5pro.ice.ICE_LITE";
+
+    /**
      * Returns the String value of the specified property (minus all
      * encompassing whitespaces)and null in case no property value was mapped
      * against the specified propertyName, or in case the returned property

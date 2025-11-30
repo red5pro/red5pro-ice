@@ -247,6 +247,19 @@ public class Agent {
     private boolean trickle;
 
     /**
+     * Determines whether this agent operates in ICE-LITE mode (RFC 8445 Section 2.5).
+     * <p>
+     * ICE-LITE agents:
+     * <ul>
+     *   <li>MUST always be in the controlled role</li>
+     *   <li>Only gather host candidates (no STUN/TURN)</li>
+     *   <li>Do not initiate connectivity checks (only respond)</li>
+     *   <li>Accept nominations from the full ICE controlling agent</li>
+     * </ul>
+     */
+    private boolean iceLite;
+
+    /**
      * Indicates that ICE will be shutdown.
      */
     private volatile boolean shutdown;
@@ -1348,11 +1361,20 @@ public class Agent {
 
     /**
      * Specifies whether this agent has the controlling role in an ICE exchange.
+     * <p>
+     * Note: ICE-LITE agents MUST always be in the controlled role per RFC 8445.
+     * If this agent is in ICE-LITE mode and isControlling is true, the request
+     * will be ignored and a warning will be logged.
      *
      * @param isControlling true if this is to be the controlling Agent and false otherwise
      */
     public void setControlling(boolean isControlling) {
         logger.debug("setControlling: {} from current setting: {}", isControlling, this.isControlling);
+        // ICE-LITE agents MUST always be controlled per RFC 8445 Section 2.5
+        if (iceLite && isControlling) {
+            logger.warn("ICE-LITE agents cannot be controlling - ignoring setControlling(true)");
+            return;
+        }
         if (this.isControlling != isControlling) {
             logger.debug("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling,
                     isControlling);
@@ -2290,6 +2312,49 @@ public class Agent {
      */
     public void setTrickling(boolean trickle) {
         this.trickle = trickle;
+    }
+
+    /**
+     * Indicates whether this agent is operating in ICE-LITE mode.
+     * <p>
+     * ICE-LITE is a simplified ICE implementation defined in RFC 8445 Section 2.5.
+     * When enabled:
+     * <ul>
+     *   <li>The agent MUST always be in the controlled role</li>
+     *   <li>Only host candidates are gathered (no STUN/TURN)</li>
+     *   <li>No outgoing connectivity checks are initiated (only responses)</li>
+     *   <li>Nominations are accepted from the full ICE (controlling) agent</li>
+     * </ul>
+     *
+     * @return true if this agent is in ICE-LITE mode, false for full ICE
+     */
+    public boolean isIceLite() {
+        return iceLite;
+    }
+
+    /**
+     * Sets this agent to operate in ICE-LITE mode.
+     * <p>
+     * ICE-LITE is a simplified ICE implementation defined in RFC 8445 Section 2.5.
+     * When enabled:
+     * <ul>
+     *   <li>The agent MUST always be in the controlled role (setControlling(false) is called)</li>
+     *   <li>Only host candidates should be gathered (no STUN/TURN)</li>
+     *   <li>No outgoing connectivity checks are initiated (only responses)</li>
+     *   <li>Nominations are accepted from the full ICE (controlling) agent</li>
+     * </ul>
+     * <p>
+     * This setting should be configured before starting ICE processing.
+     *
+     * @param iceLite true to enable ICE-LITE mode, false for full ICE
+     */
+    public void setIceLite(boolean iceLite) {
+        this.iceLite = iceLite;
+        if (iceLite) {
+            // ICE-LITE agents MUST always be in the controlled role per RFC 8445
+            logger.info("ICE-LITE mode enabled - agent will operate in controlled role only");
+            setControlling(false);
+        }
     }
 
     /**

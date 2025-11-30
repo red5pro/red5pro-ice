@@ -79,8 +79,14 @@ public class DefaultNominator implements PropertyChangeListener {
         }
         // RFC 8445 Section 8.1.1: Only the controlling agent nominates pairs.
         // Controlled agents MUST NOT nominate, regardless of trickle mode.
+        // Note: ICE-LITE agents are always in the controlled role (per RFC 8445 Section 2.5)
+        // and therefore never nominate - they accept nominations from full ICE controlling agents.
         if (!parentAgent.isControlling()) {
-            logger.debug("Non-controlling (controlled) agent cannot nominate per RFC 8445");
+            if (parentAgent.isIceLite()) {
+                logger.trace("ICE-LITE agent (always controlled) accepting nominations from peer");
+            } else {
+                logger.debug("Non-controlling (controlled) agent cannot nominate per RFC 8445");
+            }
             return;
         }
         if (ev.getSource() instanceof CandidatePair) {
