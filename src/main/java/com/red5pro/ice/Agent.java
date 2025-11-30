@@ -1856,29 +1856,26 @@ public class Agent {
     }
 
     /**
-     * Calculates the value of the Ta pace timer according to the number and type of {@link IceMediaStream}s this agent will be using.
+     * Calculates the value of the Ta pace timer for STUN transactions.
      * <p>
-     * During the gathering phase of ICE (Section 4.1.1) and while ICE is performing connectivity checks (Section 7), an agent sends STUN and
-     * TURN transactions.  These transactions are paced at a rate of one every Ta milliseconds.
+     * During the gathering phase of ICE and while ICE is performing connectivity checks,
+     * an agent sends STUN and TURN transactions paced at a rate of one every Ta milliseconds.
      * <p>
-     * As per RFC 5245, the value of Ta should be configurable so if someone has set a value of their own, we return that value rather than
-     * calculating a new one.
+     * RFC 8445 Section 14.2 specifies:
+     * "ICE agents SHOULD use a default Ta value, 50 ms, but MAY use another value based on
+     * the characteristics of the associated data."
+     * <p>
+     * The value of Ta is configurable via {@link StackProperties#TA} or {@link #setTa(long)}.
      *
-     * @return the value of the Ta pace timer according to the number and type of {@link IceMediaStream}s this agent will be using or
-     * a pre-configured value if the application has set one
+     * @return the value of the Ta pace timer, default is 50ms per RFC 8445
      */
     protected long calculateTa() {
-        //if application specified a value - use it. other wise return ....
-        // eeeer ... a "dynamically" calculated one ;)
+        // If application specified a value, use it; otherwise return the RFC 8445 default
         if (taValue != -1) {
             return taValue;
         }
-        /*
-         * RFC 5245 says that Ta is: Ta_i = (stun_packet_size / rtp_packet_size) * rtp_ptime 1 Ta = MAX (20ms, ------------------- ) k ---- \ 1 > ------ / Ta_i ---- i=1 In this
-         * implementation we assume equal values of stun_packet_size and rtp_packet_size. rtp_ptime is also assumed to be 20ms. One day we should probably let the application
-         * modify them. Until then however the above formula would always be equal to. 1 Ta = MAX (20ms, ------- ) k --- 20 which gives us Ta = MAX (20ms, 20/k) which is always 20.
-         */
-        return 20;
+        // RFC 8445 Section 14.2: Default Ta value is 50ms
+        return 50;
     }
 
     /**
