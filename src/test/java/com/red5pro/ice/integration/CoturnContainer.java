@@ -80,6 +80,12 @@ public class CoturnContainer {
         // First, clean up any existing container with the same name
         cleanup();
 
+        // Pull the image first to avoid mixing pull output with container ID
+        if (!pullImage()) {
+            logger.error("Failed to pull coturn image");
+            return false;
+        }
+
         logger.info("Starting coturn container...");
 
         // Build the docker run command
@@ -100,23 +106,35 @@ public class CoturnContainer {
         pb.redirectErrorStream(true);
         Process process = pb.start();
 
-        // Read the container ID
+        // Read all output - container ID will be the last line
+        StringBuilder output = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            containerId = reader.readLine();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+                containerId = line; // Keep updating - last non-empty line is the container ID
+            }
         }
 
         boolean completed = process.waitFor(30, TimeUnit.SECONDS);
         if (!completed || process.exitValue() != 0) {
-            logger.error("Failed to start coturn container");
+            logger.error("Failed to start coturn container. Output: {}", output);
             return false;
         }
 
         if (containerId == null || containerId.isEmpty()) {
-            logger.error("No container ID returned");
+            logger.error("No container ID returned. Output: {}", output);
             return false;
         }
 
-        logger.info("Coturn container started with ID: {}", containerId.substring(0, 12));
+        // Container ID should be 64 hex chars, take first 12 for display
+        containerId = containerId.trim();
+        if (containerId.length() >= 12) {
+            logger.info("Coturn container started with ID: {}", containerId.substring(0, 12));
+        } else {
+            logger.error("Invalid container ID returned: {}", containerId);
+            return false;
+        }
 
         // Wait for the container to be ready
         running = waitForReady(10);
@@ -124,10 +142,53 @@ public class CoturnContainer {
             logger.info("Coturn container is ready and accepting connections");
         } else {
             logger.error("Coturn container failed to become ready");
+            logger.error("Container logs:\n{}", getLogs());
             stop();
         }
 
         return running;
+    }
+
+    /**
+     * Pulls the coturn Docker image if not already present.
+     *
+     * @return true if the image is available
+     */
+    private boolean pullImage() {
+        logger.info("Pulling coturn image: {}", COTURN_IMAGE);
+        try {
+            ProcessBuilder pb = new ProcessBuilder("docker", "pull", COTURN_IMAGE);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+
+            // Log pull progress
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    logger.debug("docker pull: {}", line);
+                }
+            }
+
+            // Allow up to 2 minutes for image pull
+            boolean completed = process.waitFor(120, TimeUnit.SECONDS);
+            if (!completed) {
+                logger.error("Timeout waiting for docker pull");
+                process.destroyForcibly();
+                return false;
+            }
+
+            if (process.exitValue() != 0) {
+                logger.error("docker pull failed with exit code: {}", process.exitValue());
+                return false;
+            }
+
+            logger.info("Coturn image ready");
+            return true;
+
+        } catch (Exception e) {
+            logger.error("Error pulling image: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**
