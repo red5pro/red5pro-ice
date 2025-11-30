@@ -39,7 +39,11 @@ class ConnectivityCheckClient implements ResponseCollector {
 
     private static final Logger logger = LoggerFactory.getLogger(ConnectivityCheckClient.class);
 
-    // XXX(paul) base timeout for processes within; using STUN timeout for the base to-start.
+    /**
+     * Maximum time (in ms) the PaceMaker will continue starting new connectivity checks.
+     * Individual STUN transactions continue their retransmission schedules independently.
+     * This is NOT a per-transaction timeout - it's the window for initiating checks.
+     */
     private static long checklistTimeout = 3000L;
 
     /**
@@ -662,7 +666,9 @@ class ConnectivityCheckClient implements ResponseCollector {
                         }
                         // Since we suspect that it is possible to startCheckForPair, processSuccessResponse and only then setStateInProgress, no synchronized
                         // since the CandidatePair#setState method is atomically enabled.
-                        TransactionID transactionID = startCheckForPair(pairToCheck, 50, 500, 2); //100, 1600, 6
+                        // RFC 5389 Section 7.2.1: RTO >= 500ms, Rc = 7 (6 retransmissions), double RTO each time up to max
+                        // Using 500ms initial, 1600ms max, 6 retransmissions for RFC compliance
+                        TransactionID transactionID = startCheckForPair(pairToCheck, 500, 1600, 6);
                         if (transactionID == null) {
                             logger.warn("Pair failed: {}", pairToCheck.toShortString());
                             pairToCheck.setStateFailed();
@@ -677,7 +683,8 @@ class ConnectivityCheckClient implements ResponseCollector {
                     // message isn't all that important generally
                     logger.trace("PaceMaker got interrupted", e);
                 }
-                // maximum spec'd time for STUN == 3s
+                // checklistTimeout limits how long we continue starting new checks (individual transactions
+                // continue their retransmission schedules independently after being started)
             } while ((System.currentTimeMillis() - checkStartTime) < checklistTimeout && parentAgent.isActive()); // exit when the agent is no longer active
             //logger.trace("exit");
         }

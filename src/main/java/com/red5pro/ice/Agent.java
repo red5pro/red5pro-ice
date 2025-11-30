@@ -1897,9 +1897,11 @@ public class Agent {
      * for the STUN address harvesting).
      * <p>
      * RFC 8445 Section 14.3: For connectivity checks, RTO SHOULD be configurable and SHOULD have a default of:
-     * RTO = MAX(100ms, Ta * N * (Num-Waiting + Num-In-Progress))
+     * RTO = MAX(500ms, Ta * N * (Num-Waiting + Num-In-Progress))
      * where Num-Waiting is the number of checks in the Waiting state, Num-In-Progress is the number of checks
      * in the In-Progress state, and N is the number of checks to be performed.
+     * <p>
+     * RFC 5389 Section 7.2.1 also specifies that RTO SHOULD be greater than 500ms.
      *
      * @return the value of the retransmission timer to use in STUN connectivity check transactions
      */
@@ -1929,8 +1931,9 @@ public class Agent {
         if (activeChecks == 0) {
             activeChecks = 1;
         }
-        // RFC formula: RTO = MAX(100ms, Ta * N * (Num-Waiting + Num-In-Progress))
-        return Math.max(100, ta * n * activeChecks);
+        // RFC 8445 Section 14.3: RTO = MAX(500ms, Ta * N * (Num-Waiting + Num-In-Progress))
+        // RFC 5389 Section 7.2.1: RTO SHOULD be greater than 500ms
+        return Math.max(500, ta * n * activeChecks);
     }
 
     /**
