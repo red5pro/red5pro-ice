@@ -115,7 +115,7 @@ public class ChannelData {
      *
      * @return a non padded binary representation of this message
      * @throws StunException if the channel number is invalid
-     * @Deprecated
+     * @deprecated use {@link #encode(boolean)} instead
      */
     @Deprecated
     public byte[] encode() throws StunException {

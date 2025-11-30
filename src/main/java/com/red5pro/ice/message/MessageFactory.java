@@ -3,6 +3,12 @@ package com.red5pro.ice.message;
 
 import java.io.UnsupportedEncodingException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.red5pro.ice.StunException;
+import com.red5pro.ice.Transport;
+import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.attribute.Attribute;
 import com.red5pro.ice.attribute.AttributeFactory;
 import com.red5pro.ice.attribute.ChangedAddressAttribute;
@@ -26,12 +32,6 @@ import com.red5pro.ice.attribute.UsernameAttribute;
 import com.red5pro.ice.attribute.XorMappedAddressAttribute;
 import com.red5pro.ice.attribute.XorPeerAddressAttribute;
 import com.red5pro.ice.attribute.XorRelayedAddressAttribute;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.red5pro.ice.StunException;
-import com.red5pro.ice.Transport;
-import com.red5pro.ice.TransportAddress;
 
 /**
  * This class provides factory methods to allow an application to create STUN and TURN messages from a particular implementation.
@@ -154,6 +154,11 @@ public class MessageFactory {
     public static Response createBindingResponse(Request request, TransportAddress mappedAddress) throws IllegalArgumentException {
         Response bindingResponse = new Response();
         bindingResponse.setMessageType(Message.BINDING_SUCCESS_RESPONSE);
+        try {
+            bindingResponse.setTransactionID(request.transactionID);
+        } catch (StunException e) {
+            logger.warn("Failed to set transaction ID", e);
+        }
         // xor mapped address
         XorMappedAddressAttribute xorMappedAddressAttribute = AttributeFactory.createXorMappedAddressAttribute(mappedAddress,
                 request.getTransactionID());

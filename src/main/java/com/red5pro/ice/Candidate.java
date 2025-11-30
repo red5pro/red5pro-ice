@@ -370,17 +370,18 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
         //           (2^0)*(256 - component ID)
         long calculatedPriority = (long) (getTypePreference(candidateType) << 24) + (long) (getLocalPreference() << 8)
                 + (long) (256 - getParentComponent().getComponentID());
-        // determine whether or not the transport should incur a modification to the priority
+        // Non-standard Red5 Pro extension: apply transport-based priority modifiers.
+        // WARNING: This is NOT part of RFC 8445 and may cause interoperability issues.
+        // The modifiers default to 0, which maintains RFC-compliant behavior.
+        // See StackProperties.UDP_PRIORITY_MODIFIER and TCP_PRIORITY_MODIFIER for details.
         switch (getTransport()) {
             case UDP:
-                // UDP transport should have a priority modifier of x
                 int udpPriorityModifier = Agent.getUdpPriorityModifier();
                 if (udpPriorityModifier != 0) {
                     calculatedPriority += udpPriorityModifier;
                 }
                 break;
             case TCP:
-                // TCP transport should have a priority modifier of x
                 int tcpPriorityModifier = Agent.getTcpPriorityModifier();
                 if (tcpPriorityModifier != 0) {
                     calculatedPriority += tcpPriorityModifier;
@@ -403,23 +404,29 @@ public abstract class Candidate<T extends Candidate<?>> implements Comparable<T>
      */
     private static int getTypePreference(CandidateType candidateType) {
         /*
-         * https://tools.ietf.org/html/rfc5245#page-25 It is RECOMMENDED that default candidates be chosen based on the likelihood of those candidates to work with the peer that is
-         * being contacted. It is RECOMMENDED that the default candidates are the relayed candidates (if relayed candidates are available), server reflexive candidates (if server
-         * reflexive candidates are available), and finally host candidates.
+         * RFC 8445 Section 5.1.2.1: The type preference MUST be an integer from 0 to 126 inclusive.
+         * The RECOMMENDED values are:
+         * - Host candidates: 126
+         * - Peer-reflexive candidates: 110
+         * - Server-reflexive candidates: 100
+         * - Relayed candidates: 0
+         *
+         * Note: The RFC recommends relayed as "default" candidates for fallback connectivity,
+         * but they should have the LOWEST priority so that direct paths are preferred.
          */
         int typePreference;
         switch (candidateType) {
-            case SERVER_REFLEXIVE_CANDIDATE:
-                typePreference = 100;
+            case HOST_CANDIDATE:
+                typePreference = MAX_TYPE_PREFERENCE; // 126 - highest priority for direct connections
                 break;
             case PEER_REFLEXIVE_CANDIDATE:
                 typePreference = 110;
                 break;
-            case RELAYED_CANDIDATE:
-                typePreference = MAX_TYPE_PREFERENCE; // 126
+            case SERVER_REFLEXIVE_CANDIDATE:
+                typePreference = 100;
                 break;
-            case HOST_CANDIDATE:
-                typePreference = 40;
+            case RELAYED_CANDIDATE:
+                typePreference = MIN_TYPE_PREFERENCE; // 0 - lowest priority, use only as fallback
                 break;
             default:
                 typePreference = MIN_TYPE_PREFERENCE;

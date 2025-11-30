@@ -71,8 +71,8 @@ public class IceUdpTransport extends IceTransport {
         }
 
         @Override
-        public IoSession recycle(SocketAddress remoteAddress) {
-            logger.trace("Recycle remote address: {}", remoteAddress);
+        public IoSession recycle(SocketAddress remoteAddress, int port) {
+            logger.trace("Recycle remote address: {} port: {}", remoteAddress, port);
             // recycler is locked by NioDatagramAcceptor.newSessionWithoutLock so we'll attempt to prevent deadlocking
             // by using our concurrent map from outside the recycler itself
             return getSessionByRemote(remoteAddress);
@@ -244,7 +244,6 @@ public class IceUdpTransport extends IceTransport {
             if (isTrace) {
                 logger.trace("Acceptor sizes - send: {} recv: {}", sessionConf.getSendBufferSize(), sessionConf.getReadBufferSize());
             }
-
         }
     }
 
@@ -284,7 +283,6 @@ public class IceUdpTransport extends IceTransport {
     /** {@inheritDoc} */
     public boolean registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
         logger.debug("registerStackAndSocket - stunStack: {} iceSocket: {}", stunStack, iceSocket);
-
         // Setting ID here because our 'IoServiceListener' session-created may be called AFTER ice handler is called to send resopnse.
         // Cant find any reason we should not set id here.
         iceSocket.setTransportId(id);

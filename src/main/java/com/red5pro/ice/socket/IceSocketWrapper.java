@@ -184,9 +184,9 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         this.transportId = localAgent.getStunStack().getSessionAcceptorStrategy().toString();
         transportAddress = address;
         creationTime = System.currentTimeMillis();
-        logger.warn("my uuid {}", id);
+        logger.debug("my uuid {}", id);
         iceSockets.put(id, this);
-        logger.warn("iceSockets {}", iceSockets.size());
+        logger.debug("Current iceSocket count {}", iceSockets.size());
         localAgent.addSocketUUID(id);
     }
 
@@ -247,7 +247,8 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
 
     /**
      * Closes the connected session as well as the acceptor, if its non-shared.
-     * @throws Exception
+     *
+     * @return true if closed successfully
      */
     public boolean close() {
         return close(getSession());
@@ -898,10 +899,18 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
         return id;
     }
 
+    /**
+     * Sets the binding id on this socket. Called by IceTransport when this socket binds to an address. IceHandler may set this to null when the binding is released.
+     * @param rsvp
+     */
     public void setRsvp(Long rsvp) {
         this.rsvp = rsvp;
     }
 
+    /**
+     * Returns the binding id or null. When this socket binds to an address, the rsvp value is set. The IceHandler may set it to null when it is un-bound.
+     * @return
+     */
     public Long getRsvp() {
         return rsvp;
     }
@@ -921,7 +930,9 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
                 wrapper.logger.debug("Removed. {},  time alive: {}s seconds", wrapper.transportAddress, (wrapper.getTimeAlive()) / 1000.0);
             }
         });
+    }
 
-
+    public static int getSocketCount() {
+        return iceSockets.size();
     }
 }

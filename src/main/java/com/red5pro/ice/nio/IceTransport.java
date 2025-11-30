@@ -78,7 +78,9 @@ public abstract class IceTransport {
             Runtime.getRuntime().availableProcessors() * 2);
 
     /**
-     * @param ioThreads the ioThreads to set
+     * Sets the number of IO threads for the processor pool.
+     *
+     * @param count the number of IO threads to set
      */
     public static void setIoThreads(int count) {
         ioThreads = count;
@@ -196,7 +198,6 @@ public abstract class IceTransport {
      * @return IceTransport
      */
     public static IceTransport getInstance(Transport type, String id) {
-
         if (type == Transport.TCP) {
             return IceTcpTransport.getInstance(id);
         } else if (type == null) {
@@ -216,6 +217,7 @@ public abstract class IceTransport {
     public boolean isShared() {
         return acceptorStrategy == AcceptorStrategy.Shared;
     }
+
 //    public static List<IceTransport> getTransportsForAgent(Transport type, String agentId) {
 //        List<IceTransport> ret = new ArrayList<>();
 //        transports.forEach((id, t) -> {
@@ -374,9 +376,10 @@ public abstract class IceTransport {
     }
 
     /**
+     * Stops the transport and releases the acceptor.
      *
-     * @return true if acceptor is released.
-     * @throws Exception,
+     * @return true if acceptor is released
+     * @throws Exception if stopping fails
      */
     public boolean stop() throws Exception {
         //Can only be called once.
@@ -662,12 +665,13 @@ public abstract class IceTransport {
         return ret.isPresent();
     };
 
-    /** Check if a bind reservation id is still present.
-    *
-    * @param port
-    * @return true if already bound and false otherwise
+    /**
+     * Check if a specific binding is still present.
+     * @param rsvp
+     * @param port
+     * @return
     */
-    public static boolean didBind(Long rsvp, int port) {
+    public static boolean isStillBound(Long rsvp, int port) {
         if (rsvp != null) {
             Predicate<ABPEntry> pred = entry -> entry.port == port && entry.hasRsvp(rsvp);
             Optional<ABPEntry> ret = allBoundPorts.stream().filter(pred).findFirst();

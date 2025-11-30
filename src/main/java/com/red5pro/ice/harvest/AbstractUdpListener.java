@@ -29,8 +29,8 @@ import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 
 /**
- * A class which holds a {@link DatagramSocket} and runs a thread ({@link #thread}) which perpetually reads from it.
- *
+ * A class which holds a {@link DatagramSocket} and runs a thread which perpetually reads from it.
+ * <p>
  * When a datagram from an unknown source is received, it is parsed as a STUN Binding Request, and if it has a USERNAME attribute, its ufrag is extracted.
  * At this point, an implementing class may choose to create a mapping for the remote address of the datagram, which will be used for further packets
  * from this address.
@@ -58,7 +58,7 @@ public abstract class AbstractUdpListener {
 
     /**
      * The map which keeps the known remote addresses and their associated candidateSockets.
-     * {@link #thread} is the only thread which adds new entries, while other threads remove entries when candidates are freed.
+     * The listener thread is the only thread which adds new entries, while other threads remove entries when candidates are freed.
      */
     protected final Map<SocketAddress, IceUdpSocketWrapper> sockets = new ConcurrentHashMap<>();
 
@@ -111,9 +111,9 @@ public abstract class AbstractUdpListener {
     /**
      * Looks for a registered ICE candidate, which has a local ufrag of {@code ufrag}, and if one is found it accepts the new socket and adds it to the candidate.
      *
-     * @param iceSocket
-     * @param remoteAddress
-     * @param ufrag
+     * @param iceSocket the ICE socket wrapper
+     * @param remoteAddress the remote address of the incoming request
+     * @param ufrag the username fragment from the STUN request
      */
     protected abstract void updateCandidate(IceSocketWrapper iceSocket, InetSocketAddress remoteAddress, String ufrag);
 

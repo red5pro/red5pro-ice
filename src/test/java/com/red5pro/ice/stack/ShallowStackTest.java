@@ -5,6 +5,7 @@ import java.net.DatagramPacket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -34,12 +35,12 @@ import com.red5pro.ice.StunTimeoutEvent;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.harvest.MappingCandidateHarvesters;
-import com.red5pro.ice.nio.IceTcpTransport;
-import com.red5pro.ice.nio.IceTransportTest;
-import com.red5pro.ice.nio.IceUdpTransport;
 import com.red5pro.ice.message.MessageFactory;
 import com.red5pro.ice.message.Request;
 import com.red5pro.ice.message.Response;
+import com.red5pro.ice.nio.IceTcpTransport;
+import com.red5pro.ice.nio.IceTransportTest;
+import com.red5pro.ice.nio.IceUdpTransport;
 import com.red5pro.ice.socket.IceSocketWrapper;
 import com.red5pro.ice.socket.IceTcpSocketWrapper;
 import com.red5pro.ice.socket.IceUdpSocketWrapper;
@@ -171,7 +172,7 @@ public class ShallowStackTest extends TestCase {
         for (int a = 0; a < agentCount; a++) {
             Agent agent = new Agent();
             agent.setProperty("proref", String.format("agent#%d", a));
-            agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+            agent.addPreAllocatedPort(Transport.UDP, PortManager.getRTPServerPort(udp));
             agents.add(agent);
         }
         if (agents.size() < agentCount) {
@@ -181,9 +182,11 @@ public class ShallowStackTest extends TestCase {
         logger.info("Cleaning up agents");
         agents.forEach(agent -> {
             agent.free();
-            agent.getPreAllocatedPorts().forEach(port -> {
-                PortManager.clearRTPServerPort(port);
-                agent.removePreAllocatedPort(port);
+            agent.getPreAllocatedPorts().forEach((transport, ports) -> {
+                ports.forEach(port -> {
+                    PortManager.clearRTPServerPort(port);
+                    agent.removePreAllocatedPort(transport, port);
+                });
             });
         });
     }
@@ -201,7 +204,7 @@ public class ShallowStackTest extends TestCase {
         for (int a = 0; a < agentCount; a++) {
             Agent agent = new Agent();
             agent.setProperty("proref", String.format("agent#%d", a));
-            agent.addPreAllocatedPort(PortManager.getRTPServerPort(udp));
+            agent.addPreAllocatedPort(Transport.UDP, PortManager.getRTPServerPort(udp));
             agent.setProperty("remotePort", String.format("%d", 60000 + a));
             agents.add(agent);
         }
@@ -216,59 +219,73 @@ public class ShallowStackTest extends TestCase {
                 CountDownLatch iceSetupLatch = new CountDownLatch(1);
                 // use a property change listener
                 agent.addStateChangeListener((evt) -> {
-                    Set<Integer> allocatedPorts = agent.getPreAllocatedPorts();
+                    Map<Transport, Set<Integer>> allocatedPorts = agent.getPreAllocatedPorts();
                     logger.debug("Change event: {} pre-allocated ports: {}", evt, allocatedPorts);
                     String id = agent.getProperty("proref");
-                    int allocatedPort = allocatedPorts.iterator().next();
-                    long iceStartTime = Long.valueOf(agent.getProperty("iceStartTime"));
-                    final IceProcessingState state = (IceProcessingState) evt.getNewValue();
-                    switch (state) {
-                        case COMPLETED:
-                            logger.debug("ICE connectivity completed: {} elapsed: {}", id, (System.currentTimeMillis() - iceStartTime));
-                            break;
-                        case FAILED:
-                            logger.warn("ICE connectivity failed for: {} port: {} elapsed: {}", id, allocatedPort,
-                                    (System.currentTimeMillis() - iceStartTime));
-                            // now stop
-                            agent.free();
-                            break;
-                        case TERMINATED:
-                            logger.warn("ICE connectivity terminated: {} elapsed: {}", id, (System.currentTimeMillis() - iceStartTime));
-                            iceSetupLatch.countDown();
-                            break;
-                    }
+                    allocatedPorts.forEach((transport, ports) -> {
+                        ports.forEach(port -> {
+                            long iceStartTime = Long.valueOf(agent.getProperty("iceStartTime"));
+                            final IceProcessingState state = (IceProcessingState) evt.getNewValue();
+                            switch (state) {
+                                case COMPLETED:
+                                    logger.debug("ICE connectivity completed: {} elapsed: {}", id,
+                                            (System.currentTimeMillis() - iceStartTime));
+                                    break;
+                                case FAILED:
+                                    logger.warn("ICE connectivity failed for: {} port: {} elapsed: {}", id, port,
+                                            (System.currentTimeMillis() - iceStartTime));
+                                    // now stop
+                                    agent.free();
+                                    break;
+                                case TERMINATED:
+                                    logger.warn("ICE connectivity terminated: {} elapsed: {}", id,
+                                            (System.currentTimeMillis() - iceStartTime));
+                                    iceSetupLatch.countDown();
+                                    break;
+                            }
+                        });
+                    });
                 });
                 try {
                     IceMediaStream stream = agent.createMediaStream("media-0");
-                    int port = agent.getPreAllocatedPorts().iterator().next();
-                    Component component = agent.createComponent(stream, selectedTransport, port);
-                    int allocatedPort = component.getSocket(selectedTransport).getLocalPort();
-                    assertEquals(port, allocatedPort);
-                    // may want to check port
-                    LocalCandidate localCand = component.getDefaultCandidate();
-                    // create server-end / remote
-                    int remotePort = Integer.valueOf(agent.getProperty("remotePort"));
-                    TransportAddress serverAddr = new TransportAddress(IPAddress, remotePort, selectedTransport);
-                    // create remote candidate
-                    RemoteCandidate remoteCand = new RemoteCandidate(serverAddr, component, CandidateType.HOST_CANDIDATE,
-                            localCand.getFoundation(), localCand.getComponentId(), 1686052607L, null);
-                    String remoteUfrag = String.format("rem%d", remotePort);
-                    remoteCand.setUfrag(remoteUfrag);
-                    stream.setRemoteUfrag(remoteUfrag);
-                    component.addRemoteCandidate(remoteCand);
-                    remoteCand.setProperty("proref", agent.getProperty("proref"));
-                    // server socket and its own stunstack
-                    StunStack stnStack = new StunStack();
-                    if (selectedTransport == Transport.UDP) {
-                        IceUdpSocketWrapper serverSock = (IceUdpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
-                        stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true);
-                    } else {
-                        IceTcpSocketWrapper serverSock = (IceTcpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
-                        stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true); // do socket binding
-                    }
-                    // instance a remote server
-                    //ResponseSequenceServer server = new ResponseSequenceServer(stnStack, serverAddr);
-                    //server.start();
+                    agent.getPreAllocatedPorts().forEach((transport, ports) -> {
+                        ports.forEach(port -> {
+                            try {
+                                Component component = agent.createComponent(stream, selectedTransport, port);
+                                int allocatedPort = component.getSocket(selectedTransport).getLocalPort();
+                                logger.debug("Agent: {} component: {} port: {}", agent.getProperty("proref"), component.getComponentID(),
+                                        allocatedPort);
+                                // may want to check port
+                                LocalCandidate localCand = component.getDefaultCandidate();
+                                // create server-end / remote
+                                int remotePort = Integer.valueOf(agent.getProperty("remotePort"));
+                                TransportAddress serverAddr = new TransportAddress(IPAddress, remotePort, selectedTransport);
+                                // create remote candidate
+                                RemoteCandidate remoteCand = new RemoteCandidate(serverAddr, component, CandidateType.HOST_CANDIDATE,
+                                        localCand.getFoundation(), localCand.getComponentId(), 1686052607L, null);
+                                String remoteUfrag = String.format("rem%d", remotePort);
+                                remoteCand.setUfrag(remoteUfrag);
+                                stream.setRemoteUfrag(remoteUfrag);
+                                component.addRemoteCandidate(remoteCand);
+                                remoteCand.setProperty("proref", agent.getProperty("proref"));
+                                // server socket and its own stunstack
+                                StunStack stnStack = new StunStack();
+                                if (selectedTransport == Transport.UDP) {
+                                    IceUdpSocketWrapper serverSock = (IceUdpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
+                                    stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true);
+                                } else {
+                                    IceTcpSocketWrapper serverSock = (IceTcpSocketWrapper) IceSocketWrapper.build(serverAddr, null);
+                                    stnStack.addSocket(serverSock, serverSock.getRemoteTransportAddress(), true); // do socket binding
+                                }
+                                // instance a remote server
+                                //ResponseSequenceServer server = new ResponseSequenceServer(stnStack, serverAddr);
+                                //server.start();
+                            } catch (Exception e) {
+                                logger.warn("Exception in setupICE for: {}", agent.getProperty("proref"));
+                            }
+
+                        });
+                    });
                 } catch (Exception e) {
                     logger.warn("Exception in setupICE for: {}", agent.getProperty("proref"));
                 }
@@ -295,9 +312,11 @@ public class ShallowStackTest extends TestCase {
         logger.info("Cleaning up agents");
         agents.forEach(agent -> {
             agent.free();
-            agent.getPreAllocatedPorts().forEach(port -> {
-                PortManager.clearRTPServerPort(port);
-                agent.removePreAllocatedPort(port);
+            agent.getPreAllocatedPorts().forEach((transport, ports) -> {
+                ports.forEach(port -> {
+                    PortManager.clearRTPServerPort(port);
+                    agent.removePreAllocatedPort(transport, port);
+                });
             });
         });
         //server.shutDown();

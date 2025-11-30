@@ -50,8 +50,7 @@ import com.red5pro.ice.TransportAddress;
  * (and its associated TurnCandidateHarvester, of course). RelayedCandidateConnection is associated with a successful Allocation on a TURN server
  * and implements sends and receives through it using TURN messages to and from that TURN server.
  *
- * {@link https://tools.ietf.org/html/rfc5766}
- *
+ * @see <a href="https://tools.ietf.org/html/rfc5766">RFC 5766 - TURN</a>
  * @author Lyubomir Marinov
  * @author Paul Gregoire
  */

@@ -18,16 +18,17 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.Collectors;
 
-import com.red5pro.ice.socket.IceSocketWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.socket.IceSocketWrapper;
+
 /**
  * A component is a piece of a media stream requiring a single transport address; a media stream may require multiple components, each of which has
- * to work for the media stream as a whole to work. For media streams based on RTP, there are two components per media stream (1 RTP & 1 RTCP).
- * <p>
+ * to work for the media stream as a whole to work. For media streams based on RTP, there are two components per media stream (1 RTP and 1 RTCP).
  *
  * @author Emil Ivov
  * @author Sebastien Vincent
@@ -66,6 +67,7 @@ public class Component implements PropertyChangeListener {
             } else if (cand1.getDefaultPreference() > cand2.getDefaultPreference()) {
                 result += 1;
             }
+            /*
             // add network-id and network-cost to the mix
             if (cand1.getNetworkId() < cand2.getNetworkId()) {
                 result -= 1;
@@ -78,6 +80,7 @@ public class Component implements PropertyChangeListener {
                     result += 1;
                 }
             }
+            */
             return result;
         }
 
@@ -100,7 +103,7 @@ public class Component implements PropertyChangeListener {
     /**
      * The list locally gathered candidates for this media stream.
      */
-    private final Queue<LocalCandidate> localCandidates = new PriorityQueue<>(3, candidateComparator);
+    private final Set<LocalCandidate> localCandidates = new ConcurrentSkipListSet<>(candidateComparator);
 
     /**
      * The list of candidates that the peer agent sent for this stream.
@@ -554,7 +557,7 @@ public class Component implements PropertyChangeListener {
      * Returns the local LocalCandidate with the specified address if it belongs to this component or null
      * if it doesn't. If {@code base} is also specified, tries to find a candidate whose base matches {@code base}.
      *
-     * @param address the {@link TransportAddress} we are looking for
+     * @param localAddress the {@link TransportAddress} we are looking for
      * @param base an optional base to match
      *
      * @return  the local LocalCandidate with the specified address if it belongs to this component or null
@@ -633,8 +636,10 @@ public class Component implements PropertyChangeListener {
     }
 
     /**
-     * @return the internal merging socket for this component. This is for ice4j use only.
-     * For reading/writing application data, use {@link #getSocket()}.
+     * Returns the internal merging socket for this component. This is for ice4j use only.
+     * For reading/writing application data, use {@link #getSockets()}.
+     *
+     * @return the component socket
      */
     public ComponentSocket getComponentSocket() {
         return componentSocket;

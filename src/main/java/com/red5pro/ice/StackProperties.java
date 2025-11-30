@@ -139,26 +139,29 @@ public class StackProperties {
     public static final String ICE_SWEEPER_INTERVAL = "com.red5pro.ice.ICE_SWEEPER_INTERVAL";
 
     /**
-     * If a session is suspected of being abandoned, ICE_SWEEPER_TIMEOUT is the number of seconds before the sweeper will take action to free resources.
+     * If a session is suspected of being abandoned, ICE_SWEEPER_TIMEOUT is the number of seconds before the sweeper
+     * will take action to free resources.
      */
     public static final String ICE_SWEEPER_TIMEOUT = "com.red5pro.ice.ICE_SWEEPER_TIMEOUT";
 
-    /** 
-     * Besides sharedAcceptor property, acceptor strategy can inform stun stack how to manage acceptors per Transport type, TCP and UDP.
-     * Generally there will be one acceptor per transport type, TCP and UDP.
-     *  0 = one acceptor per socket
-     *  1 = one acceptor for each type (UDP,TCP) for each user-session
-     *  2 = one acceptor for each type(UDP,TCP) per application
-     * 
-     *  Mode 2 is the same as shared mode. If shared mode is activated, ACCEPTOR_STRATEGY will be overridden.
+    /**
+     * Besides sharedAcceptor property, acceptor strategy can inform stun stack how to manage acceptors per Transport
+     * type, TCP and UDP. The value can be 0, 1, or 2:
+     *
+     * 0 = one acceptor per socket
+     * 1 = one acceptor for each type(UDP,TCP) for each user-session
+     * 2 = one acceptor for each type(UDP,TCP) per application
+     *
+     * Mode 2 is the same as shared mode. If shared mode is activated, ACCEPTOR_STRATEGY will be overridden.
      */
     public static final String ACCEPTOR_STRATEGY = "com.red5pro.ice.ACCEPTOR_STRATEGY";
 
     /**
-     * THIS PROPERTY IS CURRENTLY UNUSED. IF YOU WANT TO SPEED UP NOMINATIONS THEN CONSIDER SPEEDING UP TRANSACTION FAILURE FOR THE TIME BEING.
-     * The maximum number of milliseconds that we should wait for a check list to complete before nominating one of its valid pairs (unless there are
-     * none in which case we may have to wait until one appears or the whole list fails). Default value is -1 which causes the nominator
-     * to wait until the check list completes or fails.
+     * THIS PROPERTY IS CURRENTLY UNUSED. IF YOU WANT TO SPEED UP NOMINATIONS THEN CONSIDER SPEEDING UP TRANSACTION
+     * FAILURE FOR THE TIME BEING.
+     * The maximum number of milliseconds that we should wait for a check list to complete before nominating one of its
+     * valid pairs (unless there are none in which case we may have to wait until one appears or the whole list fails).
+     * Default value is -1 which causes the nominator to wait until the check list completes or fails.
      */
     public static final String NOMINATION_TIMER = "com.red5pro.ice.NOMINATION_TIMER";
 
@@ -204,8 +207,48 @@ public class StackProperties {
      */
     public static final String HARVESTING_TIMEOUT = "com.red5pro.ice.harvest.HARVESTING_TIMEOUT";
 
+    /**
+     * Priority modifier applied to UDP transport candidates.
+     * <p>
+     * <b>WARNING: Non-Standard Extension</b>
+     * <p>
+     * This is a Red5 Pro extension and is NOT part of RFC 8445. The RFC specifies that candidate
+     * priority should be computed solely using the formula:
+     * <pre>
+     * priority = (2^24 * type_preference) + (2^8 * local_preference) + (256 - component_id)
+     * </pre>
+     * Adding transport-based modifiers may cause interoperability issues with strict RFC implementations.
+     * <p>
+     * Use cases for this modifier:
+     * <ul>
+     *   <li>Force preference for UDP over TCP in mixed environments</li>
+     *   <li>Work around network configurations that favor one transport</li>
+     * </ul>
+     * <p>
+     * Default value: 0 (no modification, RFC-compliant behavior)
+     */
     public static final String UDP_PRIORITY_MODIFIER = "UDP_PRIORITY_MODIFIER";
 
+    /**
+     * Priority modifier applied to TCP transport candidates.
+     * <p>
+     * <b>WARNING: Non-Standard Extension</b>
+     * <p>
+     * This is a Red5 Pro extension and is NOT part of RFC 8445. The RFC specifies that candidate
+     * priority should be computed solely using the formula:
+     * <pre>
+     * priority = (2^24 * type_preference) + (2^8 * local_preference) + (256 - component_id)
+     * </pre>
+     * Adding transport-based modifiers may cause interoperability issues with strict RFC implementations.
+     * <p>
+     * Use cases for this modifier:
+     * <ul>
+     *   <li>Force preference for TCP over UDP in firewall-heavy environments</li>
+     *   <li>Work around network configurations that block or penalize UDP</li>
+     * </ul>
+     * <p>
+     * Default value: 0 (no modification, RFC-compliant behavior)
+     */
     public static final String TCP_PRIORITY_MODIFIER = "TCP_PRIORITY_MODIFIER";
 
     /**

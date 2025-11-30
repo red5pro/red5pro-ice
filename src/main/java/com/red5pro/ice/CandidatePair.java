@@ -326,10 +326,10 @@ public class CandidatePair implements Comparable<CandidatePair> {
     }
 
     /**
-     * Compares this CandidatePair to obj and returns true if pairs have equal local and equal remote candidates and
+     * Compares this CandidatePair to another object and returns true if pairs have equal local and equal remote candidates and
      * false otherwise.
      *
-     * @param obj the Object that we'd like to compare this pair to
+     * @param that the Object that we'd like to compare this pair to
      * @return true if pairs have equal local and equal remote candidates and false otherwise
      */
     @Override

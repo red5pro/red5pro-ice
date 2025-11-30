@@ -7,7 +7,6 @@ import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Mac;
 
 import org.apache.mina.core.session.IoSession;
+import org.apache.mina.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,7 +113,7 @@ public class StunStack implements MessageEventHandler {
 
     private AcceptorStrategy sessionAcceptorStrategy = AcceptorStrategy.DiscretePerSocket;
 
-    private HashSet<TransportAddress> registrations = new HashSet<TransportAddress>();
+    private ConcurrentHashSet<TransportAddress> registrations = new ConcurrentHashSet<TransportAddress>();
 
     /**
      * Executor for all threads and tasks needed in this stacks agent.
@@ -169,11 +169,7 @@ public class StunStack implements MessageEventHandler {
 
         int ordinal = StackProperties.getInt(StackProperties.ACCEPTOR_STRATEGY, AcceptorStrategy.DiscretePerSession.ordinal());
         acceptorStrategy = AcceptorStrategy.valueOf(ordinal);
-        boolean shared = StackProperties.getBoolean("NIO_SHARED_MODE", false);
-        if (shared) {
-            //If sharedAcceptors was set, override acceptorStrategy.
-            acceptorStrategy = AcceptorStrategy.Shared;
-        }
+
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
                 // stop the executor
@@ -262,7 +258,6 @@ public class StunStack implements MessageEventHandler {
                         transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
                     }
                 }
-
                 if (transport != null) {
                     iceSocket.setIceTransportRef(transport);
                     transport.registerStackAndSocket(this, iceSocket);
@@ -281,7 +276,7 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Stops and deletes the connector listening on the specified local address.
-     * Note this removes connectors with UDP sockets only, use {@link #removeSocket(com.red5pro.ice.TransportAddress, com.red5pro.ice.TransportAddress)}
+     * Note this removes connectors with UDP sockets only, use {@link #removeSocket(String, TransportAddress, TransportAddress)}
      * with the appropriate remote address for TCP.
      *
      * @param id transport / acceptor identifier
@@ -307,7 +302,6 @@ public class StunStack implements MessageEventHandler {
         if (connector != null) {
             connector.stop();
         }
-
         removeRegistration(localAddr);
     }
 
@@ -342,20 +336,26 @@ public class StunStack implements MessageEventHandler {
     }
 
     /**
-     * Cancels the {@link StunClientTransaction} with the specified transactionID. Cancellation means that the stack will not
-     * retransmit the request, will not treat the lack of response to be a failure, but will wait the duration of the transaction timeout for a
-     * response.
+     * Flawed implementation, called by triggered check and citing RFC 5245 rules, which specify:<br><br>
+     * {@code Cancellation means that the stack will not retransmit the request, will not treat the lack of response to be a failure,
+     * but will wait the duration of the transaction timeout for a response.}
+     *<br><br> However this implementation nukes the transaction and makes it impossible to switch states if a response is received.
+     * The result can cause an endless loop of failures marked by binding requests from the peer getting a successful response,
+     * but local requests never getting a successful response, and so the pair is never nominated. The stunstack repeats 'dropped response' until the controlling agent decides to give up.
+     * Until this implementation is corrected such that canceled transactions can be paired with response for the duration of the transaction life cycle,
+     * we will allow the transaction to remain in the list as is until garbage collected by the sweeper after natural timeout.
      *
      * @param transactionID the {@link TransactionID} of the {@link StunClientTransaction} to cancel
      */
     public void cancelTransaction(TransactionID transactionID) {
-        StunClientTransaction clientTransaction = clientTransactions.get(transactionID);
-        if (clientTransaction != null) {
-            if (clientTransactions.remove(transactionID) != null) {
-                logger.debug("Cancelling client transaction: {}", clientTransaction.getTransactionID());
-            }
-            clientTransaction.cancel();
-        }
+        logger.debug("skipping cancelTransaction: {}", transactionID);
+        // StunClientTransaction clientTransaction = clientTransactions.get(transactionID);
+        // if (clientTransaction != null) {
+        //     if (clientTransactions.remove(transactionID) != null) {
+        //         logger.debug("Cancelling client transaction: {}", clientTransaction.getTransactionID());
+        //     }
+        //     clientTransaction.cancel();
+        // }
     }
 
     /**
@@ -974,22 +974,21 @@ public class StunStack implements MessageEventHandler {
                     logger.info("Stun stack sweeper starting.");
                     try {
                         do {
-
+                            Map<TransportAddress, StunStack> stacks = IceHandler.getStunStacks();
                             try {
-                                logger.debug("Going to sleep for {}s before cleaning up server txns",
+                                logger.debug("Going to sleep for {}s before cleaning up server txns", stacks.size(),
                                         (StunServerTransaction.LIFETIME / 1000L));
                                 Thread.sleep(StunServerTransaction.LIFETIME);
                             } catch (InterruptedException ie) {
                                 logger.debug("Interrupted while waiting for server txns to expire", ie);
                                 break;
                             }
-                            Map<TransportAddress, StunStack> stacks = IceHandler.getStunStacks();
                             if (stacks.isEmpty()) {
                                 break;
                             }
                             stacks.forEach((address, stack) -> {
-                                Thread.currentThread().setName(
-                                        "StunStack.txExpire:" + address.getTransport().toString() + String.valueOf(address.getPort()));
+                                Thread.currentThread().setName("StunStack.txExpire:" + address.getTransport().toString() + "-"
+                                        + String.valueOf(address.getPort()));
                                 logger.debug("Sweeping");
                                 stack.runCleanup();
                             });
