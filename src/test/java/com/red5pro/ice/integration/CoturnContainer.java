@@ -30,11 +30,17 @@ public class CoturnContainer {
     /** Container name for easy identification and cleanup */
     public static final String CONTAINER_NAME = "red5pro-ice-test-coturn";
 
-    /** Default STUN/TURN port */
-    public static final int STUN_PORT = 3478;
+    /** Host port for STUN/TURN testing (offset from standard 3478 to avoid conflicts) */
+    public static final int STUN_PORT = 13478;
 
-    /** Default TURN TLS port */
-    public static final int TURN_TLS_PORT = 5349;
+    /** Host port for TURN TLS testing (offset from standard 5349 to avoid conflicts) */
+    public static final int TURN_TLS_PORT = 15349;
+
+    /** Standard STUN/TURN port inside the container */
+    private static final int CONTAINER_STUN_PORT = 3478;
+
+    /** Standard TURN TLS port inside the container */
+    private static final int CONTAINER_TLS_PORT = 5349;
 
     /** Default realm for TURN authentication */
     public static final String REALM = "red5pro.com";
@@ -89,10 +95,10 @@ public class CoturnContainer {
         logger.info("Starting coturn container...");
 
         // Build the docker run command
-        // coturn configuration via command line arguments
-        ProcessBuilder pb = new ProcessBuilder("docker", "run", "-d", "--name", CONTAINER_NAME, "-p", STUN_PORT + ":" + STUN_PORT + "/udp",
-                "-p", STUN_PORT + ":" + STUN_PORT + "/tcp", "-p", TURN_TLS_PORT + ":" + TURN_TLS_PORT + "/udp", "-p",
-                TURN_TLS_PORT + ":" + TURN_TLS_PORT + "/tcp",
+        // Map host ports to container's standard ports (3478/5349)
+        ProcessBuilder pb = new ProcessBuilder("docker", "run", "-d", "--name", CONTAINER_NAME, "-p",
+                STUN_PORT + ":" + CONTAINER_STUN_PORT + "/udp", "-p", STUN_PORT + ":" + CONTAINER_STUN_PORT + "/tcp", "-p",
+                TURN_TLS_PORT + ":" + CONTAINER_TLS_PORT + "/udp", "-p", TURN_TLS_PORT + ":" + CONTAINER_TLS_PORT + "/tcp",
                 // Relay ports range
                 "-p", "49152-49162:49152-49162/udp", COTURN_IMAGE,
                 // coturn arguments
@@ -106,35 +112,39 @@ public class CoturnContainer {
         pb.redirectErrorStream(true);
         Process process = pb.start();
 
-        // Read all output - container ID will be the last line
+        // Read all output - container ID is the first line (64 hex chars)
         StringBuilder output = new StringBuilder();
+        String firstLine = null;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                if (firstLine == null) {
+                    firstLine = line;
+                }
                 output.append(line).append("\n");
-                containerId = line; // Keep updating - last non-empty line is the container ID
             }
         }
 
         boolean completed = process.waitFor(30, TimeUnit.SECONDS);
         if (!completed || process.exitValue() != 0) {
             logger.error("Failed to start coturn container. Output: {}", output);
+            // Clean up partial container if it was created
+            if (firstLine != null && firstLine.matches("[a-f0-9]{64}")) {
+                containerId = firstLine;
+                cleanup();
+                containerId = null;
+            }
             return false;
         }
 
-        if (containerId == null || containerId.isEmpty()) {
-            logger.error("No container ID returned. Output: {}", output);
+        // Container ID should be the first line, 64 hex chars
+        if (firstLine == null || !firstLine.matches("[a-f0-9]{64}")) {
+            logger.error("No valid container ID returned. Output: {}", output);
             return false;
         }
 
-        // Container ID should be 64 hex chars, take first 12 for display
-        containerId = containerId.trim();
-        if (containerId.length() >= 12) {
-            logger.info("Coturn container started with ID: {}", containerId.substring(0, 12));
-        } else {
-            logger.error("Invalid container ID returned: {}", containerId);
-            return false;
-        }
+        containerId = firstLine;
+        logger.info("Coturn container started with ID: {}", containerId.substring(0, 12));
 
         // Wait for the container to be ready
         running = waitForReady(10);
