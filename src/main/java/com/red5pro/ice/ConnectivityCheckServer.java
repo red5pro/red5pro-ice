@@ -107,8 +107,10 @@ class ConnectivityCheckServer implements RequestListener, CredentialsAuthority {
         // Learn the peer reflexive candidate, even if we are going to send a role conflict error. This allows us to learn faster, and compensates
         // for a buggy peer that doesn't switch roles when it gets a role conflict error.
         long priority = extractPriority(request);
-        // if we're not controlling and use candidate is false, set it anyway to work around an Edge bug
-        boolean useCandidate = (request.getAttribute(Attribute.Type.USE_CANDIDATE) != null) || !parentAgent.isControlling();
+        // RFC 8445 Section 7.3.1.5: USE-CANDIDATE is only valid when the attribute is present in the request.
+        // The controlling agent includes USE-CANDIDATE to nominate a candidate pair (Section 7.1.2).
+        // The controlled agent MUST NOT include USE-CANDIDATE in its requests.
+        boolean useCandidate = request.getAttribute(Attribute.Type.USE_CANDIDATE) != null;
         if (isDebug) {
             logger.debug("useCandidate: {}", useCandidate);
         }
