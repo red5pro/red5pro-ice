@@ -155,6 +155,10 @@ public class DefaultNominator implements PropertyChangeListener {
             Component parentComponent = validPair.getParentComponent();
             IceMediaStream parentStream = parentComponent.getParentStream();
             CheckList parentCheckList = parentStream.getCheckList();
+            // Check if this component already has a selected pair - if so, skip nomination
+            if (parentComponent.getSelectedPair() != null) {
+                return;
+            }
             if (parentCheckList.allChecksCompleted()) {
                 for (Component component : parentStream.getComponents()) {
                     CandidatePair pair = parentStream.getValidPair(component);
@@ -163,6 +167,13 @@ public class DefaultNominator implements PropertyChangeListener {
                         parentAgent.nominate(pair);
                     }
                 }
+            } else if (IceMediaStream.PROPERTY_PAIR_VALIDATED.equals(pname) && !validPair.isNominated()) {
+                // If all checks haven't completed but we have a valid pair that isn't nominated,
+                // nominate it to avoid waiting indefinitely. This handles the case where only
+                // a few pairs succeed (e.g., after role conflict resolution) and the checklist
+                // never fully completes because other pairs remain FROZEN or WAITING.
+                logger.debug("Nominate valid pair before all checks complete: {}", validPair.toShortString());
+                parentAgent.nominate(validPair);
             }
         }
     }

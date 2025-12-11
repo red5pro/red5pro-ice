@@ -1375,8 +1375,9 @@ public class Agent {
             logger.warn("ICE-LITE agents cannot be controlling - ignoring setControlling(true)");
             return;
         }
-        if (this.isControlling != isControlling) {
-            logger.debug("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling,
+        boolean wasControlling = this.isControlling;
+        if (wasControlling != isControlling) {
+            logger.debug("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), wasControlling,
                     isControlling);
         }
         this.isControlling = isControlling;
@@ -1386,6 +1387,24 @@ public class Agent {
                 CheckList list = stream.getCheckList();
                 if (list != null) {
                     list.recomputePairPriorities();
+                }
+            }
+            // If we just became controlling (role conflict resolution), we need to nominate any valid pairs
+            // that were validated while we were non-controlling. This handles the race condition where
+            // a pair succeeds before the role switch completes.
+            if (isControlling && !wasControlling) {
+                logger.debug("Role changed to controlling, checking for valid pairs to nominate");
+                for (IceMediaStream stream : getStreams()) {
+                    for (Component component : stream.getComponents()) {
+                        // Only nominate if this component doesn't already have a selected pair
+                        if (component.getSelectedPair() == null) {
+                            CandidatePair validPair = stream.getValidPair(component);
+                            if (validPair != null && !validPair.isNominated()) {
+                                logger.info("Nominating valid pair after role change: {}", validPair.toShortString());
+                                nominate(validPair);
+                            }
+                        }
+                    }
                 }
             }
         } else {
