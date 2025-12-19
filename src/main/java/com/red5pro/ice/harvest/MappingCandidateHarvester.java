@@ -94,6 +94,8 @@ public class MappingCandidateHarvester extends AbstractCandidateHarvester {
             //try to add the candidate to the component and then only add it to the harvest not redundant
             if (!candidates.contains(mappedCandidate) && component.addLocalCandidate(mappedCandidate)) {
                 candidates.add(mappedCandidate);
+                logger.info("Created server-reflexive candidate: {} (mapped from host {})", mappedAddress,
+                        hostCandidate.getTransportAddress());
             }
         }
         return candidates;

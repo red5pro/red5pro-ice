@@ -14,7 +14,7 @@ import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.core.session.IoSessionRecycler;
 import org.apache.mina.transport.socket.DatagramSessionConfig;
-import org.apache.mina.transport.socket.nio.IceDatagramAcceptor;
+import org.apache.mina.transport.socket.nio.NioDatagramAcceptor;
 
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
@@ -163,11 +163,10 @@ public class IceUdpTransport extends IceTransport {
     private void createAcceptor() {
         if (acceptor == null) {
             // create the nio acceptor
-            //acceptor = new NioDatagramAcceptor(); // mina base acceptor
             if (!sharedIoProcessor) {
-                acceptor = new IceDatagramAcceptor();
+                acceptor = new NioDatagramAcceptor();
             } else {
-                acceptor = new IceDatagramAcceptor(ioExecutor);//Shared cached thread pool
+                acceptor = new NioDatagramAcceptor(ioExecutor); // Shared cached thread pool
             }
             acceptor.addListener(new IoServiceListener() {
 
@@ -218,9 +217,9 @@ public class IceUdpTransport extends IceTransport {
                 }
             });
             // set the recycler
-            ((IceDatagramAcceptor) acceptor).setSessionRecycler(recycler);
+            ((NioDatagramAcceptor) acceptor).setSessionRecycler(recycler);
             // configure the acceptor
-            DatagramSessionConfig sessionConf = ((IceDatagramAcceptor) acceptor).getSessionConfig();
+            DatagramSessionConfig sessionConf = ((NioDatagramAcceptor) acceptor).getSessionConfig();
             sessionConf.setReuseAddress(true);
             sessionConf.setSendBufferSize(Math.max(BUFFER_SIZE_DEFAULT, sendBufferSize));
             // buffer size of -1 is not permitted, so ensure its at least 65535

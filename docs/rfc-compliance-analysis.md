@@ -150,11 +150,38 @@ The formula `2^32 * MIN(G,D) + 2 * MAX(G,D) + (G>D?1:0)` matches RFC 8445.
 
 ---
 
-## 9. Missing ICE-LITE Support
+## 9. ICE-LITE Support (RFC 8445 Section 2.5)
 
-### Gap: No ICE-LITE Implementation
+### Status: Implemented
 
-A search for "ice-lite" returned no results. RFC 8445 Section 8 defines ICE-LITE for servers that only respond to connectivity checks without initiating them. This may be intentional if the library is only used for full ICE implementations.
+ICE-LITE support has been added to the library. ICE-LITE is a simplified ICE implementation suitable for servers with public IP addresses that don't need NAT traversal.
+
+**Implementation locations:**
+
+- [StackProperties.java](../src/main/java/com/red5pro/ice/StackProperties.java) - `ICE_LITE` configuration property
+- [Agent.java](../src/main/java/com/red5pro/ice/Agent.java) - `isIceLite()`, `setIceLite()` methods and role enforcement
+- [ConnectivityCheckClient.java](../src/main/java/com/red5pro/ice/ConnectivityCheckClient.java) - Skips initiating checks for ICE-LITE agents
+- [ConnectivityCheckServer.java](../src/main/java/com/red5pro/ice/ConnectivityCheckServer.java) - Role conflict handling for ICE-LITE
+- [DefaultNominator.java](../src/main/java/com/red5pro/ice/DefaultNominator.java) - ICE-LITE agents don't nominate
+
+**ICE-LITE agent behavior per RFC 8445:**
+
+- MUST always be in the controlled role (never controlling)
+- Only gathers host candidates (no STUN/TURN server-reflexive or relayed candidates)
+- Does not initiate connectivity checks (only responds to incoming checks)
+- Accepts nominations from the full ICE (controlling) agent
+
+**Usage:**
+
+```java
+Agent agent = new Agent();
+agent.setIceLite(true);  // Enable ICE-LITE mode
+// Agent is now in controlled role and won't initiate checks
+```
+
+**Configuration:**
+
+Set via system property: `com.red5pro.ice.ICE_LITE=true`
 
 ---
 

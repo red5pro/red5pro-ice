@@ -46,41 +46,34 @@ public class Component implements PropertyChangeListener {
 
     /**
      * Comparator allowing sort by priority and preference.
+     * Must also compare by transport address to ensure candidates with different addresses are not considered equal.
      */
     private final static Comparator<? super LocalCandidate> candidateComparator = new Comparator<LocalCandidate>() {
 
         @Override
         public int compare(LocalCandidate cand1, LocalCandidate cand2) {
-            int result = 0;
-            if (cand1.getComponentId() < cand2.getComponentId()) {
-                result -= 1;
-            } else if (cand1.getComponentId() > cand2.getComponentId()) {
-                result += 1;
+            // First compare by componentId
+            int result = Integer.compare(cand1.getComponentId(), cand2.getComponentId());
+            if (result != 0) {
+                return result;
             }
-            if (cand1.priority < cand2.priority) {
-                result -= 1;
-            } else if (cand1.priority > cand2.priority) {
-                result += 1;
+            // Then by priority (higher priority first, so reverse comparison)
+            result = Long.compare(cand2.priority, cand1.priority);
+            if (result != 0) {
+                return result;
             }
-            if (cand1.getDefaultPreference() < cand2.getDefaultPreference()) {
-                result -= 1;
-            } else if (cand1.getDefaultPreference() > cand2.getDefaultPreference()) {
-                result += 1;
+            // Then by default preference (higher preference first)
+            result = Integer.compare(cand2.getDefaultPreference(), cand1.getDefaultPreference());
+            if (result != 0) {
+                return result;
             }
-            /*
-            // add network-id and network-cost to the mix
-            if (cand1.getNetworkId() < cand2.getNetworkId()) {
-                result -= 1;
-                if (cand1.getNetworkCost() < cand2.getNetworkCost()) {
-                    result -= 1;
-                }
-            } else if (cand1.getNetworkId() > cand2.getNetworkId()) {
-                result += 1;
-                if (cand1.getNetworkCost() > cand2.getNetworkCost()) {
-                    result += 1;
-                }
+            // Finally, compare by transport address to distinguish candidates with same priority
+            // This ensures candidates with different addresses are not considered equal
+            TransportAddress addr1 = cand1.getTransportAddress();
+            TransportAddress addr2 = cand2.getTransportAddress();
+            if (addr1 != null && addr2 != null) {
+                result = addr1.toString().compareTo(addr2.toString());
             }
-            */
             return result;
         }
 
@@ -185,9 +178,13 @@ public class Component implements PropertyChangeListener {
         Optional<LocalCandidate> existingCandidate = localCandidates.stream()
                 .filter(existing -> (existing.toShortString().equals(candidate.toShortString()))).findFirst();
         if (existingCandidate.isPresent()) {
-            logger.debug("Candidate entry already exists - {} {}", candidate, existingCandidate.get());
+            logger.info("Candidate entry already exists - new: {} existing: {}", candidate.getTransportAddress(),
+                    existingCandidate.get().getTransportAddress());
         } else {
-            return localCandidates.add(candidate);
+            boolean added = localCandidates.add(candidate);
+            logger.info("Local candidate added: {} type={} added={} total={}", candidate.getTransportAddress(), candidate.getType(), added,
+                    localCandidates.size());
+            return added;
         }
         return false;
     }
@@ -581,6 +578,11 @@ public class Component implements PropertyChangeListener {
                         localAddress, base, localCandidate, localCandidate.getBase());
                 return localCandidate;
             }
+        }
+        // Log all candidates when lookup fails for diagnostic purposes
+        logger.info("findLocalCandidate FAILED for address: {} (candidateCount={})", localAddress, localCandidates.size());
+        for (LocalCandidate lc : localCandidates) {
+            logger.info("  Available candidate: {} type={} transport={}", lc.getTransportAddress(), lc.getType(), lc.getTransport());
         }
         return null;
     }

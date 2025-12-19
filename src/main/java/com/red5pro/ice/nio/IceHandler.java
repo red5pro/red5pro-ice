@@ -102,16 +102,24 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
      * @param iceSocket
      */
     public void registerStackAndSocket(StunStack stunStack, IceSocketWrapper iceSocket) {
-        logger.debug("registerStackAndSocket on {} - stunStack: {} iceSocket: {}", this, stunStack, iceSocket);
         TransportAddress addr = iceSocket.getTransportAddress();
+        logger.info("registerStackAndSocket - address: {} stunStack: {} iceSocket: {}", addr, stunStack != null, iceSocket.getId());
         if (stunStack != null) {
-            stunStacks.putIfAbsent(addr, stunStack);
-            //logger.debug("after stunStacks");
+            StunStack existing = stunStacks.putIfAbsent(addr, stunStack);
+            if (existing == null) {
+                logger.info("StunStack registered for address: {}", addr);
+            } else {
+                logger.info("StunStack already exists for address: {}", addr);
+            }
         } else {
             logger.debug("Stun stack for address: {}", stunStacks.get(addr));
         }
-        iceSockets.putIfAbsent(addr, iceSocket);
-        //logger.debug("exit registerStackAndSocket");
+        IceSocketWrapper existingSocket = iceSockets.putIfAbsent(addr, iceSocket);
+        if (existingSocket == null) {
+            logger.info("IceSocket registered for address: {} (total iceSockets: {})", addr, iceSockets.size());
+        } else {
+            logger.info("IceSocket already exists for address: {} existingAddr: {}", addr, existingSocket.getTransportAddress());
+        }
     }
 
     public void registerAgent(Agent agent) {
@@ -179,7 +187,8 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     /** {@inheritDoc} */
     @Override
     public void sessionCreated(IoSession session) throws Exception {
-        logger.trace("Created (session: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(), session.getRemoteAddress());
+        logger.info("Session created (id: {}) local: {} remote: {}", session.getId(), session.getLocalAddress(),
+                session.getRemoteAddress());
         Transport transport = session.getTransportMetadata().isConnectionless() ? Transport.UDP : Transport.TCP;
         // set transport type, making it easier to look-up later
         session.setAttribute(IceTransport.Ice.TRANSPORT, transport);
@@ -187,6 +196,8 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         InetSocketAddress inetAddr = (InetSocketAddress) session.getLocalAddress();
         TransportAddress addr = new TransportAddress(inetAddr.getAddress(), inetAddr.getPort(), transport);
         session.setAttribute(IceTransport.Ice.LOCAL_TRANSPORT_ADDR, addr);
+        logger.info("Session local TransportAddress: {} (stunStacks keys: {}, iceSockets keys: {})", addr, stunStacks.keySet(),
+                iceSockets.keySet());
 
         // XXX we're not adding the IoSession to an IceSocketWrapper until negotiations are complete
         /*
@@ -204,11 +215,13 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         */
         StunStack stunStack = stunStacks.get(addr);
         if (stunStack != null) {
+            logger.info("Found StunStack for address: {}", addr);
             session.setAttribute(IceTransport.Ice.STUN_STACK, stunStack);
             Agent agent = agents.get(stunStack.getAgentId());
             session.setAttribute(IceTransport.Ice.AGENT, agent);
             IceSocketWrapper iceSocket = iceSockets.get(addr);
             if (iceSocket != null) {
+                logger.info("Found IceSocket for address: {} socketAddr: {}", addr, iceSocket.getTransportAddress());
                 logger.debug("New session on Socket id: {}, session {}, current session {}", iceSocket.getTransportId(), session,
                         iceSocket.getSession());
                 // No longer setting socket ID here because ice transport might not have set attribute yet.
@@ -230,10 +243,11 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
                 }
             } else {
                 // socket was in most cases recently closed or in-process of being closed / cleaned up, so return and exception
+                logger.warn("No IceSocket found for address: {} (available: {})", addr, iceSockets.keySet());
                 throw new IOException("Connection already closed for: " + session.toString());
             }
         } else {
-            logger.debug("No stun stack at create for: {}", addr);
+            logger.warn("No StunStack found for address: {} (available: {})", addr, stunStacks.keySet());
         }
     }
 

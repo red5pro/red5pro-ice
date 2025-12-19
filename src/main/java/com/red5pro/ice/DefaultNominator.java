@@ -79,8 +79,14 @@ public class DefaultNominator implements PropertyChangeListener {
         }
         // RFC 8445 Section 8.1.1: Only the controlling agent nominates pairs.
         // Controlled agents MUST NOT nominate, regardless of trickle mode.
+        // Note: ICE-LITE agents are always in the controlled role (per RFC 8445 Section 2.5)
+        // and therefore never nominate - they accept nominations from full ICE controlling agents.
         if (!parentAgent.isControlling()) {
-            logger.debug("Non-controlling (controlled) agent cannot nominate per RFC 8445");
+            if (parentAgent.isIceLite()) {
+                logger.trace("ICE-LITE agent (always controlled) accepting nominations from peer");
+            } else {
+                logger.debug("Non-controlling (controlled) agent cannot nominate per RFC 8445");
+            }
             return;
         }
         if (ev.getSource() instanceof CandidatePair) {
@@ -149,6 +155,10 @@ public class DefaultNominator implements PropertyChangeListener {
             Component parentComponent = validPair.getParentComponent();
             IceMediaStream parentStream = parentComponent.getParentStream();
             CheckList parentCheckList = parentStream.getCheckList();
+            // Check if this component already has a selected pair - if so, skip nomination
+            if (parentComponent.getSelectedPair() != null) {
+                return;
+            }
             if (parentCheckList.allChecksCompleted()) {
                 for (Component component : parentStream.getComponents()) {
                     CandidatePair pair = parentStream.getValidPair(component);
@@ -157,6 +167,13 @@ public class DefaultNominator implements PropertyChangeListener {
                         parentAgent.nominate(pair);
                     }
                 }
+            } else if (IceMediaStream.PROPERTY_PAIR_VALIDATED.equals(pname) && !validPair.isNominated()) {
+                // If all checks haven't completed but we have a valid pair that isn't nominated,
+                // nominate it to avoid waiting indefinitely. This handles the case where only
+                // a few pairs succeed (e.g., after role conflict resolution) and the checklist
+                // never fully completes because other pairs remain FROZEN or WAITING.
+                logger.debug("Nominate valid pair before all checks complete: {}", validPair.toShortString());
+                parentAgent.nominate(validPair);
             }
         }
     }
