@@ -314,6 +314,8 @@ public class HostCandidateHarvester {
                     logger.debug("Socket added to stack: {}", iceSocket);
                     component.addLocalCandidate(candidate);
                     component.getComponentSocket().addSocketWrapper(iceSocket);
+                    // Log the created candidate address for diagnostic purposes
+                    logger.info("Created host candidate: {} transport={}", candidate.getTransportAddress(), transport);
                 } else {
                     logger.warn("Socket not added to stack. remove from component: {}", iceSocket);
                 }
@@ -370,6 +372,8 @@ public class HostCandidateHarvester {
                     // add the socket wrapper to the stack which gets the bind and listening process started
                     stunStack.addSocket(iceSocket, null, true); // do socket binding
                     component.getComponentSocket().addSocketWrapper(iceSocket);
+                    // Log the created candidate address for diagnostic purposes
+                    logger.info("Created host candidate: {} transport={}", candidate.getTransportAddress(), transport);
                 } catch (Throwable t) {
                     // There seems to be a problem with this particular address let's just move on for now and hope we will find better
                     logger.warn("Socket creation failed on: {} transport: {}\nPorts - preferred: {} min: {} max: {}", addrRef, transport,

@@ -75,7 +75,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.2.7";
+    private final static String VERSION = "1.2.8";
 
     /**
      * Secure random for shared use.
@@ -1610,7 +1610,16 @@ public class Agent {
                 triggerCheck(triggeredPair);
             }
         } else {
-            logger.info("No localAddress for this incoming check: {}", localAddress);
+            // Enhanced diagnostic logging for troubleshooting candidate mismatch issues
+            logger.info("No localAddress for this incoming check: {}. Available local candidates:", localAddress);
+            for (IceMediaStream stream : mediaStreams) {
+                for (Component component : stream.getComponents()) {
+                    for (LocalCandidate lc : component.getLocalCandidates()) {
+                        logger.info("  - {} type={} base={}", lc.getTransportAddress(), lc.getType(),
+                                lc.getBase() != null ? lc.getBase().getTransportAddress() : "null");
+                    }
+                }
+            }
         }
     }
 
