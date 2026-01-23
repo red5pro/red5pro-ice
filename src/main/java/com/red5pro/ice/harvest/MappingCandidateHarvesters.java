@@ -171,7 +171,14 @@ public class MappingCandidateHarvesters {
         TransportAddress face = harvester.getFace();
         TransportAddress mask = harvester.getMask();
         if (face == null || mask == null || face.equals(mask)) {
-            logger.info("Discarding a mapping harvester: {}", harvester);
+            // Enhanced diagnostic: explain why harvester was discarded
+            if (face == null) {
+                logger.info("Discarding mapping harvester - face (local) address is null: {}", harvester);
+            } else if (mask == null) {
+                logger.info("Discarding mapping harvester - mask (public) address is null: {}", harvester);
+            } else {
+                logger.info("Discarding mapping harvester - face equals mask (no NAT mapping needed): face={}, mask={}", face, mask);
+            }
             return;
         }
         for (MappingCandidateHarvester h : harvesters) {

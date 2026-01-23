@@ -1,14 +1,14 @@
 /* See LICENSE.md for license information */
 package com.red5pro.ice.attribute;
 
-import java.util.*;
+import java.util.Arrays;
 
-import junit.framework.*;
+import junit.framework.TestCase;
 
-import com.red5pro.ice.*;
-
+import com.red5pro.ice.MsgFixture;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.Transport;
+import com.red5pro.ice.TransportAddress;
 
 /**
  *
@@ -34,48 +34,28 @@ public class AddressAttributeTest extends TestCase {
 
     /**
      * Verify that AddressAttribute descendants have correctly set types and
-     * names.
+     * names. Tests RFC 5389 and RFC 5766 compliant address attributes.
      */
     public void testAddressAttributeDescendants() {
         AddressAttribute addressAttribute;
-        //MAPPED-ADDRESS
+        // RFC 5389 - MAPPED-ADDRESS
         addressAttribute = new MappedAddressAttribute();
         assertEquals("MappedAddressAttribute does not the right type.", Attribute.Type.MAPPED_ADDRESS, addressAttribute.attributeType);
 
-        //SOURCE-ADDRESS
-        addressAttribute = new SourceAddressAttribute();
-        assertEquals("SourceAddressAttribute does not the right type.", Attribute.Type.SOURCE_ADDRESS, addressAttribute.attributeType);
-
-        //CHANGED-ADDRESS
-        addressAttribute = new ChangedAddressAttribute();
-        assertEquals("ChangedAddressAttribute does not the right type.", Attribute.Type.CHANGED_ADDRESS, addressAttribute.attributeType);
-
-        //RESPONSE-ADDRESS
-        addressAttribute = new ResponseAddressAttribute();
-        assertEquals("ResponseAddressAttribute does not the right type.", Attribute.Type.RESPONSE_ADDRESS, addressAttribute.attributeType);
-
-        //REFLECTED-FROM
-        addressAttribute = new ReflectedFromAttribute();
-        assertEquals("ReflectedFromAttribute does not the right type.", Attribute.Type.REFLECTED_FROM, addressAttribute.attributeType);
-
-        //REFLECTED-FROM
-        addressAttribute = new ReflectedFromAttribute();
-        assertEquals("ReflectedFromAttribute does not the right type.", Attribute.Type.REFLECTED_FROM, addressAttribute.attributeType);
-
-        //XOR-MAPPED-ADDRESS
+        // RFC 5389 - XOR-MAPPED-ADDRESS
         addressAttribute = new XorMappedAddressAttribute();
         assertEquals("XorMappedAddressAttribute does not the right type.", Attribute.Type.XOR_MAPPED_ADDRESS,
                 addressAttribute.attributeType);
 
-        /* ALTERNATE-SERVER */
+        // RFC 5389 - ALTERNATE-SERVER
         addressAttribute = new AlternateServerAttribute();
         assertEquals("AlternateServerAttribute does not the right type.", Attribute.Type.ALTERNATE_SERVER, addressAttribute.attributeType);
 
-        /* XOR-PEER-ADDRESS */
+        // RFC 5766 TURN - XOR-PEER-ADDRESS
         addressAttribute = new XorPeerAddressAttribute();
         assertEquals("XorPeerAddressAttribute does not the right type.", Attribute.Type.XOR_PEER_ADDRESS, addressAttribute.attributeType);
 
-        /* XOR-RELAYED-ADDRESS */
+        // RFC 5766 TURN - XOR-RELAYED-ADDRESS
         addressAttribute = new XorRelayedAddressAttribute();
         assertEquals("XorRelayedAddressAttribute does not the right type.", Attribute.Type.XOR_RELAYED_ADDRESS,
                 addressAttribute.attributeType);

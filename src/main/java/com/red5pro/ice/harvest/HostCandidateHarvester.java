@@ -292,9 +292,9 @@ public class HostCandidateHarvester {
     }
 
     public void harvest(Component component, int port, Transport transport) throws IllegalArgumentException, IOException {
-        logger.debug("harvest {} port: {}", transport, port);
+        logger.info("harvest {} port: {} availableHostAddresses: {}", transport, port, availableHostAddresses);
         availableHostAddresses.forEach(addrRef -> {
-            logger.debug("socket creation - addr: {}", addrRef);
+            logger.info("Creating socket for address: {} port: {} transport: {}", addrRef.getAddress().getHostAddress(), port, transport);
             // grab the address
             InetAddress addr = addrRef.getAddress();
             // not checking allowed since it won't be in available if its not allowed
@@ -305,15 +305,19 @@ public class HostCandidateHarvester {
                 } else if (transport == Transport.TCP) {
                     iceSocket = createServerSocket(addr, port);
                 }
-                logger.debug("Socket created/bound: {}", iceSocket);
+                logger.info("Socket created - wrapper id: {} localAddress: {} transport: {}", iceSocket.getId(),
+                        iceSocket.getTransportAddress(), transport);
                 HostCandidate candidate = new HostCandidate(iceSocket, component, transport);
                 candidate.setVirtual(addrRef.isVirtual());
+                logger.info("HostCandidate created with transportAddress: {}", candidate.getTransportAddress());
                 StunStack stunStack = candidate.getStunStack();
                 // add the socket wrapper to the stack which gets the bind and listening process started
                 if (stunStack.addSocket(iceSocket, null, true)) { // do socket binding
-                    logger.debug("Socket added to stack: {}", iceSocket);
+                    logger.info("Socket added to stack successfully: {}", iceSocket.getTransportAddress());
                     component.addLocalCandidate(candidate);
                     component.getComponentSocket().addSocketWrapper(iceSocket);
+                    // Log the created candidate address for diagnostic purposes
+                    logger.info("Created host candidate: {} transport={}", candidate.getTransportAddress(), transport);
                 } else {
                     logger.warn("Socket not added to stack. remove from component: {}", iceSocket);
                 }
@@ -326,7 +330,7 @@ public class HostCandidateHarvester {
             throw new IOException(
                     "Failed to bind even a single host candidate for component:" + component + " port=" + port + " transport=" + transport);
         }
-        logger.debug("Exit harvest port: {}", port);
+        logger.info("Harvest complete for port: {} - total local candidates: {}", port, component.getLocalCandidateCount());
     }
 
     /**
@@ -370,6 +374,8 @@ public class HostCandidateHarvester {
                     // add the socket wrapper to the stack which gets the bind and listening process started
                     stunStack.addSocket(iceSocket, null, true); // do socket binding
                     component.getComponentSocket().addSocketWrapper(iceSocket);
+                    // Log the created candidate address for diagnostic purposes
+                    logger.info("Created host candidate: {} transport={}", candidate.getTransportAddress(), transport);
                 } catch (Throwable t) {
                     // There seems to be a problem with this particular address let's just move on for now and hope we will find better
                     logger.warn("Socket creation failed on: {} transport: {}\nPorts - preferred: {} min: {} max: {}", addrRef, transport,

@@ -181,13 +181,18 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
     protected IceSocketWrapper(TransportAddress address) throws IOException {
         logger.debug("New wrapper for {}", address);
         localAgent = Agent.localAgent.get();
-        this.transportId = localAgent.getStunStack().getSessionAcceptorStrategy().toString();
+        // Only override the default transportId if an Agent is available
+        if (localAgent != null) {
+            this.transportId = localAgent.getStunStack().getSessionAcceptorStrategy().toString();
+        }
         transportAddress = address;
         creationTime = System.currentTimeMillis();
         logger.debug("my uuid {}", id);
         iceSockets.put(id, this);
         logger.debug("Current iceSocket count {}", iceSockets.size());
-        localAgent.addSocketUUID(id);
+        if (localAgent != null) {
+            localAgent.addSocketUUID(id);
+        }
     }
 
     /**

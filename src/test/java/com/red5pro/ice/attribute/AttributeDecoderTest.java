@@ -66,22 +66,6 @@ public class AttributeDecoderTest extends TestCase {
         assertEquals("AttributeDecoder.decode() failed for a MAPPED-ADDRESS attribute", expectedReturn, actualReturn);
     }
 
-    public void testDecodeChangeRequest() throws Exception {
-        //
-        byte[] bytes = msgFixture.chngReqTestValue1;
-        char offset = 0;
-        char length = (char) bytes.length;
-
-        //create the message
-        ChangeRequestAttribute expectedReturn = new ChangeRequestAttribute();
-        expectedReturn.setChangeIpFlag(MsgFixture.CHANGE_IP_FLAG_1);
-        expectedReturn.setChangePortFlag(MsgFixture.CHANGE_PORT_FLAG_1);
-
-        Attribute actualReturn = AttributeDecoder.decode(bytes, offset, length);
-        assertEquals("AttributeDecoder.decode() failed for a CHANGE-REQUEST attribute", expectedReturn, actualReturn);
-
-    }
-
     public void testDecodeErrorCode() throws Exception {
         //
         byte[] bytes = msgFixture.errCodeTestValue;

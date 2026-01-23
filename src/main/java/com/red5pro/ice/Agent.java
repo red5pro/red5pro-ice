@@ -75,7 +75,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.2.4";
+    private final static String VERSION = "1.2.10";
 
     /**
      * Secure random for shared use.
@@ -245,6 +245,19 @@ public class Agent {
      * Determines whether this agent should perform trickling.
      */
     private boolean trickle;
+
+    /**
+     * Determines whether this agent operates in ICE-LITE mode (RFC 8445 Section 2.5).
+     * <p>
+     * ICE-LITE agents:
+     * <ul>
+     *   <li>MUST always be in the controlled role</li>
+     *   <li>Only gather host candidates (no STUN/TURN)</li>
+     *   <li>Do not initiate connectivity checks (only respond)</li>
+     *   <li>Accept nominations from the full ICE controlling agent</li>
+     * </ul>
+     */
+    private boolean iceLite;
 
     /**
      * Indicates that ICE will be shutdown.
@@ -1348,13 +1361,23 @@ public class Agent {
 
     /**
      * Specifies whether this agent has the controlling role in an ICE exchange.
+     * <p>
+     * Note: ICE-LITE agents MUST always be in the controlled role per RFC 8445.
+     * If this agent is in ICE-LITE mode and isControlling is true, the request
+     * will be ignored and a warning will be logged.
      *
      * @param isControlling true if this is to be the controlling Agent and false otherwise
      */
     public void setControlling(boolean isControlling) {
         logger.debug("setControlling: {} from current setting: {}", isControlling, this.isControlling);
-        if (this.isControlling != isControlling) {
-            logger.debug("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), this.isControlling,
+        // ICE-LITE agents MUST always be controlled per RFC 8445 Section 2.5
+        if (iceLite && isControlling) {
+            logger.warn("ICE-LITE agents cannot be controlling - ignoring setControlling(true)");
+            return;
+        }
+        boolean wasControlling = this.isControlling;
+        if (wasControlling != isControlling) {
+            logger.debug("Changing agent {} role from controlling = {} to controlling = {}", this.toString(), wasControlling,
                     isControlling);
         }
         this.isControlling = isControlling;
@@ -1364,6 +1387,24 @@ public class Agent {
                 CheckList list = stream.getCheckList();
                 if (list != null) {
                     list.recomputePairPriorities();
+                }
+            }
+            // If we just became controlling (role conflict resolution), we need to nominate any valid pairs
+            // that were validated while we were non-controlling. This handles the race condition where
+            // a pair succeeds before the role switch completes.
+            if (isControlling && !wasControlling) {
+                logger.debug("Role changed to controlling, checking for valid pairs to nominate");
+                for (IceMediaStream stream : getStreams()) {
+                    for (Component component : stream.getComponents()) {
+                        // Only nominate if this component doesn't already have a selected pair
+                        if (component.getSelectedPair() == null) {
+                            CandidatePair validPair = stream.getValidPair(component);
+                            if (validPair != null && !validPair.isNominated()) {
+                                logger.info("Nominating valid pair after role change: {}", validPair.toShortString());
+                                nominate(validPair);
+                            }
+                        }
+                    }
                 }
             }
         } else {
@@ -1569,7 +1610,16 @@ public class Agent {
                 triggerCheck(triggeredPair);
             }
         } else {
-            logger.info("No localAddress for this incoming check: {}", localAddress);
+            // Enhanced diagnostic logging for troubleshooting candidate mismatch issues
+            logger.info("No localAddress for this incoming check: {}. Available local candidates:", localAddress);
+            for (IceMediaStream stream : mediaStreams) {
+                for (Component component : stream.getComponents()) {
+                    for (LocalCandidate lc : component.getLocalCandidates()) {
+                        logger.info("  - {} type={} base={}", lc.getTransportAddress(), lc.getType(),
+                                lc.getBase() != null ? lc.getBase().getTransportAddress() : "null");
+                    }
+                }
+            }
         }
     }
 
@@ -1834,29 +1884,26 @@ public class Agent {
     }
 
     /**
-     * Calculates the value of the Ta pace timer according to the number and type of {@link IceMediaStream}s this agent will be using.
+     * Calculates the value of the Ta pace timer for STUN transactions.
      * <p>
-     * During the gathering phase of ICE (Section 4.1.1) and while ICE is performing connectivity checks (Section 7), an agent sends STUN and
-     * TURN transactions.  These transactions are paced at a rate of one every Ta milliseconds.
+     * During the gathering phase of ICE and while ICE is performing connectivity checks,
+     * an agent sends STUN and TURN transactions paced at a rate of one every Ta milliseconds.
      * <p>
-     * As per RFC 5245, the value of Ta should be configurable so if someone has set a value of their own, we return that value rather than
-     * calculating a new one.
+     * RFC 8445 Section 14.2 specifies:
+     * "ICE agents SHOULD use a default Ta value, 50 ms, but MAY use another value based on
+     * the characteristics of the associated data."
+     * <p>
+     * The value of Ta is configurable via {@link StackProperties#TA} or {@link #setTa(long)}.
      *
-     * @return the value of the Ta pace timer according to the number and type of {@link IceMediaStream}s this agent will be using or
-     * a pre-configured value if the application has set one
+     * @return the value of the Ta pace timer, default is 50ms per RFC 8445
      */
     protected long calculateTa() {
-        //if application specified a value - use it. other wise return ....
-        // eeeer ... a "dynamically" calculated one ;)
+        // If application specified a value, use it; otherwise return the RFC 8445 default
         if (taValue != -1) {
             return taValue;
         }
-        /*
-         * RFC 5245 says that Ta is: Ta_i = (stun_packet_size / rtp_packet_size) * rtp_ptime 1 Ta = MAX (20ms, ------------------- ) k ---- \ 1 > ------ / Ta_i ---- i=1 In this
-         * implementation we assume equal values of stun_packet_size and rtp_packet_size. rtp_ptime is also assumed to be 20ms. One day we should probably let the application
-         * modify them. Until then however the above formula would always be equal to. 1 Ta = MAX (20ms, ------- ) k --- 20 which gives us Ta = MAX (20ms, 20/k) which is always 20.
-         */
-        return 20;
+        // RFC 8445 Section 14.2: Default Ta value is 50ms
+        return 50;
     }
 
     /**
@@ -1878,9 +1925,11 @@ public class Agent {
      * for the STUN address harvesting).
      * <p>
      * RFC 8445 Section 14.3: For connectivity checks, RTO SHOULD be configurable and SHOULD have a default of:
-     * RTO = MAX(100ms, Ta * N * (Num-Waiting + Num-In-Progress))
+     * RTO = MAX(500ms, Ta * N * (Num-Waiting + Num-In-Progress))
      * where Num-Waiting is the number of checks in the Waiting state, Num-In-Progress is the number of checks
      * in the In-Progress state, and N is the number of checks to be performed.
+     * <p>
+     * RFC 5389 Section 7.2.1 also specifies that RTO SHOULD be greater than 500ms.
      *
      * @return the value of the retransmission timer to use in STUN connectivity check transactions
      */
@@ -1910,8 +1959,9 @@ public class Agent {
         if (activeChecks == 0) {
             activeChecks = 1;
         }
-        // RFC formula: RTO = MAX(100ms, Ta * N * (Num-Waiting + Num-In-Progress))
-        return Math.max(100, ta * n * activeChecks);
+        // RFC 8445 Section 14.3: RTO = MAX(500ms, Ta * N * (Num-Waiting + Num-In-Progress))
+        // RFC 5389 Section 7.2.1: RTO SHOULD be greater than 500ms
+        return Math.max(500, ta * n * activeChecks);
     }
 
     /**
@@ -2290,6 +2340,49 @@ public class Agent {
      */
     public void setTrickling(boolean trickle) {
         this.trickle = trickle;
+    }
+
+    /**
+     * Indicates whether this agent is operating in ICE-LITE mode.
+     * <p>
+     * ICE-LITE is a simplified ICE implementation defined in RFC 8445 Section 2.5.
+     * When enabled:
+     * <ul>
+     *   <li>The agent MUST always be in the controlled role</li>
+     *   <li>Only host candidates are gathered (no STUN/TURN)</li>
+     *   <li>No outgoing connectivity checks are initiated (only responses)</li>
+     *   <li>Nominations are accepted from the full ICE (controlling) agent</li>
+     * </ul>
+     *
+     * @return true if this agent is in ICE-LITE mode, false for full ICE
+     */
+    public boolean isIceLite() {
+        return iceLite;
+    }
+
+    /**
+     * Sets this agent to operate in ICE-LITE mode.
+     * <p>
+     * ICE-LITE is a simplified ICE implementation defined in RFC 8445 Section 2.5.
+     * When enabled:
+     * <ul>
+     *   <li>The agent MUST always be in the controlled role (setControlling(false) is called)</li>
+     *   <li>Only host candidates should be gathered (no STUN/TURN)</li>
+     *   <li>No outgoing connectivity checks are initiated (only responses)</li>
+     *   <li>Nominations are accepted from the full ICE (controlling) agent</li>
+     * </ul>
+     * <p>
+     * This setting should be configured before starting ICE processing.
+     *
+     * @param iceLite true to enable ICE-LITE mode, false for full ICE
+     */
+    public void setIceLite(boolean iceLite) {
+        this.iceLite = iceLite;
+        if (iceLite) {
+            // ICE-LITE agents MUST always be in the controlled role per RFC 8445
+            logger.info("ICE-LITE mode enabled - agent will operate in controlled role only");
+            setControlling(false);
+        }
     }
 
     /**

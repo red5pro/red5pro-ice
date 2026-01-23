@@ -39,7 +39,11 @@ class ConnectivityCheckClient implements ResponseCollector {
 
     private static final Logger logger = LoggerFactory.getLogger(ConnectivityCheckClient.class);
 
-    // XXX(paul) base timeout for processes within; using STUN timeout for the base to-start.
+    /**
+     * Maximum time (in ms) the PaceMaker will continue starting new connectivity checks.
+     * Individual STUN transactions continue their retransmission schedules independently.
+     * This is NOT a per-transaction timeout - it's the window for initiating checks.
+     */
     private static long checklistTimeout = 3000L;
 
     /**
@@ -94,8 +98,16 @@ class ConnectivityCheckClient implements ResponseCollector {
     /**
      * Starts client connectivity checks for the first {@link IceMediaStream} in our parent {@link Agent}. This method should only be called by
      * the parent {@link Agent} when connectivity establishment starts for a particular check list.
+     * <p>
+     * Note: ICE-LITE agents do not initiate connectivity checks per RFC 8445 Section 2.5, so this method returns
+     * immediately without starting checks when in ICE-LITE mode.
      */
     public void startChecks() {
+        // ICE-LITE agents do not initiate connectivity checks - they only respond to incoming checks
+        if (parentAgent.isIceLite()) {
+            logger.debug("ICE-LITE mode: skipping outgoing connectivity checks. Local ufrag {}", parentAgent.getLocalUfrag());
+            return;
+        }
         List<IceMediaStream> streamsWithPendingConnectivityEstablishment = parentAgent.getStreamsWithPendingConnectivityEstablishment();
         if (streamsWithPendingConnectivityEstablishment.size() > 0) {
             logger.debug("Start connectivity checks. Local ufrag {}", parentAgent.getLocalUfrag());
@@ -508,19 +520,38 @@ class ConnectivityCheckClient implements ResponseCollector {
     /**
      * Returns true if the {@link Response} in evt had a source or a destination address that match those of the {@link Request},
      * or false otherwise.
-     * <br>
-     * RFC 5245: The agent MUST check that the source IP address and port of the response equal the destination IP address and port to which the
-     * Binding request was sent, and that the destination IP address and port of the response match the source IP address and port from which
-     * the Binding request was sent.  In other words, the source and destination transport addresses in the request and responses are
-     * symmetric.  If they are not symmetric, the agent sets the state of the pair to Failed.
+     * <p>
+     * RFC 8445 Section 7.2.5.2.1: The ICE agent MUST check that the source and destination transport addresses in the Binding request
+     * and response are symmetric. That is, the source IP address and port of the response MUST be equal to the destination IP address
+     * and port to which the Binding request was sent, and the destination IP address and port of the response MUST be equal to the
+     * source IP address and port from which the Binding request was sent. If the addresses are not symmetric, the agent MUST set the
+     * candidate pair state to Failed.
      *
      * @param evt the StunResponseEvent that contains the Response we need to examine
      * @return true if the Response in evt had a source or a destination address that matched those of the Request, or false otherwise
      */
     private boolean checkSymmetricAddresses(StunResponseEvent evt) {
         CandidatePair pair = ((CandidatePair) evt.getTransactionID().getApplicationData());
-        TransportAddress localAddr = pair.getLocalCandidate().getBase().getTransportAddress();
-        return localAddr.equals(evt.getLocalAddress()) && pair.getRemoteCandidate().getTransportAddress().equals(evt.getRemoteAddress());
+        TransportAddress expectedLocalAddr = pair.getLocalCandidate().getBase().getTransportAddress();
+        TransportAddress actualLocalAddr = evt.getLocalAddress();
+        TransportAddress expectedRemoteAddr = pair.getRemoteCandidate().getTransportAddress();
+        TransportAddress actualRemoteAddr = evt.getRemoteAddress();
+        boolean localMatch = expectedLocalAddr.equals(actualLocalAddr);
+        boolean remoteMatch = expectedRemoteAddr.equals(actualRemoteAddr);
+        if (!localMatch || !remoteMatch) {
+            // Log detailed diagnostic information for non-symmetric responses
+            // This helps diagnose NAT issues, asymmetric routing, or misconfigured network paths
+            logger.warn("Non-symmetric address check failed for pair: {}", pair.toShortString());
+            if (!localMatch) {
+                logger.warn("  Local address mismatch - expected: {}, actual response destination: {}", expectedLocalAddr, actualLocalAddr);
+            }
+            if (!remoteMatch) {
+                logger.warn("  Remote address mismatch - expected: {}, actual response source: {}", expectedRemoteAddr, actualRemoteAddr);
+            }
+            logger.warn("  This typically indicates: symmetric NAT (requires TURN), NAT rebinding, or asymmetric routing");
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -654,7 +685,9 @@ class ConnectivityCheckClient implements ResponseCollector {
                         }
                         // Since we suspect that it is possible to startCheckForPair, processSuccessResponse and only then setStateInProgress, no synchronized
                         // since the CandidatePair#setState method is atomically enabled.
-                        TransactionID transactionID = startCheckForPair(pairToCheck, 50, 500, 2); //100, 1600, 6
+                        // RFC 5389 Section 7.2.1: RTO >= 500ms, Rc = 7 (6 retransmissions), double RTO each time up to max
+                        // Using 500ms initial, 1600ms max, 6 retransmissions for RFC compliance
+                        TransactionID transactionID = startCheckForPair(pairToCheck, 500, 1600, 6);
                         if (transactionID == null) {
                             logger.warn("Pair failed: {}", pairToCheck.toShortString());
                             pairToCheck.setStateFailed();
@@ -669,7 +702,8 @@ class ConnectivityCheckClient implements ResponseCollector {
                     // message isn't all that important generally
                     logger.trace("PaceMaker got interrupted", e);
                 }
-                // maximum spec'd time for STUN == 3s
+                // checklistTimeout limits how long we continue starting new checks (individual transactions
+                // continue their retransmission schedules independently after being started)
             } while ((System.currentTimeMillis() - checkStartTime) < checklistTimeout && parentAgent.isActive()); // exit when the agent is no longer active
             //logger.trace("exit");
         }
