@@ -3,6 +3,9 @@ package com.red5pro.ice;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.ArrayList;
@@ -42,7 +45,14 @@ public class Component implements PropertyChangeListener {
     /**
      * Whether or not to skip remote candidates originating from private network hosts.
      */
-    private static boolean skipPrivateNetworkHostCandidate = StackProperties.getBoolean("SKIP_REMOTE_PRIVATE_HOSTS", false);
+    private static final boolean skipPrivateNetworkHostCandidate = StackProperties.getBoolean(StackProperties.SKIP_REMOTE_PRIVATE_HOSTS,
+            false);
+
+    /**
+     * Whether or not to skip remote candidates originating from non-public network hosts.
+     */
+    private static final boolean skipNonPublicNetworkHostCandidate = StackProperties
+            .getBoolean(StackProperties.SKIP_REMOTE_NON_PUBLIC_HOSTS, false);
 
     /**
      * Comparator allowing sort by priority and preference.
@@ -280,9 +290,12 @@ public class Component implements PropertyChangeListener {
      */
     public void addRemoteCandidate(RemoteCandidate candidate) {
         logger.debug("Add remote candidate for {}: {}", toShortString(), candidate.toShortString());
+        InetAddress address = ((InetSocketAddress) candidate.getTransportAddress()).getAddress();
         // skip private network host candidates
-        if (skipPrivateNetworkHostCandidate && ((InetSocketAddress) candidate.getTransportAddress()).getAddress().isSiteLocalAddress()) {
+        if (skipPrivateNetworkHostCandidate && address.isSiteLocalAddress()) {
             logger.debug("Skipping remote candidate with private IP address: {}", candidate);
+        } else if (skipNonPublicNetworkHostCandidate && isNonPublicAddress(address)) {
+            logger.debug("Skipping remote candidate with non-public IP address: {}", candidate);
         } else {
             // check if we already have such a candidate (redundant)
             Optional<RemoteCandidate> existingCandidate = remoteCandidates.stream()
@@ -302,6 +315,15 @@ public class Component implements PropertyChangeListener {
      */
     public void addUpdateRemoteCandidates(RemoteCandidate candidate) {
         logger.debug("Update remote candidate for {}: {}", toShortString(), candidate.getTransportAddress());
+        InetAddress address = ((InetSocketAddress) candidate.getTransportAddress()).getAddress();
+        if (skipPrivateNetworkHostCandidate && address.isSiteLocalAddress()) {
+            logger.debug("Skipping update remote candidate with private IP address: {}", candidate.getTransportAddress());
+            return;
+        }
+        if (skipNonPublicNetworkHostCandidate && isNonPublicAddress(address)) {
+            logger.debug("Skipping update remote candidate with non-public IP address: {}", candidate.getTransportAddress());
+            return;
+        }
         List<RemoteCandidate> existingCandidates = new LinkedList<>();
         existingCandidates.addAll(remoteCandidates);
         existingCandidates.addAll(remoteUpdateCandidates);
@@ -351,6 +373,60 @@ public class Component implements PropertyChangeListener {
                 streamCheckList.add(pair);
             }
         }
+    }
+
+    private static boolean isNonPublicAddress(InetAddress address) {
+        if (address == null) {
+            return true;
+        }
+        if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress() || address.isSiteLocalAddress()
+                || address.isMulticastAddress()) {
+            return true;
+        }
+        if (address instanceof Inet6Address) {
+            byte[] bytes = address.getAddress();
+            // Unique local IPv6 addresses: fc00::/7
+            return (bytes[0] & (byte) 0xfe) == (byte) 0xfc;
+        }
+        if (address instanceof Inet4Address) {
+            byte[] bytes = address.getAddress();
+            int b0 = bytes[0] & 0xff;
+            int b1 = bytes[1] & 0xff;
+            // 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8
+            if (b0 == 0 || b0 == 10 || b0 == 127) {
+                return true;
+            }
+            // 169.254.0.0/16 (link-local)
+            if (b0 == 169 && b1 == 254) {
+                return true;
+            }
+            // 172.16.0.0/12
+            if (b0 == 172 && (b1 >= 16 && b1 <= 31)) {
+                return true;
+            }
+            // 192.168.0.0/16
+            if (b0 == 192 && b1 == 168) {
+                return true;
+            }
+            // 100.64.0.0/10 (CGNAT)
+            if (b0 == 100 && (b1 >= 64 && b1 <= 127)) {
+                return true;
+            }
+            // 198.18.0.0/15 (benchmarking)
+            if (b0 == 198 && (b1 == 18 || b1 == 19)) {
+                return true;
+            }
+            // 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24 (documentation ranges)
+            if ((b0 == 192 && b1 == 0 && (bytes[2] & 0xff) == 2) || (b0 == 198 && b1 == 51 && (bytes[2] & 0xff) == 100)
+                    || (b0 == 203 && b1 == 0 && (bytes[2] & 0xff) == 113)) {
+                return true;
+            }
+            // 224.0.0.0/4 (multicast) and 240.0.0.0/4 (reserved)
+            if (b0 >= 224) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -176,6 +176,23 @@ public class StackProperties {
     public static final String ALLOWED_INTERFACES = "com.red5pro.ice.harvest.ALLOWED_INTERFACES";
 
     /**
+     * The name of the property which, if set to true, specifies that remote candidates with private IP addresses should be ignored.
+     */
+    public static final String SKIP_REMOTE_PRIVATE_HOSTS = "SKIP_REMOTE_PRIVATE_HOSTS";
+
+    /**
+     * The name of the property which, if set to true, specifies that remote candidates with non-public IP addresses should be ignored.
+     * This includes RFC1918, CGNAT (100.64.0.0/10), loopback, link-local, and other non-routable ranges.
+     */
+    public static final String SKIP_REMOTE_NON_PUBLIC_HOSTS = "SKIP_REMOTE_NON_PUBLIC_HOSTS";
+
+    /**
+     * The name of the property which, if set to true, prioritizes valid pairs using network-cost before candidate priority.
+     * Note: This follows the expired draft-thatcher-ice-network-cost guidance and should only be enabled when peers support it.
+     */
+    public static final String USE_NETWORK_COST = "com.red5pro.ice.USE_NETWORK_COST";
+
+    /**
      * The name of the allowed interfaces property which specifies the blocked interfaces for host candidate allocations.
      */
     public static final String BLOCKED_INTERFACES = "com.red5pro.ice.harvest.BLOCKED_INTERFACES";

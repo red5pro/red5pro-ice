@@ -585,6 +585,41 @@ public class IceMediaStream implements Comparable<IceMediaStream> {
     }
 
     /**
+     * Returns the best valid pair for the specified component.
+     * If preferNetworkCost is true and any valid pair has a non-zero network-cost,
+     * lower network-cost is preferred over priority; ties fall back to priority.
+     */
+    protected CandidatePair getBestValidPair(Component component, boolean preferNetworkCost) {
+        if (!preferNetworkCost) {
+            return getValidPair(component);
+        }
+        boolean hasNetworkCost = false;
+        for (CandidatePair pair : validList) {
+            if (pair.getParentComponent() == component && pair.getRemoteCandidate().getNetworkCost() > 0) {
+                hasNetworkCost = true;
+                break;
+            }
+        }
+        CandidatePair best = null;
+        int bestCost = Integer.MAX_VALUE;
+        long bestPriority = Long.MIN_VALUE;
+        for (CandidatePair pair : validList) {
+            if (pair.getParentComponent() != component) {
+                continue;
+            }
+            int cost = pair.getRemoteCandidate().getNetworkCost();
+            int effectiveCost = (hasNetworkCost && cost <= 0) ? Integer.MAX_VALUE : cost;
+            long priority = pair.getPriority();
+            if (best == null || effectiveCost < bestCost || (effectiveCost == bestCost && priority > bestPriority)) {
+                best = pair;
+                bestCost = effectiveCost;
+                bestPriority = priority;
+            }
+        }
+        return best;
+    }
+
+    /**
      * Adds to the list of listeners registered for property changes if {@link CandidatePair}s. We add such listeners in the stream, rather
      * than having them in the candidate pair itself, because we don't want all pairs to keep lists of references to the same listeners.
      *

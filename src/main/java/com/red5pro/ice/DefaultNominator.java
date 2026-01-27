@@ -40,6 +40,11 @@ public class DefaultNominator implements PropertyChangeListener {
     private NominationStrategy strategy = NominationStrategy.NOMINATE_HIGHEST_PRIO;
 
     /**
+     * Whether to prefer lower network-cost over candidate priority when selecting a valid pair.
+     */
+    private static final boolean useNetworkCost = StackProperties.getBoolean(StackProperties.USE_NETWORK_COST, false);
+
+    /**
      * Map that will remember association between validated relayed candidate
      * and a timer. It is used with the NOMINATE_FIRST_HIGHEST_VALID strategy.
      */
@@ -161,7 +166,7 @@ public class DefaultNominator implements PropertyChangeListener {
             }
             if (parentCheckList.allChecksCompleted()) {
                 for (Component component : parentStream.getComponents()) {
-                    CandidatePair pair = parentStream.getValidPair(component);
+                    CandidatePair pair = parentStream.getBestValidPair(component, useNetworkCost);
                     if (pair != null) {
                         logger.debug("Nominate (highest priority): " + validPair.toShortString());
                         parentAgent.nominate(pair);
@@ -172,8 +177,10 @@ public class DefaultNominator implements PropertyChangeListener {
                 // nominate it to avoid waiting indefinitely. This handles the case where only
                 // a few pairs succeed (e.g., after role conflict resolution) and the checklist
                 // never fully completes because other pairs remain FROZEN or WAITING.
-                logger.debug("Nominate valid pair before all checks complete: {}", validPair.toShortString());
-                parentAgent.nominate(validPair);
+                CandidatePair bestPair = parentStream.getBestValidPair(parentComponent, useNetworkCost);
+                CandidatePair toNominate = (bestPair != null) ? bestPair : validPair;
+                logger.debug("Nominate valid pair before all checks complete: {}", toNominate.toShortString());
+                parentAgent.nominate(toNominate);
             }
         }
     }
