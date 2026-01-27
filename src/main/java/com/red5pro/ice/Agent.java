@@ -2700,7 +2700,7 @@ public class Agent {
     }
 
     public void notifySessionChanged(IceSocketWrapper iceSocketWrapper, IoSession session, Ice context) {
-        logger.info("notifySessionChanged: {}  adress: {}  session: {}", context, iceSocketWrapper.getTransportAddress(), session);
+        logger.info("notifySessionChanged: {}  address: {}  session: {}", context, iceSocketWrapper.getTransportAddress(), session);
         switch (context) {
             case DISPOSE_ADDRESS:
                 if (eolHandler != null) {
