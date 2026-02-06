@@ -58,6 +58,10 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
      */
     private boolean bindingFallbackAttempted;
 
+    private TurnCandidateHarvester getTurnHarvester() {
+        return (TurnCandidateHarvester) harvester;
+    }
+
     /**
      * Initializes a new TurnCandidateHarvest which is to represent the harvesting of TURN Candidates for a specific HostCandidate performed
      * by a specific TurnCandidateHarvester.
@@ -300,7 +304,7 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
     private Request createAllocateRequest(byte protocol) {
         boolean useEvenPort = StackProperties.getBoolean(StackProperties.TURN_USE_EVEN_PORT, false);
         boolean rFlag = StackProperties.getBoolean(StackProperties.TURN_EVEN_PORT_RFLAG, false);
-        byte[] reservationToken = (useEvenPort && rFlag) ? harvester.getReservationToken() : null;
+        byte[] reservationToken = (useEvenPort && rFlag) ? getTurnHarvester().getReservationToken() : null;
         Request request = MessageFactory.createAllocateRequest(protocol, rFlag, reservationToken);
         if (useEvenPort && !rFlag) {
             request.putAttribute(AttributeFactory.createEvenPortAttribute(false));
@@ -476,7 +480,7 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
                 ReservationTokenAttribute reservationToken = (ReservationTokenAttribute) response
                         .getAttribute(Attribute.Type.RESERVATION_TOKEN);
                 if (reservationToken != null) {
-                    harvester.setReservationToken(reservationToken.getReservationToken());
+                    getTurnHarvester().setReservationToken(reservationToken.getReservationToken());
                 }
                 // attach a relayed connection to the transaction in lieu of it successfully
                 if (applicationData == null) {
