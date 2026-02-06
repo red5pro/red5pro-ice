@@ -13,6 +13,7 @@ import org.apache.mina.core.session.IdleStatus;
 import org.apache.mina.core.session.IoSession;
 import org.apache.mina.transport.socket.SocketSessionConfig;
 import org.apache.mina.transport.socket.nio.NioSocketConnector;
+import org.apache.mina.filter.ssl.SslFilter;
 
 import com.red5pro.ice.nio.IceHandler;
 import com.red5pro.ice.nio.IceTransport;
@@ -29,6 +30,7 @@ import com.red5pro.ice.LocalCandidate;
 import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import javax.net.ssl.SSLContext;
 
 /**
  * Implements a CandidateHarvester which gathers Candidates for a specified {@link Component} using STUN as defined in RFC 5389 "Session
@@ -245,7 +247,8 @@ public class StunCandidateHarvester extends AbstractCandidateHarvester {
         // get the transport address for the incoming host candidate
         TransportAddress hostAddress = hostCand.getTransportAddress();
         // first of all, make sure that the STUN server and the Candidate address are of the same type and that they can communicate.
-        if (!hostAddress.canReach(stunServer)) {
+        TransportAddress connectStunServer = getConnectStunServerAddress();
+        if (!hostAddress.canReach(connectStunServer)) {
             logger.info("Transport mismatch, skipping candidate in this harvester");
             return;
         }
@@ -253,7 +256,7 @@ public class StunCandidateHarvester extends AbstractCandidateHarvester {
         // because in Java a server socket cannot connect to a destination with the same local address/port (i.e. a Java Socket cannot act as both server/client).
         HostCandidate cand = null;
         // create a new TCP HostCandidate
-        if (hostCand.getTransport() == Transport.TCP) {
+        if (hostCand.getTransport() == Transport.TCP || stunServer.getTransport() == Transport.TLS) {
             logger.info("Creating a new TCP HostCandidate");
             try {
                 final IceHandler handler = IceTransport.getIceHandler();
@@ -289,7 +292,10 @@ public class StunCandidateHarvester extends AbstractCandidateHarvester {
                         handler.registerStackAndSocket(stunStack, iceSocket);
                     }
                     // connect
-                    ConnectFuture future = connector.connect(stunServer, hostAddress);
+                    if (stunServer.getTransport() == Transport.TLS) {
+                        addSslFilter(connector);
+                    }
+                    ConnectFuture future = connector.connect(connectStunServer, hostAddress);
                     future.awaitUninterruptibly(500L);
                     if (future.isConnected()) {
                         IoSession sess = future.getSession();
@@ -347,6 +353,19 @@ public class StunCandidateHarvester extends AbstractCandidateHarvester {
         } else {
             logger.debug("No usable host candidate available for {}", hostCand);
         }
+    }
+
+    private TransportAddress getConnectStunServerAddress() {
+        if (stunServer.getTransport() == Transport.TLS) {
+            return new TransportAddress(stunServer.getAddress(), stunServer.getPort(), Transport.TCP);
+        }
+        return stunServer;
+    }
+
+    private void addSslFilter(NioSocketConnector connector) throws Exception {
+        SSLContext sslContext = SSLContext.getDefault();
+        SslFilter sslFilter = new SslFilter(sslContext);
+        connector.getFilterChain().addFirst("ssl", sslFilter);
     }
 
     /**

@@ -96,6 +96,11 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
     private final ConcurrentMap<TransactionID, Request> requests = new ConcurrentHashMap<>();
 
     /**
+     * Optional override for the STUN/TURN server address used by this harvest.
+     */
+    private TransportAddress stunServerOverride;
+
+    /**
      * The interval in milliseconds at which a new STUN keep-alive message is to be sent to the STUN server associated with the
      * StunCandidateHarvester of this instance in order to keep one of the Candidates harvested by this instance alive.
      */
@@ -181,8 +186,7 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
             completedResolvingCandidate = true;
             try {
                 if ((response == null || !response.isSuccessResponse()) && longTermCredentialSession != null) {
-                    harvester.getStunStack().getCredentialsManager().unregisterAuthority(longTermCredentialSession);
-                    longTermCredentialSession = null;
+                    clearLongTermCredentialSession();
                 }
             } finally {
                 harvester.completedResolvingCandidate(this);
@@ -825,7 +829,7 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
             longTermCredentialSession.addAttributes(request);
         }
         StunStack stunStack = harvester.getStunStack();
-        TransportAddress stunServer = harvester.stunServer;
+        TransportAddress stunServer = getStunServer();
         TransportAddress hostCandidateTransportAddress = hostCandidate.getTransportAddress();
         if (transactionID == null) {
             byte[] transactionIDAsBytes = request.getTransactionID();
@@ -851,6 +855,21 @@ public class StunCandidateHarvest extends AbstractResponseCollector {
         }
         requests.put(transactionID, request);
         return transactionID;
+    }
+
+    protected void clearLongTermCredentialSession() {
+        if (longTermCredentialSession != null) {
+            harvester.getStunStack().getCredentialsManager().unregisterAuthority(longTermCredentialSession);
+            longTermCredentialSession = null;
+        }
+    }
+
+    protected TransportAddress getStunServer() {
+        return (stunServerOverride != null) ? stunServerOverride : harvester.stunServer;
+    }
+
+    protected void setStunServerOverride(TransportAddress stunServerOverride) {
+        this.stunServerOverride = stunServerOverride;
     }
 
     /**

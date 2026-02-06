@@ -46,6 +46,11 @@ public class TurnCandidateHarvester extends StunCandidateHarvester {
     private final LongTermCredential longTermCredential;
 
     /**
+     * Reservation token from the last Allocate response (used for even-port allocations).
+     */
+    private volatile byte[] reservationToken;
+
+    /**
      * Initializes a new TurnCandidateHarvester instance which is to work with a specific TURN server.
      *
      * @param turnServer the TransportAddress of the TURN server the new instance is to work with
@@ -110,6 +115,26 @@ public class TurnCandidateHarvester extends StunCandidateHarvester {
     @Override
     protected LongTermCredential createLongTermCredential(StunCandidateHarvest harvest, byte[] realm) {
         return longTermCredential;
+    }
+
+    public byte[] getReservationToken() {
+        byte[] token = reservationToken;
+        if (token == null) {
+            return null;
+        }
+        byte[] copy = new byte[token.length];
+        System.arraycopy(token, 0, copy, 0, token.length);
+        return copy;
+    }
+
+    public void setReservationToken(byte[] reservationToken) {
+        if (reservationToken == null) {
+            this.reservationToken = null;
+            return;
+        }
+        byte[] copy = new byte[reservationToken.length];
+        System.arraycopy(reservationToken, 0, copy, 0, reservationToken.length);
+        this.reservationToken = copy;
     }
 
     @Override

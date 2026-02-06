@@ -6,8 +6,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
+import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.mina.core.buffer.IoBuffer;
@@ -19,7 +21,9 @@ import org.apache.mina.transport.socket.DatagramSessionConfig;
 import org.apache.mina.transport.socket.SocketSessionConfig;
 import org.apache.mina.transport.socket.nio.NioDatagramConnector;
 import org.apache.mina.transport.socket.nio.NioSocketConnector;
+import org.apache.mina.filter.ssl.SslFilter;
 import com.red5pro.ice.attribute.Attribute;
+import com.red5pro.ice.attribute.ConnectionIdAttribute;
 import com.red5pro.ice.attribute.DataAttribute;
 import com.red5pro.ice.attribute.XorMappedAddressAttribute;
 import com.red5pro.ice.attribute.XorPeerAddressAttribute;
@@ -44,6 +48,7 @@ import com.red5pro.ice.StunException;
 import com.red5pro.ice.StunMessageEvent;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import javax.net.ssl.SSLContext;
 
 /**
  * Represents an application-purposed (as opposed to an ICE-specific) DatagramSocket for a RelayedCandidate harvested by a TurnCandidateHarvest
@@ -124,6 +129,47 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
      * StunStack and not channelDataSocket. However, using channelDataSession is supposed to be more efficient than using StunStack.
      */
     private IoSession channelDataSession;
+
+    /**
+     * Connection ID for TURN TCP allocations (RFC 6062).
+     */
+    private volatile Integer tcpConnectionId;
+
+    /**
+     * Indicates whether TCP connection has been bound (CONNECTION-BIND success).
+     */
+    private volatile boolean tcpConnectionBound;
+
+    /**
+     * Transaction ID for CONNECTION-BIND sent over the data connection.
+     */
+    private volatile byte[] tcpConnectionBindTransactionId;
+
+    /**
+     * Peer address associated with the TCP connection.
+     */
+    private volatile TransportAddress tcpPeerAddress;
+
+    /**
+     * Pending data for TCP relays until connection is bound.
+     */
+    private final CopyOnWriteArrayList<IoBuffer> pendingTcpSends = new CopyOnWriteArrayList<>();
+
+    /**
+     * TCP STUN framing state (RFC 5389) for data connection.
+     */
+    private final byte[] tcpStunLengthBytes = new byte[2];
+    private int tcpStunLengthBytesRead;
+    private int tcpStunFrameLength = -1;
+    private byte[] tcpStunFrame;
+    private int tcpStunFrameRead;
+
+    /**
+     * TCP CONNECTION-BIND retry settings.
+     */
+    private static final int TCP_CONNECTION_BIND_RETRIES = 3;
+    private static final long TCP_CONNECTION_BIND_RETRY_INTERVAL_MS = 500L;
+    private Thread tcpConnectionBindRetryThread;
 
     /**
      * The next free channel number to be returned by {@link #getNextChannelNumber()} and marked as non-free.
@@ -372,6 +418,13 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
             case Message.CREATEPERMISSION_REQUEST:
                 setChannelBound(request, false);
                 break;
+            case Message.CONNECT_REQUEST:
+                tcpConnectionId = null;
+                tcpConnectionBound = false;
+                break;
+            case Message.CONNECTION_BIND_REQUEST:
+                tcpConnectionBound = false;
+                break;
         }
         return false;
     }
@@ -391,6 +444,27 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                 break;
             case Message.CREATEPERMISSION_REQUEST:
                 setChannelBound(request, true);
+                break;
+            case Message.CONNECT_REQUEST: {
+                ConnectionIdAttribute connectionIdAttribute = (ConnectionIdAttribute) response.getAttribute(Attribute.Type.CONNECTION_ID);
+                if (connectionIdAttribute != null) {
+                    tcpConnectionId = connectionIdAttribute.getConnectionIdValue();
+                    tcpConnectionBound = false;
+                    // create the data connection to TURN server
+                    createSession(getConnectTurnServerAddress());
+                    sendConnectionBind();
+                } else {
+                    logger.warn("CONNECT response missing CONNECTION-ID");
+                }
+                break;
+            }
+            case Message.CONNECTION_BIND_REQUEST:
+                tcpConnectionBound = true;
+                if (tcpPeerAddress != null) {
+                    remotePeerAddress = tcpPeerAddress;
+                    relayedCandidate.getParentComponent().getComponentSocket().addAuthorizedAddress(remotePeerAddress);
+                }
+                flushPendingTcpSends();
                 break;
         }
         switch (response.getMessageType()) {
@@ -419,13 +493,118 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                     logger.debug("Component socket is relay compatible");
                 }
                 break;
+            case Message.CONNECTION_BIND_SUCCESS_RESPONSE:
+                tcpConnectionBound = true;
+                if (tcpPeerAddress != null) {
+                    remotePeerAddress = tcpPeerAddress;
+                    relayedCandidate.getParentComponent().getComponentSocket().addAuthorizedAddress(remotePeerAddress);
+                }
+                flushPendingTcpSends();
+                break;
         }
+    }
+
+    private void sendConnectionBind() {
+        if (tcpConnectionId == null) {
+            return;
+        }
+        try {
+            sendConnectionBindInternal();
+            scheduleConnectionBindRetries();
+        } catch (Exception ex) {
+            logger.warn("Failed to send CONNECTION-BIND", ex);
+        }
+    }
+
+    private void sendConnectionBindInternal() throws Exception {
+        Request connectionBindRequest = MessageFactory.createConnectionBindRequest(tcpConnectionId);
+        TransactionID transId = TransactionID.createNewTransactionID();
+        connectionBindRequest.setTransactionID(transId.getBytes());
+        tcpConnectionBindTransactionId = transId.getBytes();
+        if (turnCandidateHarvest.getLongTermCredentialSession() != null) {
+            turnCandidateHarvest.getLongTermCredentialSession().addAttributes(connectionBindRequest);
+        }
+        byte[] bytes = connectionBindRequest.encode(turnCandidateHarvest.harvester.getStunStack());
+        byte[] framed = frameTcpStunMessage(bytes);
+        if (channelDataSession == null) {
+            connectLatch.await(3000L, TimeUnit.MILLISECONDS);
+        }
+        if (channelDataSession != null) {
+            channelDataSession.write(IoBuffer.wrap(framed));
+        } else {
+            logger.warn("TCP relay data session not ready for CONNECTION-BIND");
+        }
+    }
+
+    private void flushPendingTcpSends() {
+        if (!isTcpConnectionBound()) {
+            return;
+        }
+        if (!pendingTcpSends.isEmpty()) {
+            pendingTcpSends.forEach(buf -> {
+                if (channelDataSession != null) {
+                    channelDataSession.write(buf);
+                }
+            });
+            pendingTcpSends.clear();
+        }
+    }
+
+    private byte[] frameTcpStunMessage(byte[] message) {
+        int length = message.length;
+        byte[] framed = new byte[length + 2];
+        framed[0] = (byte) ((length >> 8) & 0xFF);
+        framed[1] = (byte) (length & 0xFF);
+        System.arraycopy(message, 0, framed, 2, length);
+        return framed;
+    }
+
+    private void scheduleConnectionBindRetries() {
+        if (tcpConnectionBindRetryThread != null && tcpConnectionBindRetryThread.isAlive()) {
+            return;
+        }
+        tcpConnectionBindRetryThread = new Thread(() -> {
+            int attempts = 0;
+            while (attempts < TCP_CONNECTION_BIND_RETRIES && !tcpConnectionBound && !closed.get()) {
+                try {
+                    Thread.sleep(TCP_CONNECTION_BIND_RETRY_INTERVAL_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                if (tcpConnectionBound || closed.get()) {
+                    return;
+                }
+                attempts++;
+                try {
+                    logger.debug("Retrying CONNECTION-BIND attempt {}", attempts);
+                    sendConnectionBindInternal();
+                } catch (Exception ex) {
+                    logger.warn("CONNECTION-BIND retry failed", ex);
+                }
+            }
+        }, "RelayedCandidateConnection-ConnectionBindRetry");
+        tcpConnectionBindRetryThread.setDaemon(true);
+        tcpConnectionBindRetryThread.start();
     }
 
     public void send(IoBuffer buf, SocketAddress destAddress) throws IOException {
         logger.info("send: {} to {} use channel data? {} remote peer: {}", buf, destAddress, useChannelData, remotePeerAddress);
         if (closed.get()) {
             throw new IOException(RelayedCandidateConnection.class.getSimpleName() + " has been closed");
+        } else if (relayedCandidate.getTransport() == Transport.TCP || relayedCandidate.getTransport() == Transport.TLS) {
+            Transport transport = (relayedCandidate.getTransport() == Transport.TLS) ? Transport.TCP : relayedCandidate.getTransport();
+            TransportAddress peerAddress = new TransportAddress((InetSocketAddress) destAddress, transport);
+            if (!isTcpConnectionBound()) {
+                pendingTcpSends.add(buf.duplicate());
+                ensureTcpConnection(peerAddress);
+                return;
+            }
+            if (channelDataSession != null) {
+                channelDataSession.write(buf);
+            } else {
+                logger.warn("TCP relay data session not available");
+            }
         } else if (!useChannelData) { // if we're not using channel-data
             // send indication is the next step after creating permission response. RFC-5766 pg. 51
             byte[] data = new byte[buf.remaining()];
@@ -486,6 +665,30 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
         }
     }
 
+    private boolean isTcpConnectionBound() {
+        return tcpConnectionBound && channelDataSession != null;
+    }
+
+    private void ensureTcpConnection(TransportAddress peerAddress) {
+        if (tcpConnectionId != null && isTcpConnectionBound()) {
+            return;
+        }
+        if (tcpPeerAddress == null) {
+            tcpPeerAddress = peerAddress;
+        }
+        try {
+            TransactionID transId = TransactionID.createNewTransactionID();
+            Request connectRequest = MessageFactory.createConnectRequest(peerAddress, transId.getBytes());
+            if (turnCandidateHarvest.getLongTermCredentialSession() != null) {
+                turnCandidateHarvest.getLongTermCredentialSession().addAttributes(connectRequest);
+            }
+            connectRequest.setTransactionID(transId.getBytes());
+            turnCandidateHarvest.sendRequest(this, connectRequest);
+        } catch (Exception ex) {
+            logger.warn("Failed to send CONNECT request for {}", peerAddress, ex);
+        }
+    }
+
     /** {@inheritDoc} */
     @Override
     public void sessionCreated(IoSession session) throws Exception {
@@ -523,24 +726,36 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
         if (iceSocket != null) {
             if (message instanceof IoBuffer) {
                 IoBuffer buf = (IoBuffer) message;
-                int channelDataLength = buf.remaining();
-                if (channelDataLength >= (CHANNELDATA_CHANNELNUMBER_LENGTH + CHANNELDATA_LENGTH_LENGTH)) {
-                    // read the channel number
-                    char channelNumber = (char) (buf.get() << 8 | buf.get() & 0xFF);
-                    // read the length
-                    int length = buf.get() << 8 | buf.get() & 0xFF;
-                    byte[] channelData = new byte[length];
-                    // pull the bytes from iobuffer into channel data
-                    buf.get(channelData);
-                    channels.forEach(channel -> {
-                        if (channel.channelNumberEquals(channelNumber)) {
-                            // create a raw message and pass it to the socket queue for consumers
-                            iceSocket.offerMessage(RawMessage.build(channelData, channel.peerAddress, localAddress));
-                            return;
-                        }
-                    });
+                if (relayedCandidate.getTransport() == Transport.TCP || relayedCandidate.getTransport() == Transport.TLS) {
+                    if (!tcpConnectionBound) {
+                        processTcpFramedStun(buf);
+                    }
+                    if (buf.hasRemaining()) {
+                        byte[] data = new byte[buf.remaining()];
+                        buf.get(data);
+                        TransportAddress remote = (tcpPeerAddress != null) ? tcpPeerAddress : remotePeerAddress;
+                        iceSocket.offerMessage(RawMessage.build(data, remote, localAddress));
+                    }
                 } else {
-                    logger.debug("Invalid channel data bytes < 4");
+                    int channelDataLength = buf.remaining();
+                    if (channelDataLength >= (CHANNELDATA_CHANNELNUMBER_LENGTH + CHANNELDATA_LENGTH_LENGTH)) {
+                        // read the channel number
+                        char channelNumber = (char) (buf.get() << 8 | buf.get() & 0xFF);
+                        // read the length
+                        int length = buf.get() << 8 | buf.get() & 0xFF;
+                        byte[] channelData = new byte[length];
+                        // pull the bytes from iobuffer into channel data
+                        buf.get(channelData);
+                        channels.forEach(channel -> {
+                            if (channel.channelNumberEquals(channelNumber)) {
+                                // create a raw message and pass it to the socket queue for consumers
+                                iceSocket.offerMessage(RawMessage.build(channelData, channel.peerAddress, localAddress));
+                                return;
+                            }
+                        });
+                    } else {
+                        logger.debug("Invalid channel data bytes < 4");
+                    }
                 }
             } else if (message instanceof RawMessage) {
                 // non-stun message
@@ -550,6 +765,60 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
             }
         } else {
             logger.debug("Ice socket lookups failed");
+        }
+    }
+
+    private void processTcpFramedStun(IoBuffer buf) {
+        while (buf.hasRemaining()) {
+            if (tcpStunFrameLength < 0) {
+                while (tcpStunLengthBytesRead < 2 && buf.hasRemaining()) {
+                    tcpStunLengthBytes[tcpStunLengthBytesRead++] = buf.get();
+                }
+                if (tcpStunLengthBytesRead < 2) {
+                    return;
+                }
+                tcpStunFrameLength = ((tcpStunLengthBytes[0] & 0xFF) << 8) | (tcpStunLengthBytes[1] & 0xFF);
+                tcpStunFrame = new byte[tcpStunFrameLength];
+                tcpStunFrameRead = 0;
+            }
+            int remaining = tcpStunFrameLength - tcpStunFrameRead;
+            int toCopy = Math.min(remaining, buf.remaining());
+            buf.get(tcpStunFrame, tcpStunFrameRead, toCopy);
+            tcpStunFrameRead += toCopy;
+            if (tcpStunFrameRead < tcpStunFrameLength) {
+                return;
+            }
+            handleTcpStunFrame(tcpStunFrame);
+            tcpStunFrameLength = -1;
+            tcpStunFrameRead = 0;
+            tcpStunLengthBytesRead = 0;
+            tcpStunFrame = null;
+        }
+    }
+
+    private void handleTcpStunFrame(byte[] data) {
+        if (!IceDecoder.isStun(data)) {
+            return;
+        }
+        try {
+            Message message = Message.decode(data, 0, data.length);
+            if (message instanceof Response) {
+                Response response = (Response) message;
+                if (response.getMessageType() == Message.CONNECTION_BIND_SUCCESS_RESPONSE) {
+                    if (tcpConnectionBindTransactionId != null
+                            && !Arrays.equals(tcpConnectionBindTransactionId, response.getTransactionID())) {
+                        return;
+                    }
+                    tcpConnectionBound = true;
+                    if (tcpPeerAddress != null) {
+                        remotePeerAddress = tcpPeerAddress;
+                        relayedCandidate.getParentComponent().getComponentSocket().addAuthorizedAddress(remotePeerAddress);
+                    }
+                    flushPendingTcpSends();
+                }
+            }
+        } catch (Exception ex) {
+            logger.warn("Failed to decode TCP STUN message", ex);
         }
     }
 
@@ -621,10 +890,16 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
 
     // create either UDP or TCP sessions for the channel data to go over
     private void createSession(TransportAddress peerAddress) {
+        connectLatch = new CountDownLatch(1);
         TransportAddress transportAddress = turnCandidateHarvest.hostCandidate.getTransportAddress();
-        logger.debug("createSession: {} {}", transportAddress, peerAddress);
+        TransportAddress remoteAddress = peerAddress;
+        if (relayedCandidate.getTransport() == Transport.TCP || relayedCandidate.getTransport() == Transport.TLS) {
+            remoteAddress = getConnectTurnServerAddress();
+        }
+        logger.debug("createSession: {} {}", transportAddress, remoteAddress);
         switch (relayedCandidate.getTransport()) {
             case TCP:
+            case TLS:
                 try {
                     NioSocketConnector connector = new NioSocketConnector();
                     SocketSessionConfig config = connector.getSessionConfig();
@@ -636,13 +911,16 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                     connector.setConnectTimeoutMillis(3000L);
                     // set the handler on the connector
                     connector.setHandler(this);
+                    if (turnCandidateHarvest.harvester.stunServer.getTransport() == Transport.TLS) {
+                        addSslFilter(connector);
+                    }
                     // connect it
-                    ConnectFuture future = connector.connect(peerAddress, transportAddress);
+                    ConnectFuture future = connector.connect(remoteAddress, transportAddress);
                     future.addListener(connectListener);
                     future.awaitUninterruptibly();
                     logger.debug("Connect future: {}", future.isDone());
                 } catch (Throwable t) {
-                    logger.warn("Exception creating new TCP connector for {} to {}", transportAddress, peerAddress, t);
+                    logger.warn("Exception creating new TCP connector for {} to {}", transportAddress, remoteAddress, t);
                 }
                 break;
             case UDP:
@@ -660,15 +938,29 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                     // set the handler on the connector
                     connector.setHandler(this);
                     // connect it
-                    ConnectFuture future = connector.connect(peerAddress, transportAddress);
+                    ConnectFuture future = connector.connect(remoteAddress, transportAddress);
                     future.addListener(connectListener);
                     future.awaitUninterruptibly();
                     logger.debug("Connect future: {}", future.isDone());
                 } catch (Throwable t) {
-                    logger.warn("Exception creating new UDP connector for {} to {}", transportAddress, peerAddress, t);
+                    logger.warn("Exception creating new UDP connector for {} to {}", transportAddress, remoteAddress, t);
                 }
                 break;
         }
+    }
+
+    private TransportAddress getConnectTurnServerAddress() {
+        TransportAddress turnServer = turnCandidateHarvest.harvester.stunServer;
+        if (turnServer.getTransport() == Transport.TLS) {
+            return new TransportAddress(turnServer.getAddress(), turnServer.getPort(), Transport.TCP);
+        }
+        return turnServer;
+    }
+
+    private void addSslFilter(NioSocketConnector connector) throws Exception {
+        SSLContext sslContext = SSLContext.getDefault();
+        SslFilter sslFilter = new SslFilter(sslContext);
+        connector.getFilterChain().addFirst("ssl", sslFilter);
     }
 
     /**

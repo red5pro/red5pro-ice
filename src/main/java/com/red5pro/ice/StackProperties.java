@@ -269,6 +269,47 @@ public class StackProperties {
     public static final String TCP_PRIORITY_MODIFIER = "TCP_PRIORITY_MODIFIER";
 
     /**
+     * Enable TURN TCP allocations (RFC 6062). Default: true.
+     */
+    public static final String TURN_ENABLE_TCP = "com.red5pro.ice.turn.ENABLE_TCP";
+
+    /**
+     * Enable TURN TLS allocations (RFC 6062). Default: false.
+     */
+    public static final String TURN_ENABLE_TLS = "com.red5pro.ice.turn.ENABLE_TLS";
+
+    /**
+     * Requested address family for TURN allocations (RFC 6156).
+     * Valid values: "ipv4", "ipv6". Default: unset (no attribute).
+     */
+    public static final String TURN_REQUESTED_ADDRESS_FAMILY = "com.red5pro.ice.turn.REQUESTED_ADDRESS_FAMILY";
+
+    /**
+     * Include DONT-FRAGMENT attribute in Allocate requests. Default: false.
+     */
+    public static final String TURN_DONT_FRAGMENT = "com.red5pro.ice.turn.DONT_FRAGMENT";
+
+    /**
+     * Allocation lifetime in seconds for TURN Allocate/Refresh. Default: 600.
+     */
+    public static final String TURN_ALLOCATION_LIFETIME = "com.red5pro.ice.turn.ALLOCATION_LIFETIME";
+
+    /**
+     * Follow 300 Try Alternate responses for TURN. Default: true.
+     */
+    public static final String TURN_TRY_ALTERNATE = "com.red5pro.ice.turn.TRY_ALTERNATE";
+
+    /**
+     * Request EVEN-PORT in Allocate. Default: false.
+     */
+    public static final String TURN_USE_EVEN_PORT = "com.red5pro.ice.turn.USE_EVEN_PORT";
+
+    /**
+     * Set the R-flag on EVEN-PORT to request port reservation. Default: false.
+     */
+    public static final String TURN_EVEN_PORT_RFLAG = "com.red5pro.ice.turn.EVEN_PORT_RFLAG";
+
+    /**
      * Ta pace timer in milliseconds.
      */
     public static final String TA = "com.red5pro.ice.TA_PACE_TIMER";

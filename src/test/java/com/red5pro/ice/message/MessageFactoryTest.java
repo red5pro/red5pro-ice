@@ -12,6 +12,8 @@ import com.red5pro.ice.attribute.UnknownAttributesAttribute;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
+import com.red5pro.ice.StackProperties;
+import com.red5pro.ice.attribute.RequestedAddressFamilyAttribute;
 
 public class MessageFactoryTest extends TestCase {
 
@@ -139,5 +141,32 @@ bindingRequest.putAttribute(changeRequest);
                 new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_2, MsgFixture.ADDRESS_ATTRIBUTE_PORT_2, Transport.UDP),
                 new TransportAddress(MsgFixture.ADDRESS_ATTRIBUTE_ADDRESS_3, MsgFixture.ADDRESS_ATTRIBUTE_PORT_3, Transport.UDP));
         assertEquals("return value", expectedReturn, actualReturn);
+    }
+
+    public void testCreateAllocateRequestWithDefaults() {
+        System.clearProperty(StackProperties.TURN_REQUESTED_ADDRESS_FAMILY);
+        System.clearProperty(StackProperties.TURN_DONT_FRAGMENT);
+        System.clearProperty(StackProperties.TURN_ALLOCATION_LIFETIME);
+
+        Request req = MessageFactory.createAllocateRequest(Transport.UDP.getProtocolNumber(), false);
+        assertNotNull("allocate request", req);
+        assertNotNull("REQUESTED-TRANSPORT", req.getAttribute(Attribute.Type.REQUESTED_TRANSPORT));
+        assertNotNull("LIFETIME", req.getAttribute(Attribute.Type.LIFETIME));
+        assertNull("REQUESTED-ADDRESS-FAMILY", req.getAttribute(Attribute.Type.REQUESTED_ADDRESS_FAMILY));
+        assertNull("DONT-FRAGMENT", req.getAttribute(Attribute.Type.DONT_FRAGMENT));
+    }
+
+    public void testCreateAllocateRequestWithAddressFamilyAndDontFragment() {
+        System.setProperty(StackProperties.TURN_REQUESTED_ADDRESS_FAMILY, "ipv6");
+        System.setProperty(StackProperties.TURN_DONT_FRAGMENT, "true");
+
+        Request req = MessageFactory.createAllocateRequest(Transport.UDP.getProtocolNumber(), false);
+        assertNotNull("REQUESTED-ADDRESS-FAMILY", req.getAttribute(Attribute.Type.REQUESTED_ADDRESS_FAMILY));
+        RequestedAddressFamilyAttribute raf = (RequestedAddressFamilyAttribute) req.getAttribute(Attribute.Type.REQUESTED_ADDRESS_FAMILY);
+        assertEquals("ipv6 requested", RequestedAddressFamilyAttribute.IPv6, raf.getFamily());
+        assertNotNull("DONT-FRAGMENT", req.getAttribute(Attribute.Type.DONT_FRAGMENT));
+
+        System.clearProperty(StackProperties.TURN_REQUESTED_ADDRESS_FAMILY);
+        System.clearProperty(StackProperties.TURN_DONT_FRAGMENT);
     }
 }

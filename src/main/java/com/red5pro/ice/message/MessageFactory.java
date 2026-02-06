@@ -6,6 +6,7 @@ import java.io.UnsupportedEncodingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
@@ -25,6 +26,7 @@ import com.red5pro.ice.attribute.MessageIntegrityAttribute;
 import com.red5pro.ice.attribute.NonceAttribute;
 import com.red5pro.ice.attribute.PriorityAttribute;
 import com.red5pro.ice.attribute.RealmAttribute;
+import com.red5pro.ice.attribute.RequestedAddressFamilyAttribute;
 import com.red5pro.ice.attribute.ReservationTokenAttribute;
 import com.red5pro.ice.attribute.SourceAddressAttribute;
 import com.red5pro.ice.attribute.UnknownAttributesAttribute;
@@ -276,6 +278,18 @@ public class MessageFactory {
      * @return an allocation request
      */
     public static Request createAllocateRequest(byte protocol, boolean rFlag) {
+        return createAllocateRequest(protocol, rFlag, null);
+    }
+
+    /**
+     * Create an allocate request to allocate an even port. Attention this does not have attributes for long-term authentication.
+     *
+     * @param protocol requested protocol number
+     * @param rFlag R flag for the EVEN-PORT
+     * @param reservationToken optional reservation token
+     * @return an allocation request
+     */
+    public static Request createAllocateRequest(byte protocol, boolean rFlag, byte[] reservationToken) {
         Request allocateRequest = new Request();
         try {
             allocateRequest.setMessageType(Message.ALLOCATE_REQUEST);
@@ -288,14 +302,44 @@ public class MessageFactory {
             if (rFlag) {
                 allocateRequest.putAttribute(AttributeFactory.createEvenPortAttribute(rFlag));
             }
-            // LIFETIME per rfc5766 (3600s / 1h) we'll use 600s = 10m
-            allocateRequest.putAttribute(AttributeFactory.createLifetimeAttribute(600));
+            // REQUESTED-ADDRESS-FAMILY (RFC 6156)
+            RequestedAddressFamilyAttribute raf = createRequestedAddressFamilyFromProperties();
+            if (raf != null) {
+                allocateRequest.putAttribute(raf);
+            }
+            // RESERVATION-TOKEN
+            if (reservationToken != null && reservationToken.length > 0) {
+                ReservationTokenAttribute tokenAttribute = AttributeFactory.createReservationTokenAttribute(reservationToken);
+                allocateRequest.putAttribute(tokenAttribute);
+            }
+            // LIFETIME per rfc5766 (3600s / 1h) default 600s = 10m
+            int lifetime = StackProperties.getInt(StackProperties.TURN_ALLOCATION_LIFETIME, 600);
+            allocateRequest.putAttribute(AttributeFactory.createLifetimeAttribute(lifetime));
             // DONT_FRAGMENT
-            allocateRequest.putAttribute(AttributeFactory.createDontFragmentAttribute());
+            if (StackProperties.getBoolean(StackProperties.TURN_DONT_FRAGMENT, false)) {
+                allocateRequest.putAttribute(AttributeFactory.createDontFragmentAttribute());
+            }
         } catch (StunException ex) {
             logger.warn("Failed to set message type", ex);
         }
         return allocateRequest;
+    }
+
+    private static RequestedAddressFamilyAttribute createRequestedAddressFamilyFromProperties() {
+        String requestedFamily = StackProperties.getString(StackProperties.TURN_REQUESTED_ADDRESS_FAMILY);
+        if (requestedFamily == null) {
+            return null;
+        }
+        String normalized = requestedFamily.trim().toLowerCase();
+        char family;
+        if ("ipv4".equals(normalized) || "4".equals(normalized)) {
+            family = RequestedAddressFamilyAttribute.IPv4;
+        } else if ("ipv6".equals(normalized) || "6".equals(normalized)) {
+            family = RequestedAddressFamilyAttribute.IPv6;
+        } else {
+            return null;
+        }
+        return AttributeFactory.createRequestedAddressFamilyAttribute(family);
     }
 
     /**

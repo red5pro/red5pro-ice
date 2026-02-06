@@ -2,12 +2,16 @@
 package com.red5pro.ice.harvest;
 
 import java.lang.reflect.UndeclaredThrowableException;
+import java.util.EnumSet;
 
 import com.red5pro.ice.attribute.Attribute;
+import com.red5pro.ice.attribute.AlternateServerAttribute;
+import com.red5pro.ice.attribute.AttributeFactory;
 import com.red5pro.ice.attribute.ChannelNumberAttribute;
-import com.red5pro.ice.attribute.EvenPortAttribute;
 import com.red5pro.ice.attribute.LifetimeAttribute;
+import com.red5pro.ice.attribute.ReservationTokenAttribute;
 import com.red5pro.ice.attribute.RequestedTransportAttribute;
+import com.red5pro.ice.attribute.UnknownAttributesAttribute;
 import com.red5pro.ice.attribute.XorPeerAddressAttribute;
 import com.red5pro.ice.attribute.XorRelayedAddressAttribute;
 import com.red5pro.ice.message.Message;
@@ -25,6 +29,7 @@ import com.red5pro.ice.CandidateType;
 import com.red5pro.ice.HostCandidate;
 import com.red5pro.ice.LocalCandidate;
 import com.red5pro.ice.RelayedCandidate;
+import com.red5pro.ice.StackProperties;
 import com.red5pro.ice.StunException;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
@@ -42,6 +47,16 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
      * The Request created by the last call to createRequestToStartResolvingCandidate.
      */
     private Request requestToStartResolvingCandidate;
+
+    /**
+     * Allocate attributes disabled due to server errors (e.g. 420 Unknown Attribute).
+     */
+    private final EnumSet<Attribute.Type> disabledAllocateAttributes = EnumSet.noneOf(Attribute.Type.class);
+
+    /**
+     * Indicates whether a fallback to Binding has been attempted.
+     */
+    private boolean bindingFallbackAttempted;
 
     /**
      * Initializes a new TurnCandidateHarvest which is to represent the harvesting of TURN Candidates for a specific HostCandidate performed
@@ -194,11 +209,7 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
                 // XXX defaults to UDP if no transport is requested via attribute
                 int requestedTransport = (requestedTransportAttribute == null) ? Transport.UDP.getProtocolNumber()
                         : requestedTransportAttribute.getRequestedTransport();
-                //logger.debug("createRequestToRetry - ALLOCATE_REQUEST type: {}", requestedTransport);
-                // XXX not sure that even-port is allowed with TCP TURN
-                EvenPortAttribute evenPortAttribute = (EvenPortAttribute) request.getAttribute(Attribute.Type.EVEN_PORT);
-                boolean rFlag = (evenPortAttribute != null) && evenPortAttribute.isRFlag();
-                return MessageFactory.createAllocateRequest((byte) requestedTransport, rFlag);
+                return createAllocateRequest((byte) requestedTransport);
             }
             case Message.CHANNELBIND_REQUEST: {
                 ChannelNumberAttribute channelNumberAttribute = (ChannelNumberAttribute) request
@@ -255,15 +266,51 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
         logger.debug("createRequestToStartResolvingCandidate");
         if (requestToStartResolvingCandidate == null) {
             // get the protocol number matching our transport
-            byte protocol = hostCandidate.getTransport().getProtocolNumber();
+            byte protocol = getRequestedTransportProtocol(hostCandidate.getTransport());
+            if (hostCandidate.getTransport() == Transport.TCP && !StackProperties.getBoolean(StackProperties.TURN_ENABLE_TCP, true)) {
+                logger.info("TURN TCP disabled, skipping allocation");
+                return null;
+            }
+            if (hostCandidate.getTransport() == Transport.TLS && !StackProperties.getBoolean(StackProperties.TURN_ENABLE_TLS, false)) {
+                logger.info("TURN TLS disabled, skipping allocation");
+                return null;
+            }
+            if (harvester.stunServer.getTransport() == Transport.TLS
+                    && !StackProperties.getBoolean(StackProperties.TURN_ENABLE_TLS, false)) {
+                logger.info("TURN TLS disabled for server {}, skipping allocation", harvester.stunServer);
+                return null;
+            }
             logger.info("createRequestToStartResolvingCandidate - protocol: {}", protocol);
-            requestToStartResolvingCandidate = MessageFactory.createAllocateRequest(protocol, false);
+            requestToStartResolvingCandidate = createAllocateRequest(protocol);
             return requestToStartResolvingCandidate;
             //        } else if (requestToStartResolvingCandidate.getMessageType() == Message.ALLOCATE_REQUEST) {
             //            requestToStartResolvingCandidate = super.createRequestToStartResolvingCandidate();
             //            return requestToStartResolvingCandidate;
         }
         return null;
+    }
+
+    private byte getRequestedTransportProtocol(Transport transport) {
+        if (transport == Transport.TLS || transport == Transport.SSLTCP) {
+            return Transport.TCP.getProtocolNumber();
+        }
+        return transport.getProtocolNumber();
+    }
+
+    private Request createAllocateRequest(byte protocol) {
+        boolean useEvenPort = StackProperties.getBoolean(StackProperties.TURN_USE_EVEN_PORT, false);
+        boolean rFlag = StackProperties.getBoolean(StackProperties.TURN_EVEN_PORT_RFLAG, false);
+        byte[] reservationToken = (useEvenPort && rFlag) ? harvester.getReservationToken() : null;
+        Request request = MessageFactory.createAllocateRequest(protocol, rFlag, reservationToken);
+        if (useEvenPort && !rFlag) {
+            request.putAttribute(AttributeFactory.createEvenPortAttribute(false));
+        }
+        if (!disabledAllocateAttributes.isEmpty()) {
+            for (Attribute.Type type : disabledAllocateAttributes) {
+                request.removeAttribute(type);
+            }
+        }
+        return request;
     }
 
     /**
@@ -285,7 +332,123 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
                 && ((RelayedCandidateConnection) applicationData).processErrorOrFailure(response, request)) {
             return true;
         }
+        if (response == null || request == null) {
+            return super.processErrorOrFailure(response, request, transactionID);
+        }
+        com.red5pro.ice.attribute.ErrorCodeAttribute errorCodeAttr = (com.red5pro.ice.attribute.ErrorCodeAttribute) response
+                .getAttribute(Attribute.Type.ERROR_CODE);
+        if (errorCodeAttr == null) {
+            return super.processErrorOrFailure(response, request, transactionID);
+        }
+        char errorCode = errorCodeAttr.getErrorCode();
+        switch (errorCode) {
+            case com.red5pro.ice.attribute.ErrorCodeAttribute.TRY_ALTERNATE: {
+                if (!StackProperties.getBoolean(StackProperties.TURN_TRY_ALTERNATE, true)) {
+                    return super.processErrorOrFailure(response, request, transactionID);
+                }
+                AlternateServerAttribute alternate = (AlternateServerAttribute) response.getAttribute(Attribute.Type.ALTERNATE_SERVER);
+                if (alternate != null) {
+                    TransportAddress alternateServer = alternate.getAddress();
+                    if (alternateServer != null) {
+                        logger.info("TRY_ALTERNATE: switching TURN server to {}", alternateServer);
+                        setStunServerOverride(alternateServer);
+                        clearLongTermCredentialSession();
+                        return retryRequest(request, request.getMessageType() == Message.ALLOCATE_REQUEST);
+                    }
+                }
+                break;
+            }
+            case com.red5pro.ice.attribute.ErrorCodeAttribute.UNKNOWN_ATTRIBUTE: {
+                UnknownAttributesAttribute unknown = (UnknownAttributesAttribute) response.getAttribute(Attribute.Type.UNKNOWN_ATTRIBUTES);
+                if (unknown != null && disableUnknownAllocateAttributes(unknown)) {
+                    logger.info("UNKNOWN_ATTRIBUTE: retrying without unsupported attributes");
+                    return retryRequest(request, request.getMessageType() == Message.ALLOCATE_REQUEST);
+                }
+                break;
+            }
+            case com.red5pro.ice.attribute.ErrorCodeAttribute.ADDRESS_FAMILY_NOT_SUPPORTED: {
+                disabledAllocateAttributes.add(Attribute.Type.REQUESTED_ADDRESS_FAMILY);
+                return retryRequest(request, request.getMessageType() == Message.ALLOCATE_REQUEST);
+            }
+            case com.red5pro.ice.attribute.ErrorCodeAttribute.ALLOCATION_MISMATCH: {
+                if (request.getMessageType() != Message.ALLOCATE_REQUEST) {
+                    return restartAllocation();
+                }
+                break;
+            }
+            case com.red5pro.ice.attribute.ErrorCodeAttribute.UNSUPPORTED_TRANSPORT_PROTOCOL:
+            case com.red5pro.ice.attribute.ErrorCodeAttribute.ALLOCATION_QUOTA_REACHED:
+            case com.red5pro.ice.attribute.ErrorCodeAttribute.INSUFFICIENT_CAPACITY: {
+                return fallbackToBinding();
+            }
+            default:
+                break;
+        }
         return super.processErrorOrFailure(response, request, transactionID);
+    }
+
+    private boolean retryRequest(Request request, boolean firstRequest) {
+        Request retry = createRequestToRetry(request);
+        if (retry == null) {
+            return false;
+        }
+        if (!disabledAllocateAttributes.isEmpty()) {
+            for (Attribute.Type type : disabledAllocateAttributes) {
+                retry.removeAttribute(type);
+            }
+        }
+        try {
+            sendRequest(retry, firstRequest, null);
+            return true;
+        } catch (StunException sex) {
+            logger.warn("Failed to retry request {}", retry, sex);
+            return false;
+        }
+    }
+
+    private boolean restartAllocation() {
+        try {
+            return startResolvingCandidate();
+        } catch (Exception ex) {
+            logger.warn("Failed to restart allocation", ex);
+            return false;
+        }
+    }
+
+    private boolean fallbackToBinding() {
+        if (bindingFallbackAttempted) {
+            return false;
+        }
+        bindingFallbackAttempted = true;
+        try {
+            Request bindingRequest = super.createRequestToStartResolvingCandidate();
+            addShortTermCredentialAttributes(bindingRequest);
+            sendRequest(bindingRequest, true, null);
+            return true;
+        } catch (StunException sex) {
+            logger.warn("Failed to fallback to Binding request", sex);
+            return false;
+        }
+    }
+
+    private boolean disableUnknownAllocateAttributes(UnknownAttributesAttribute unknown) {
+        boolean changed = false;
+        for (int i = 0; i < unknown.getAttributeCount(); i++) {
+            int attributeId = unknown.getAttribute(i);
+            Attribute.Type type = Attribute.Type.valueOf(attributeId);
+            switch (type) {
+                case DONT_FRAGMENT:
+                case EVEN_PORT:
+                case REQUESTED_ADDRESS_FAMILY:
+                case REQUESTED_TRANSPORT:
+                case RESERVATION_TOKEN:
+                    changed |= disabledAllocateAttributes.add(type);
+                    break;
+                default:
+                    break;
+            }
+        }
+        return changed;
     }
 
     /**
@@ -310,6 +473,11 @@ public class TurnCandidateHarvest extends StunCandidateHarvest {
                 // The default lifetime of an allocation is 10 minutes.
                 lifetimeAttribute = (LifetimeAttribute) response.getAttribute(Attribute.Type.LIFETIME);
                 lifetime = (lifetimeAttribute == null) ? 600 : lifetimeAttribute.getLifetime();
+                ReservationTokenAttribute reservationToken = (ReservationTokenAttribute) response
+                        .getAttribute(Attribute.Type.RESERVATION_TOKEN);
+                if (reservationToken != null) {
+                    harvester.setReservationToken(reservationToken.getReservationToken());
+                }
                 // attach a relayed connection to the transaction in lieu of it successfully
                 if (applicationData == null) {
                     candidates.forEach(candidate -> {

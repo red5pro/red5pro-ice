@@ -97,8 +97,7 @@ public class CoturnContainer {
         // Build the docker run command
         // Map host ports to container's standard ports (3478/5349)
         ProcessBuilder pb = new ProcessBuilder("docker", "run", "-d", "--name", CONTAINER_NAME, "-p",
-                STUN_PORT + ":" + CONTAINER_STUN_PORT + "/udp", "-p", STUN_PORT + ":" + CONTAINER_STUN_PORT + "/tcp", "-p",
-                TURN_TLS_PORT + ":" + CONTAINER_TLS_PORT + "/udp", "-p", TURN_TLS_PORT + ":" + CONTAINER_TLS_PORT + "/tcp",
+                STUN_PORT + ":" + CONTAINER_STUN_PORT + "/udp", "-p", STUN_PORT + ":" + CONTAINER_STUN_PORT + "/tcp",
                 // Relay ports range
                 "-p", "49152-49162:49152-49162/udp", COTURN_IMAGE,
                 // coturn arguments

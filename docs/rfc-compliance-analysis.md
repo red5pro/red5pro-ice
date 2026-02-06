@@ -195,6 +195,37 @@ The `ALWAYS_SIGN` property enables FINGERPRINT on all messages, which is require
 
 ---
 
+## 11. TURN Extensions (RFC 5766/6062/6156)
+
+### Status: Implemented with configurable behavior
+
+Recent changes add TURN configuration flags and error handling improvements, including:
+
+- `REQUESTED-ADDRESS-FAMILY` (RFC 6156)
+- Optional `DONT-FRAGMENT`
+- Allocation lifetime configuration
+- Try-Alternate handling (300)
+- Unknown attribute handling (420)
+- Allocation mismatch handling (437)
+- TCP/TLS relay control flows (RFC 6062 CONNECT / CONNECTION-BIND)
+
+**Configuration properties:**
+
+- `com.red5pro.ice.turn.ENABLE_TCP` (default true)
+- `com.red5pro.ice.turn.ENABLE_TLS` (default false)
+- `com.red5pro.ice.turn.REQUESTED_ADDRESS_FAMILY` (`ipv4`/`ipv6`)
+- `com.red5pro.ice.turn.DONT_FRAGMENT` (default false)
+- `com.red5pro.ice.turn.ALLOCATION_LIFETIME` (seconds, default 600)
+- `com.red5pro.ice.turn.TRY_ALTERNATE` (default true)
+- `com.red5pro.ice.turn.USE_EVEN_PORT` (default false)
+- `com.red5pro.ice.turn.EVEN_PORT_RFLAG` (default false)
+
+**Test coverage note:**
+
+The integration test suite includes TURN over UDP via coturn. TURN over TLS requires cert/key provisioning in the test environment and is not enabled by default.
+
+---
+
 ## Summary of Priority Issues
 
 | Issue | Severity | Location |
