@@ -187,6 +187,12 @@ public class StackProperties {
     public static final String SKIP_REMOTE_NON_PUBLIC_HOSTS = "SKIP_REMOTE_NON_PUBLIC_HOSTS";
 
     /**
+     * The name of the property which, if set to true, specifies that remote candidates with CGNAT IP addresses (100.64.0.0/10)
+     * should be ignored.
+     */
+    public static final String SKIP_REMOTE_CGNAT = "SKIP_REMOTE_CGNAT";
+
+    /**
      * The name of the property which, if set to true, prioritizes valid pairs using network-cost before candidate priority.
      * Note: This follows the expired draft-thatcher-ice-network-cost guidance and should only be enabled when peers support it.
      */

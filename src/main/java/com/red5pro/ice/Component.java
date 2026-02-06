@@ -55,6 +55,11 @@ public class Component implements PropertyChangeListener {
             .getBoolean(StackProperties.SKIP_REMOTE_NON_PUBLIC_HOSTS, false);
 
     /**
+     * Whether or not to skip remote candidates originating from CGNAT addresses (100.64.0.0/10).
+     */
+    private static final boolean skipCgnatNetworkHostCandidate = StackProperties.getBoolean(StackProperties.SKIP_REMOTE_CGNAT, false);
+
+    /**
      * Comparator allowing sort by priority and preference.
      * Must also compare by transport address to ensure candidates with different addresses are not considered equal.
      */
@@ -296,6 +301,8 @@ public class Component implements PropertyChangeListener {
             logger.debug("Skipping remote candidate with private IP address: {}", candidate);
         } else if (skipNonPublicNetworkHostCandidate && isNonPublicAddress(address)) {
             logger.debug("Skipping remote candidate with non-public IP address: {}", candidate);
+        } else if (skipCgnatNetworkHostCandidate && isCgnatAddress(address)) {
+            logger.debug("Skipping remote candidate with CGNAT IP address: {}", candidate);
         } else {
             // check if we already have such a candidate (redundant)
             Optional<RemoteCandidate> existingCandidate = remoteCandidates.stream()
@@ -322,6 +329,10 @@ public class Component implements PropertyChangeListener {
         }
         if (skipNonPublicNetworkHostCandidate && isNonPublicAddress(address)) {
             logger.debug("Skipping update remote candidate with non-public IP address: {}", candidate.getTransportAddress());
+            return;
+        }
+        if (skipCgnatNetworkHostCandidate && isCgnatAddress(address)) {
+            logger.debug("Skipping update remote candidate with CGNAT IP address: {}", candidate.getTransportAddress());
             return;
         }
         List<RemoteCandidate> existingCandidates = new LinkedList<>();
@@ -409,7 +420,7 @@ public class Component implements PropertyChangeListener {
                 return true;
             }
             // 100.64.0.0/10 (CGNAT)
-            if (b0 == 100 && (b1 >= 64 && b1 <= 127)) {
+            if (isCgnatAddress(address)) {
                 return true;
             }
             // 198.18.0.0/15 (benchmarking)
@@ -425,6 +436,17 @@ public class Component implements PropertyChangeListener {
             if (b0 >= 224) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private static boolean isCgnatAddress(InetAddress address) {
+        if (address instanceof Inet4Address) {
+            byte[] bytes = address.getAddress();
+            int b0 = bytes[0] & 0xff;
+            int b1 = bytes[1] & 0xff;
+            // 100.64.0.0/10 (CGNAT)
+            return (b0 == 100 && (b1 >= 64 && b1 <= 127));
         }
         return false;
     }
