@@ -38,6 +38,14 @@ public enum IceProcessingState {
     COMPLETED("Completed"),
 
     /**
+     * The state is Disconnected when consent freshness has not been confirmed within the
+     * disconnected timeout window. The connection may recover back to COMPLETED if consent
+     * freshness is subsequently confirmed. If recovery does not occur within the failed
+     * timeout window, the state transitions to FAILED.
+     */
+    DISCONNECTED("Disconnected"),
+
+    /**
      * The state is Completed when ICE processing is Failed if processing failed without success.
      */
     FAILED("Failed"),
@@ -83,12 +91,22 @@ public enum IceProcessingState {
     }
 
     /**
+     * Returns true if the state is DISCONNECTED, meaning consent freshness has gone stale
+     * but the connection may still recover.
+     *
+     * @return true if the state is DISCONNECTED
+     */
+    public boolean isDisconnected() {
+        return this == DISCONNECTED;
+    }
+
+    /**
      * Returns true if the state is one in which a connection has been established, that is either COMPLETED or
      * TERMINATED.
      *
      * @return true when a connection has been established and false otherwise
      */
     public boolean isEstablished() {
-        return this == COMPLETED || this == TERMINATED;
+        return this == COMPLETED || this == DISCONNECTED || this == TERMINATED;
     }
 }

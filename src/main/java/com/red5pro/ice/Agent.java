@@ -75,7 +75,7 @@ public class Agent {
     /**
      * The version of the library.
      */
-    private final static String VERSION = "1.2.12";
+    private final static String VERSION = "1.2.13";
 
     /**
      * Secure random for shared use.
@@ -86,6 +86,16 @@ public class Agent {
      * The default number of milliseconds we should wait before moving from {@link IceProcessingState#COMPLETED} into {@link IceProcessingState#TERMINATED}.
      */
     private static final int DEFAULT_TERMINATION_DELAY = 3000; // spec says 3s, but there's no good reason for that value imho
+
+    /**
+     * Default timeout (in ms) before transitioning from COMPLETED to DISCONNECTED.
+     */
+    private static final long DEFAULT_DISCONNECTED_TIMEOUT = 5000;
+
+    /**
+     * Default timeout (in ms) after entering DISCONNECTED before transitioning to FAILED.
+     */
+    private static final long DEFAULT_FAILED_TIMEOUT = 25000;
 
     /**
      * Default value for {@link StackProperties#CONSENT_FRESHNESS_INTERVAL}.
@@ -274,6 +284,21 @@ public class Agent {
      * The indicator which determines whether this Agent is to perform consent freshness.
      */
     private boolean performConsentFreshness;
+
+    /**
+     * Time in milliseconds without consent freshness before transitioning from COMPLETED to DISCONNECTED.
+     */
+    private long disconnectedTimeout = StackProperties.getInt(StackProperties.DISCONNECTED_TIMEOUT, (int) DEFAULT_DISCONNECTED_TIMEOUT);
+
+    /**
+     * Time in milliseconds after entering DISCONNECTED before transitioning to FAILED.
+     */
+    private long failedTimeout = StackProperties.getInt(StackProperties.FAILED_TIMEOUT, (int) DEFAULT_FAILED_TIMEOUT);
+
+    /**
+     * Timestamp (millis) when the agent entered DISCONNECTED state, or 0 when connected.
+     */
+    private volatile long disconnectedSince;
 
     /**
      * The flag which specifies whether {@link #hostCandidateHarvester} should be used or not.
@@ -2236,7 +2261,7 @@ public class Agent {
     }
 
     /**
-     * Schedule STUN checks for selected pair.
+     * Schedule STUN checks for selected pair and monitor disconnection state.
      */
     private void runInStunKeepAliveThread() {
         long consentFreshnessInterval = Long.getLong(StackProperties.CONSENT_FRESHNESS_INTERVAL, DEFAULT_CONSENT_FRESHNESS_INTERVAL);
@@ -2246,30 +2271,98 @@ public class Agent {
                 DEFAULT_CONSENT_FRESHNESS_MAX_WAIT_INTERVAL);
         int consentFreshnessMaxRetransmissions = Integer.getInteger(StackProperties.CONSENT_FRESHNESS_MAX_RETRANSMISSIONS,
                 DEFAULT_CONSENT_FRESHNESS_MAX_RETRANSMISSIONS);
+        // Use a shorter loop interval so disconnection detection happens within the timeout window.
+        // Send keepalive probes at the original consentFreshnessInterval cadence using a timestamp gate.
+        long loopInterval = Math.min(consentFreshnessInterval, disconnectedTimeout);
+        // Ensure we check frequently enough (at least every second)
+        loopInterval = Math.min(loopInterval, 1000L);
+        long lastKeepAliveSent = 0;
         while (runInStunKeepAliveThreadCondition()) {
-            for (IceMediaStream stream : getStreams()) {
-                for (Component component : stream.getComponents()) {
-                    for (CandidatePair pair : component.getKeepAlivePairs()) {
-                        if (pair != null) {
-                            if (performConsentFreshness) {
-                                connCheckClient.startCheckForPair(pair, originalConsentFreshnessWaitInterval,
-                                        maxConsentFreshnessWaitInterval, consentFreshnessMaxRetransmissions);
-                            } else {
-                                connCheckClient.sendBindingIndicationForPair(pair);
+            long now = System.currentTimeMillis();
+            // Send keepalives at the configured consent freshness interval
+            if (now - lastKeepAliveSent >= consentFreshnessInterval) {
+                for (IceMediaStream stream : getStreams()) {
+                    for (Component component : stream.getComponents()) {
+                        for (CandidatePair pair : component.getKeepAlivePairs()) {
+                            if (pair != null) {
+                                if (performConsentFreshness) {
+                                    connCheckClient.startCheckForPair(pair, originalConsentFreshnessWaitInterval,
+                                            maxConsentFreshnessWaitInterval, consentFreshnessMaxRetransmissions);
+                                } else {
+                                    connCheckClient.sendBindingIndicationForPair(pair);
+                                }
                             }
                         }
                     }
                 }
+                lastKeepAliveSent = now;
             }
+            // Check disconnection state based on consent freshness of selected pairs
+            checkDisconnection(now);
             if (!runInStunKeepAliveThreadCondition()) {
                 break;
             }
             try {
-                Thread.sleep(consentFreshnessInterval);
+                Thread.sleep(loopInterval);
             } catch (InterruptedException e) {
             }
         }
         logger.debug("{} ends", Thread.currentThread().getName());
+    }
+
+    /**
+     * Checks consent freshness of selected pairs and manages DISCONNECTED state transitions.
+     *
+     * @param now current time in milliseconds
+     */
+    private void checkDisconnection(long now) {
+        IceProcessingState currentState = state.get();
+        // Only check when in COMPLETED or DISCONNECTED state
+        if (currentState != IceProcessingState.COMPLETED && currentState != IceProcessingState.DISCONNECTED) {
+            return;
+        }
+        boolean anyStale = false;
+        for (IceMediaStream stream : getStreams()) {
+            for (Component component : stream.getComponents()) {
+                CandidatePair selectedPair = component.getSelectedPair();
+                if (selectedPair != null) {
+                    long consentFreshness = selectedPair.getConsentFreshness();
+                    if (consentFreshness > 0 && (now - consentFreshness) > disconnectedTimeout) {
+                        anyStale = true;
+                    }
+                }
+            }
+        }
+        if (anyStale) {
+            if (currentState == IceProcessingState.COMPLETED) {
+                // Transition to DISCONNECTED
+                disconnectedSince = now;
+                logger.warn("Consent freshness stale for {}ms, transitioning to DISCONNECTED. Local ufrag {}", disconnectedTimeout,
+                        getLocalUfrag());
+                setState(IceProcessingState.DISCONNECTED);
+            } else if (currentState == IceProcessingState.DISCONNECTED && disconnectedSince > 0) {
+                // Check if we've exceeded the failed timeout
+                if ((now - disconnectedSince) > failedTimeout) {
+                    logger.warn("Disconnected for {}ms (exceeds {}ms failed timeout), transitioning to FAILED. Local ufrag {}",
+                            (now - disconnectedSince), failedTimeout, getLocalUfrag());
+                    terminate(IceProcessingState.FAILED);
+                }
+            }
+        }
+    }
+
+    /**
+     * Called when consent freshness is confirmed on a selected pair while in DISCONNECTED state,
+     * triggering recovery back to COMPLETED.
+     */
+    public void setConnected() {
+        if (state.get() == IceProcessingState.DISCONNECTED) {
+            disconnectedSince = 0;
+            logger.info("Consent freshness confirmed, recovering from DISCONNECTED to COMPLETED. Local ufrag {}", getLocalUfrag());
+            setState(IceProcessingState.COMPLETED);
+            // Re-schedule termination since we're back in COMPLETED
+            scheduleTermination();
+        }
     }
 
     /**
@@ -2694,7 +2787,15 @@ public class Agent {
             } catch (Exception e) {
                 logger.warn("Exception during termination", e);
             } finally {
-                terminate(IceProcessingState.TERMINATED);
+                // Do not terminate if we are in DISCONNECTED state (recovery may still occur)
+                IceProcessingState currentState = state.get();
+                if (currentState != IceProcessingState.DISCONNECTED) {
+                    terminate(IceProcessingState.TERMINATED);
+                } else {
+                    logger.debug("Skipping termination while in DISCONNECTED state. Local ufrag {}", getLocalUfrag());
+                    // Reset the terminator so it can be re-scheduled on recovery
+                    terminator = null;
+                }
             }
         }
     }

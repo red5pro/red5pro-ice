@@ -316,6 +316,37 @@ public class StackProperties {
     public static final String TURN_EVEN_PORT_RFLAG = "com.red5pro.ice.turn.EVEN_PORT_RFLAG";
 
     /**
+     * Maximum time (in ms) the PaceMaker will continue starting new connectivity checks.
+     * Individual STUN transactions continue their retransmission schedules independently.
+     * Default: 3000ms.
+     */
+    public static final String CHECKLIST_TIMEOUT = "com.red5pro.ice.CHECKLIST_TIMEOUT";
+
+    /**
+     * Grace period (in ms) before marking a checklist as FAILED after all checks complete
+     * without valid pairs. This is separate from {@link #CHECKLIST_TIMEOUT} which controls
+     * how long the PaceMaker runs.
+     * Default: 3000ms.
+     */
+    public static final String CHECKLIST_COMPLETION_TIMEOUT = "com.red5pro.ice.CHECKLIST_COMPLETION_TIMEOUT";
+
+    /**
+     * Time in milliseconds without a consent freshness confirmation before an established
+     * ICE session transitions from COMPLETED to DISCONNECTED. This enables temporary
+     * disconnection detection with recovery, rather than going straight to FAILED.
+     * Default: 5000ms (matches pion/ice behavior).
+     */
+    public static final String DISCONNECTED_TIMEOUT = "com.red5pro.ice.DISCONNECTED_TIMEOUT";
+
+    /**
+     * Additional time in milliseconds after entering DISCONNECTED state before the session
+     * transitions to FAILED (terminal). If consent freshness is confirmed within this window,
+     * the session recovers back to COMPLETED.
+     * Default: 25000ms (matches pion/ice behavior).
+     */
+    public static final String FAILED_TIMEOUT = "com.red5pro.ice.FAILED_TIMEOUT";
+
+    /**
      * Ta pace timer in milliseconds.
      */
     public static final String TA = "com.red5pro.ice.TA_PACE_TIMER";

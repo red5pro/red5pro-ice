@@ -44,7 +44,13 @@ class ConnectivityCheckClient implements ResponseCollector {
      * Individual STUN transactions continue their retransmission schedules independently.
      * This is NOT a per-transaction timeout - it's the window for initiating checks.
      */
-    private static long checklistTimeout = 3000L;
+    private static long checklistTimeout = StackProperties.getInt(StackProperties.CHECKLIST_TIMEOUT, 3000);
+
+    /**
+     * Grace period (in ms) before marking a checklist as FAILED after all checks complete
+     * without valid pairs.
+     */
+    private static long checklistCompletionTimeout = StackProperties.getInt(StackProperties.CHECKLIST_COMPLETION_TIMEOUT, 3000);
 
     /**
      * The agent that created us.
@@ -341,8 +347,8 @@ class ConnectivityCheckClient implements ResponseCollector {
                     logger.debug("CheckList marked as failed in a few seconds if no succeeded checks arrive");
                     timerFutures.put(streamName, parentAgent.submit(() -> {
                         try {
-                            logger.debug("Going to sleep for 3s for stream {}", streamName);
-                            Thread.sleep(checklistTimeout);
+                            logger.debug("Going to sleep for {}ms for stream {}", checklistCompletionTimeout, streamName);
+                            Thread.sleep(checklistCompletionTimeout);
                             if (checkList.getState() != CheckListState.COMPLETED) {
                                 logger.warn("CheckList for stream {} FAILED", streamName);
                                 checkList.setState(CheckListState.FAILED);
@@ -526,6 +532,10 @@ class ConnectivityCheckClient implements ResponseCollector {
         // XXX Should we also confirm consent freshness for non-selected pairs?
         if (checkedPair.equals(checkedPair.getParentComponent().getSelectedPair())) {
             checkedPair.setConsentFreshness();
+            // If we're in DISCONNECTED state and this is the selected pair, recover to COMPLETED
+            if (parentAgent.getState().isDisconnected()) {
+                parentAgent.setConnected();
+            }
         }
     }
 
