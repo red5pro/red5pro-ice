@@ -510,6 +510,18 @@ class ConnectivityCheckClient implements ResponseCollector {
                 logger.trace("Keep alive for pair: {}", validPair.toShortString());
             }
         }
+        // When the controlled agent is behind NAT, the valid pair (with reflexive local address) differs from the checked pair.
+        // If validatePair auto-set useCandidateReceived on validPair (non-trickle ICE), nominate it directly without requiring
+        // a second round-trip that may fail or exceed the session timeout (e.g., CGNAT clients behind symmetric NAT).
+        else if (!parentAgent.isControlling() && validPair != checkedPair && validPair.useCandidateReceived() && !validPair.isNominated()) {
+            if (validPair.getParentComponent().getSelectedPair() == null) {
+                logger.info("Nomination confirmed for valid pair (controlled behind NAT): {} Local ufrag: {}", validPair.toShortString(),
+                        parentAgent.getLocalUfrag());
+                parentAgent.nominationConfirmed(validPair);
+            } else {
+                logger.trace("Keep alive for valid pair: {}", validPair.toShortString());
+            }
+        }
         // Selected pairs get their consent freshness confirmed.
         // XXX Should we also confirm consent freshness for non-selected pairs?
         if (checkedPair.equals(checkedPair.getParentComponent().getSelectedPair())) {
