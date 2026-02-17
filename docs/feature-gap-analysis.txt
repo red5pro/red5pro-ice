@@ -1,0 +1,257 @@
+Feature Gap Analysis: red5pro-ice vs libnice & pion/ice
+=========================================================
+
+Date: 2026-02-17
+Compared against: libnice (freedesktop.org), pion/ice (Go)
+
+HIGH PRIORITY -- Likely causing real-world failures
+----------------------------------------------------
+
+1. No DISCONNECTED state or disconnection detection
+
+  red5pro-ice:  WAITING -> RUNNING -> COMPLETED -> TERMINATED / FAILED
+  pion/ice:     NEW -> CHECKING -> CONNECTED -> DISCONNECTED -> FAILED -> CLOSED
+  libnice:      GATHERING -> CONNECTING -> CONNECTED -> READY / FAILED
+
+  red5pro-ice goes straight from COMPLETED to TERMINATED. If a peer
+  temporarily drops (network switch, mobile handoff), there is no
+  intermediate state. Both pion and libnice detect temporary disconnection
+  and allow recovery.
+
+  pion tracks lastPacketReceived time per pair and transitions:
+    Connected -> Disconnected (5s) -> Failed (25s more)
+
+  This is critical for mobile and unstable networks.
+
+  Disconnect detection:
+    red5pro-ice:  None
+    pion/ice:     disconnectedTimeout (5s default)
+    libnice:      Consent freshness timeout (30s)
+
+  Recovery path:
+    red5pro-ice:  None (FAILED is terminal)
+    pion/ice:     DISCONNECTED -> CONNECTED if packets resume
+    libnice:      Consent-lost triggers restart
+
+  Files affected: IceProcessingState.java, Agent.java
+
+
+2. PaceMaker checklistTimeout is hardcoded at 3 seconds
+
+  // ConnectivityCheckClient.java:47
+  private static long checklistTimeout = 3000L;
+
+  This controls how long the PaceMaker will continue sending new checks
+  AND is used as the sleep duration before marking a checklist as FAILED
+  (line 345). For high-latency connections (India, Africa, satellite),
+  3 seconds is tight -- a single STUN retransmission cycle can consume
+  most of this.
+
+  Both pion and libnice make their equivalent timers configurable:
+
+  pion:    WithCheckInterval(), WithSTUNGatherTimeout(),
+           WithDisconnectedTimeout(), WithFailedTimeout()
+           -- all independently configurable
+
+  libnice: stun-initial-timeout, stun-max-retransmissions properties;
+           total timeout derived from formula
+
+  This should be a StackProperties entry, not a hardcoded constant.
+
+  File affected: ConnectivityCheckClient.java:47
+
+
+3. No candidate acceptance minimum wait times
+
+  Candidate type       pion/ice default wait    red5pro-ice
+  ----------------------------------------------------------
+  Host                 0ms                      None
+  Server Reflexive     500ms                    None
+  Peer Reflexive       1000ms                   None
+  Relay                2000ms                   None
+
+  Pion delays nomination acceptance by candidate type. This prevents the
+  controlling agent from nominating a relay candidate in the first 200ms
+  when a host or srflx pair might succeed 300ms later. Without this,
+  red5pro-ice can commit to a relay path too eagerly, resulting in
+  unnecessary TURN server load and higher latency.
+
+  Files affected: DefaultNominator.java
+
+
+4. Nomination gap for controlled agent behind NAT (FIXED)
+
+  Committed as 8860ea2. When the controlled agent (e.g., WHIP server) is
+  behind NAT, processSuccessResponse creates a valid pair with a reflexive
+  local address that differs from the checked pair. The existing nomination
+  code only checked useCandidateReceived on the checked pair, missing the
+  flag that validatePair auto-set on the valid pair for non-trickle ICE.
+
+  Both libnice and pion handle this correctly because:
+  - pion: Controlling agent nominates; controlled path uses setSelectedPair
+    directly
+  - libnice: Nomination handled atomically per pair state, no
+    validPair/checkedPair split
+
+
+MEDIUM PRIORITY -- Feature gaps for specific deployment scenarios
+------------------------------------------------------------------
+
+5. No renomination support (draft-thatcher-ice-renomination)
+
+  Pion implements draft-thatcher-ice-renomination-01 with:
+  - Custom STUN attribute (0x0030) carrying nomination values
+  - "Last nomination wins" semantics on controlled agent
+  - Automatic renomination with quality-based switching: monitors RTT
+    across all pairs, switches if a pair improves by >10ms RTT or >15%
+    quality score
+  - evaluateCandidatePairQuality() scores by candidate type + RTT +
+    stability
+
+  red5pro-ice nominates once and is done. If a mobile client starts on
+  relay, then gets a direct host path, there is no mechanism to switch.
+  libnice also lacks this, but pion's implementation is production-proven
+  for WebRTC.
+
+  Files affected: New feature -- would require a new STUN attribute,
+  changes to DefaultNominator.java, ConnectivityCheckClient.java,
+  ConnectivityCheckServer.java
+
+
+6. No mDNS (.local) candidate support
+
+  Modern browsers (Chrome 75+) obfuscate host candidates as mDNS names
+  (e.g., a1b2c3d4.local) for privacy. When a browser sends an mDNS
+  candidate in its SDP:
+
+  pion:        MulticastDNSMode (Disabled, QueryOnly, QueryAndGather);
+               resolves .local names via mDNS query
+  libnice:     Not implemented
+  red5pro-ice: Not implemented
+
+  For WHIP/WHEP where the server receives browser SDP, an mDNS host
+  candidate would be silently dropped or fail. Chrome currently falls back
+  to srflx, but this is a reliability concern and a reason for slightly
+  slower ICE completion.
+
+
+7. No continual gathering / network monitoring
+
+  red5pro-ice:  No
+  pion/ice:     GatherContinually policy, 2s monitor interval
+  libnice:      No
+
+  Pion can detect when a new network interface appears (e.g., WiFi
+  connected after cellular) and gather new candidates on it. Useful for
+  mobile and multi-homed servers.
+
+
+8. No proxy support
+
+  red5pro-ice:  No
+  pion/ice:     WithProxyDialer()
+  libnice:      http-proxy property (0.1.20+)
+
+  Both pion and libnice support corporate HTTP proxies for STUN/TURN
+  connections. Missing in red5pro-ice.
+
+
+9. Limited per-pair statistics
+
+  Pion exposes CandidatePairStats with: packets/bytes sent/received, STUN
+  request/response counts, current/total RTT, available bitrate estimates,
+  and timestamps. red5pro-ice has HarvestStatistics and RateStatistics but
+  no per-pair observability at the ICE level.
+
+
+LOW PRIORITY -- Nice-to-haves
+-------------------------------
+
+10. No custom binding request handler hook
+
+  Pion offers WithBindingRequestHandler(func) -- a callback on every
+  incoming STUN binding request. Useful for custom logging, pair switching
+  logic, or integration with external monitoring. red5pro-ice processes all
+  binding requests internally with no application-level hook.
+
+
+11. No network type preferences
+
+  Pion allows WithNetworkTypes([]NetworkType{UDP4, TCP4}) to restrict
+  candidate gathering to specific protocol/address-family combinations.
+  red5pro-ice has DISABLE_IPv6 and interface filtering but no combined
+  protocol+family preference.
+
+
+12. TCP priority offset (already covered)
+
+  Pion has WithTCPPriorityOffset(27) which subtracts from TCP candidate
+  type preferences, ensuring UDP is preferred over TCP at the same
+  candidate level. red5pro-ice has UDP_PRIORITY_MODIFIER and
+  TCP_PRIORITY_MODIFIER in StackProperties, which serves a similar
+  purpose. No gap here.
+
+
+POTENTIAL BUGS / CORRECTNESS ISSUES
+--------------------------------------
+
+B1. Consent freshness with no recovery path
+
+  red5pro-ice implements consent freshness (RFC 7675) but when consent
+  times out, the agent transitions to FAILED/TERMINATED. RFC 7675
+  Section 5.1 says the agent SHOULD close the connection, but without a
+  DISCONNECTED state, there is no graceful degradation. The application
+  has no chance to attempt ICE restart before teardown.
+
+
+B2. checklistTimeout used for two different purposes
+
+  checklistTimeout (3000ms) is used both as:
+    1. The PaceMaker loop duration (line 719) -- how long to keep sending
+       new checks
+    2. The sleep time before marking checklist FAILED (line 345) -- grace
+       period for late responses
+
+  These serve different purposes and should be independent. A high-latency
+  connection might need a longer grace period (purpose 2) without
+  extending the check-sending window (purpose 1).
+
+
+B3. MAX_CHECK_LIST_SIZE default of 12 may be too small
+
+  With the SKIP_REMOTE_NON_PUBLIC_HOSTS / SKIP_REMOTE_CGNAT filtering
+  reducing remote candidates, this is less of an issue now, but in
+  scenarios with multiple interfaces and candidate types, 12 pairs could
+  truncate valid combinations. Pion has no fixed limit (pairs grow as
+  candidates are added). libnice caps total connectivity checks rather
+  than pairs.
+
+
+B4. No STUN_GATHER_TIMEOUT property
+
+  Both pion (5s default) and libnice have configurable STUN gather
+  timeouts independent of the check timeout. red5pro-ice uses
+  HARVESTING_TIMEOUT for per-harvest timeout in seconds, which partially
+  covers this, but the PaceMaker's 3s window effectively limits STUN
+  gathering responsiveness.
+
+
+SUMMARY: Priority Ranking
+---------------------------
+
+  #   Gap                                         Impact   Effort
+  --- ------------------------------------------- -------- ------
+  1   DISCONNECTED state + disconnect detection    High     Medium
+  2   Configurable checklistTimeout                High     Low
+  3   Candidate acceptance wait times              Medium   Low
+  4   Renomination / quality-based pair switching  Medium   High
+  5   mDNS candidate resolution                   Medium   Medium
+  6   Continual gathering                          Low-Med  Medium
+  7   Proxy support                                Low      Low
+  8   Per-pair statistics                          Low      Low
+  B1  Consent freshness recovery path              Medium   Low (with #1)
+  B2  Split checklistTimeout into two values       Medium   Low
+
+Items 1-3 and B2 are the most impactful relative to effort. The
+DISCONNECTED state (#1) is arguably the most important architectural gap
+since both reference implementations have it.
