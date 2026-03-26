@@ -670,6 +670,32 @@ class ConnectivityCheckClient implements ResponseCollector {
     }
 
     /**
+     * Sends a connectivity check for the given pair and updates its state to IN_PROGRESS on success or FAILED on failure.
+     *
+     * @param pairToCheck the candidate pair to check
+     * @return true if the check was sent successfully
+     */
+    private boolean sendAndUpdateState(CandidatePair pairToCheck) {
+        // skip TCP active candidates with a destination port of 9 (masked)
+        RemoteCandidate remoteCandidate = pairToCheck.getRemoteCandidate();
+        if (remoteCandidate.getTcpType() == CandidateTcpType.ACTIVE && remoteCandidate.getTransportAddress().getPort() == 9) {
+            logger.debug("TCP remote candidate is active with masked port, skip attempt to connect directly. Type: {}",
+                    remoteCandidate.getType());
+            return false;
+        }
+        // RFC 5389 Section 7.2.1: RTO >= 500ms, Rc = 7 (6 retransmissions), double RTO each time up to max
+        TransactionID transactionID = startCheckForPair(pairToCheck, 500, 1600, 6);
+        if (transactionID == null) {
+            logger.warn("Pair failed: {}", pairToCheck.toShortString());
+            pairToCheck.setStateFailed();
+            return false;
+        } else {
+            pairToCheck.setStateInProgress(transactionID);
+            return true;
+        }
+    }
+
+    /**
      * The thread that actually sends the checks for a particular check list in the pace defined in RFC 5245.
      */
     private class PaceMaker implements Runnable {
@@ -719,38 +745,24 @@ class ConnectivityCheckClient implements ResponseCollector {
                     long waitFor = getNextWaitInterval();
                     if (waitFor > 0) {
                         logger.trace("Going to sleep for {} for ufrag: {}", waitFor, parentAgent.getLocalUfrag());
-                        // waitFor will be 0 for the first check since we won't have any active check lists at that point yet
                         Thread.sleep(waitFor);
                     }
+                    boolean sentAny = false;
+                    // Drain all triggered checks first
                     CandidatePair pairToCheck = checkList.popTriggeredCheck();
-                    // if there are no triggered checks, go for an ordinary one
-                    if (pairToCheck == null) {
+                    while (pairToCheck != null) {
+                        sentAny |= sendAndUpdateState(pairToCheck);
+                        pairToCheck = checkList.popTriggeredCheck();
+                    }
+                    // Then drain all ordinary WAITING pairs (RED5DEV-2052: ensures all candidates
+                    // on multi-homed hosts get checked in the same cycle)
+                    pairToCheck = checkList.getNextOrdinaryPairToCheck();
+                    while (pairToCheck != null) {
+                        sentAny |= sendAndUpdateState(pairToCheck);
                         pairToCheck = checkList.getNextOrdinaryPairToCheck();
                     }
-                    if (pairToCheck != null) {
-                        // check for a TCP candidate with a destination port of 9 (masked) and don't attempt to connect to it!
-                        RemoteCandidate remoteCandidate = pairToCheck.getRemoteCandidate();
-                        if (remoteCandidate.getTcpType() == CandidateTcpType.ACTIVE
-                                && remoteCandidate.getTransportAddress().getPort() == 9) {
-                            logger.debug("TCP remote candidate is active with masked port, skip attempt to connect directly. Type: {}",
-                                    remoteCandidate.getType());
-                            // we wont mark it failed, but we won't attempt to send, since we cannot connect to it
-                            //pairToCheck.setStateFailed();
-                            continue;
-                        }
-                        // Since we suspect that it is possible to startCheckForPair, processSuccessResponse and only then setStateInProgress, no synchronized
-                        // since the CandidatePair#setState method is atomically enabled.
-                        // RFC 5389 Section 7.2.1: RTO >= 500ms, Rc = 7 (6 retransmissions), double RTO each time up to max
-                        // Using 500ms initial, 1600ms max, 6 retransmissions for RFC compliance
-                        TransactionID transactionID = startCheckForPair(pairToCheck, 500, 1600, 6);
-                        if (transactionID == null) {
-                            logger.warn("Pair failed: {}", pairToCheck.toShortString());
-                            pairToCheck.setStateFailed();
-                        } else {
-                            pairToCheck.setStateInProgress(transactionID);
-                        }
-                    } else {
-                        // done sending checks for this list; set the final state in processResponse, processTimeout or processFailure method.
+                    if (!sentAny) {
+                        // done sending checks for this list
                         checkList.fireEndOfOrdinaryChecks();
                     }
                 } catch (InterruptedException e) {
