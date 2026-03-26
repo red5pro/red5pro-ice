@@ -362,6 +362,29 @@ public class IceUdpTransport extends IceTransport {
         return sess;
     }
 
+    /**
+     * Returns a session matching both the given local and remote addresses.
+     * Unlike {@link #getSessionByRemote(SocketAddress)} which matches any session with a matching remote,
+     * this method ensures the session's local address also matches, preventing cross-interface session reuse
+     * on multi-homed hosts.
+     *
+     * @param localAddress the local transport address the session must be bound to
+     * @param remoteAddress the remote address the session must be connected to
+     * @return IoSession matching both addresses, or null if not found
+     */
+    public IoSession getSessionByLocalAndRemote(TransportAddress localAddress, SocketAddress remoteAddress) {
+        Optional<IoSession> opt = sessions.values().stream()
+                .filter(session -> session.getLocalAddress().equals(localAddress) && session.getRemoteAddress().equals(remoteAddress))
+                .findFirst();
+        if (opt.isPresent()) {
+            return opt.get();
+        }
+        if (isTrace) {
+            logger.trace("Session not found for local: {} remote: {}", localAddress, remoteAddress);
+        }
+        return null;
+    }
+
     @Override
     public Transport getTransport() {
         return Transport.UDP;
