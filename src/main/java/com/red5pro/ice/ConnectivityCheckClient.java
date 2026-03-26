@@ -560,9 +560,17 @@ class ConnectivityCheckClient implements ResponseCollector {
         TransportAddress actualRemoteAddr = evt.getRemoteAddress();
         boolean localMatch = expectedLocalAddr.equals(actualLocalAddr);
         boolean remoteMatch = expectedRemoteAddr.equals(actualRemoteAddr);
+        if (!localMatch) {
+            // On multi-homed hosts, responses may arrive on a sibling interface due to asymmetric
+            // routing or NAT. Accept if the receiving address is a known host candidate in the same
+            // component on the same port/transport (RED5DEV-2052).
+            localMatch = isSiblingHostCandidate(pair.getParentComponent(), expectedLocalAddr, actualLocalAddr);
+            if (localMatch) {
+                logger.info("Accepted response on sibling interface {} for pair sent from {}", actualLocalAddr, expectedLocalAddr);
+            }
+        }
         if (!localMatch || !remoteMatch) {
             // Log detailed diagnostic information for non-symmetric responses
-            // This helps diagnose NAT issues, asymmetric routing, or misconfigured network paths
             logger.warn("Non-symmetric address check failed for pair: {}", pair.toShortString());
             if (!localMatch) {
                 logger.warn("  Local address mismatch - expected: {}, actual response destination: {}", expectedLocalAddr, actualLocalAddr);
@@ -574,6 +582,31 @@ class ConnectivityCheckClient implements ResponseCollector {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Checks whether {@code actual} is a host candidate address in the same component as {@code expected}, on the same port
+     * and transport. This identifies sibling interfaces on a multi-homed host where asymmetric routing may cause STUN
+     * responses to arrive on a different interface than the one the request was sent from.
+     *
+     * @param component the ICE component containing the candidates
+     * @param expected the local address the request was sent from
+     * @param actual the local address the response was received on
+     * @return true if actual is a known host candidate sibling of expected
+     */
+    private boolean isSiblingHostCandidate(Component component, TransportAddress expected, TransportAddress actual) {
+        if (expected.getPort() != actual.getPort()) {
+            return false;
+        }
+        if (expected.getTransport() != actual.getTransport()) {
+            return false;
+        }
+        for (LocalCandidate candidate : component.getLocalCandidates()) {
+            if (candidate.getType() == CandidateType.HOST_CANDIDATE && candidate.getTransportAddress().equals(actual)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
