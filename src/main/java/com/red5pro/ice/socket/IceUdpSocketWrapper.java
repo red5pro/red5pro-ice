@@ -58,33 +58,16 @@ public class IceUdpSocketWrapper extends IceSocketWrapper {
                 if (sess == null) {
                     // attempt to pull the session from the transport
                     IceUdpTransport transport = IceUdpTransport.getInstance(transportId);
-                    // get session matching the remote address
-                    sess = transport.getSessionByRemote(destAddress);
-                    // if theres no registered session pointing to the destination, create one
+                    // look up session matching BOTH local and remote addresses to prevent
+                    // cross-interface session reuse on multi-homed hosts (RED5DEV-2052)
+                    sess = transport.getSessionByLocalAndRemote(transportAddress, destAddress);
+                    // if no exact match exists, create a new session for this local+remote pair
                     if (sess == null) {
                         try {
-                            // if the ports not already bound, bind it
-                            boolean portBound = transport.isBound(transportAddress.getPort());
-                            logger.debug("Port bound: {}", portBound);
-                            if (portBound) {
-                                // if the port is already bound but no session is set as of yet; look up a usable session
-                                // in transport vs making a new one to prevent dupes with the same end points.
-                                logger.debug("No session, searching transport for: {} to: {}", transportAddress, destAddress);
-                                sess = transport.getSessionByLocal(transportAddress);
-                            } else {
-                                logger.trace("Port is not bound");
-                                // bind it
-                                //transport.addBinding(transportAddress);
-                            }
-                            // if the session wasn't found elsewhere, create one
-                            if (sess == null) {
-                                // verify that the address can be reached first
-                                logger.debug("No session, attempting connect from: {} to: {}", transportAddress, destAddress);
-                                // attempt to create a server session, if it fails the local address isn't bound
-                                sess = transport.createSession(this, destAddress);
-                            }
+                            logger.debug("No session for local: {} remote: {}, creating", transportAddress, destAddress);
+                            sess = transport.createSession(this, destAddress);
                         } catch (Exception e) {
-                            logger.warn("Exception getting session for: {}", transportAddress, e);
+                            logger.warn("Exception creating session for: {}", transportAddress, e);
                         }
                     }
                 }
