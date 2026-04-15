@@ -442,22 +442,29 @@ public class HostCandidateHarvester {
      */
     static boolean isAddressAllowed(InetAddress address) {
         logger.debug("isAddressAllowed: {}", address);
-        boolean ret = true;
-        if (!address.isLoopbackAddress()) {
-            logger.debug("Allowed: {} Blocked: {}", allowedAddresses, blockedAddresses);
-            if (blockedAddresses != null && blockedAddresses.size() > 0) {
-                ret = blockedAddresses.contains(address);
-                // only check allowed addresses if blocked; to allow override
-                if (ret && allowedAddresses != null && allowedAddresses.size() > 0) {
-                    ret = allowedAddresses.contains(address);
-                }
-            }
-        } else {
-            // no loop back allowed
+        if (address.isLoopbackAddress()) {
             logger.debug("Address is loopback: {}", address);
-            ret = false;
+            return false;
         }
-        return ret;
+        // ensure address filters are initialized before checking
+        if (!addressFiltersInitialized.get()) {
+            initializeAddressFilters();
+        }
+        logger.debug("Allowed: {} Blocked: {}", allowedAddresses, blockedAddresses);
+        // blocked addresses are rejected outright
+        if (blockedAddresses != null && blockedAddresses.contains(address)) {
+            logger.debug("Address is blocked: {}", address);
+            return false;
+        }
+        // if an allowed list is configured, only those addresses are permitted
+        if (allowedAddresses != null && !allowedAddresses.isEmpty()) {
+            boolean allowed = allowedAddresses.contains(address);
+            if (!allowed) {
+                logger.debug("Address is not in allowed list: {}", address);
+            }
+            return allowed;
+        }
+        return true;
     }
 
     private IceSocketWrapper createServerSocket(InetAddress laddr, int port) throws IllegalArgumentException, IOException, BindException {
