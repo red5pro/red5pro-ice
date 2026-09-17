@@ -2,7 +2,6 @@
 package com.red5pro.ice.stack;
 
 import java.io.IOException;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
@@ -14,7 +13,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.crypto.Mac;
@@ -118,22 +116,8 @@ public class StunStack implements MessageEventHandler {
     /**
      * Executor for all threads and tasks needed in this stacks agent.
      */
-    private static ExecutorService executor = Executors.newCachedThreadPool(new ThreadFactory() {
-        public Thread newThread(Runnable r) {
-            Thread t = new Thread(r);
-            t.setName(String.format("StunStack@%d", System.currentTimeMillis()));
-            t.setDaemon(true);
-            t.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
-
-                @Override
-                public void uncaughtException(Thread t, Throwable e) {
-                    logger.warn("Uncaught exception on {}", t.getName(), e);
-                }
-
-            });
-            return t;
-        }
-    });
+    private static ExecutorService executor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("StunStack-", 0)
+            .uncaughtExceptionHandler((t, e) -> logger.warn("Uncaught exception on {}", t.getName(), e)).factory());
 
     private long creationTime;
 

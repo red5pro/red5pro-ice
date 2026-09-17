@@ -39,6 +39,7 @@ import com.red5pro.ice.stack.StunStack;
 public abstract class IceTransport {
 
     /** CachedThreadPool shared by both udp and tcp transports. */
+    // MINA selector loops are long-running and pin on synchronized, keep them on platform threads
     protected static ExecutorService ioExecutor = Executors.newCachedThreadPool();
 
     protected static Logger pluginLogger = LoggerFactory.getLogger(IceTransport.class);

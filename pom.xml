@@ -29,7 +29,7 @@
         <!-- prevents built tests from running -->
         <skipTests>true</skipTests>
         <maven.compiler.verbose>false</maven.compiler.verbose>
-        <maven.compiler.release>11</maven.compiler.release>
+        <maven.compiler.release>21</maven.compiler.release>
         <maven.build.timestamp.format>MM.dd.yyyy HH:mm</maven.build.timestamp.format>
         <timestamp>${maven.build.timestamp}</timestamp>
         <mina.version>2.0.27</mina.version>

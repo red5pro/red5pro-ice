@@ -2,10 +2,8 @@
 package com.red5pro.ice.stack;
 
 import java.io.IOException;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -58,41 +56,11 @@ public class StunClientTransaction implements Runnable {
      */
     public static final int DEFAULT_ORIGINAL_WAIT_INTERVAL = 100;
 
-    private static UncaughtExceptionHandler uncaughtExceptionHandler = new UncaughtExceptionHandler() {
-
-        @Override
-        public void uncaughtException(Thread t, Throwable e) {
-            logger.warn("Uncaught exception on thread: {}", t.getName(), e);
-        }
-
-    };
-
     /**
      * The pool of Threads which retransmit StunClientTransactions.
      */
-    private static final ExecutorService retransmissionThreadPool = Executors.newCachedThreadPool(new ThreadFactory() {
-        /**
-         * The default {@code ThreadFactory} implementation which is augmented by this instance to create daemon {@code Thread}s.
-         */
-        private final ThreadFactory defaultThreadFactory = Executors.defaultThreadFactory();
-
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread t = defaultThreadFactory.newThread(r);
-            if (t != null) {
-                t.setDaemon(true);
-                // Additionally, make it known through the name of the Thread that it is associated with the
-                // StunClientTransaction class for debugging/informational purposes.
-                String name = t.getName();
-                if (name == null) {
-                    name = "";
-                }
-                t.setName("StunClientTransaction-" + name);
-                t.setUncaughtExceptionHandler(uncaughtExceptionHandler);
-            }
-            return t;
-        }
-    });
+    private static final ExecutorService retransmissionThreadPool = Executors
+            .newThreadPerTaskExecutor(Thread.ofVirtual().name("StunClientTx-", 0).factory());
 
     /**
      * Maximum number of retransmissions. Once this number is reached and if no response is received after {@link #maxWaitInterval} milliseconds the

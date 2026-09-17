@@ -76,23 +76,40 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     // temporary holding area for ice sockets awaiting session creation
     private static ConcurrentMap<TransportAddress, IceSocketWrapper> iceSockets = new ConcurrentHashMap<>();
 
-    private ExecutorService closer = Executors.newCachedThreadPool();
-    /**
-     * Periodic check for abandoned transports. ThreadFactory used to create daemon threads.
-     */
-    private ScheduledExecutorService cleanSweeper = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+    private final ExecutorService closer = Executors.newVirtualThreadPerTaskExecutor();
+
+    // the scheduler only ticks; every sweep runs on its own virtual thread
+    private final ScheduledExecutorService sweepScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "ice-sweep-scheduler");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private final AtomicBoolean sweeping = new AtomicBoolean();
 
     private long sweepJob = 0;
 
     protected IceHandler() {
         sweeperLogger.info("Waking up");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            cleanSweeper.shutdown();
+            sweepScheduler.shutdown();
             closer.shutdown();
         }));
         // Sweeper Job looks for orphaned Acceptors and Sockets.
         // Fixed delay between iterations. Not a fixed interval.
-        cleanSweeper.scheduleWithFixedDelay(this, 60, cleanSweepingInterval, TimeUnit.SECONDS);
+        sweepScheduler.scheduleWithFixedDelay(() -> {
+            if (sweeping.compareAndSet(false, true)) {
+                Thread.ofVirtual().name("ice-sweeper-" + sweepJob++).start(() -> {
+                    try {
+                        run();
+                    } finally {
+                        sweeping.set(false);
+                    }
+                });
+            } else {
+                sweeperLogger.debug("Previous sweep still running, skipping this tick");
+            }
+        }, 60, cleanSweepingInterval, TimeUnit.SECONDS);
     }
 
     /**
@@ -681,7 +698,6 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
      */
     @Override
     public void run() {
-        Thread.currentThread().setName("sweeper job-" + sweepJob++);
         try {
             sweeperLogger.trace("Starting");
             if (sweeperLogger.isDebugEnabled()) {
@@ -950,12 +966,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     }
 
     public void callEolHandlerFor(Agent agent) {
-
         Agent.EndOfLifeStateHandler handler = agent.getEolHandler();
         if (handler != null) {
-            cleanSweeper.schedule(() -> {
-                handler.agentEndOfLife(agent);
-            }, 200, TimeUnit.MILLISECONDS);
+            sweepScheduler.schedule(() -> closer.execute(() -> handler.agentEndOfLife(agent)), 200, TimeUnit.MILLISECONDS);
         }
     }
 

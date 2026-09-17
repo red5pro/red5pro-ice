@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.net.DatagramSocket;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
@@ -74,5 +75,12 @@ public class IceTransportRetryUnbindTest {
         assertTrue(agent.mustBeDead());
         IceTransport.getIceHandler().run();
         assertFalse(IceHandler.getAgentIds().contains(agent.getId()));
+    }
+
+    @Test
+    public void handlerTasksRunOnVirtualThreads() throws Exception {
+        AtomicBoolean virtual = new AtomicBoolean();
+        IceTransport.getIceHandler().submitTask(() -> virtual.set(Thread.currentThread().isVirtual())).get();
+        assertTrue(virtual.get());
     }
 }

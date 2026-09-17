@@ -242,9 +242,8 @@ public class MappingCandidateHarvesters {
             }
         }
         // Now run discover() on all created harvesters in parallel and pick the ones which succeeded.
-        ExecutorService es = Executors.newFixedThreadPool(tasks.size());
         List<Future<StunMappingCandidateHarvester>> futures;
-        try {
+        try (ExecutorService es = Executors.newVirtualThreadPerTaskExecutor()) {
             futures = es.invokeAll(tasks);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();

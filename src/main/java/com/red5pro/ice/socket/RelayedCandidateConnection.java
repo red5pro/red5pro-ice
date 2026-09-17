@@ -563,7 +563,7 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
         if (tcpConnectionBindRetryThread != null && tcpConnectionBindRetryThread.isAlive()) {
             return;
         }
-        tcpConnectionBindRetryThread = new Thread(() -> {
+        tcpConnectionBindRetryThread = Thread.ofVirtual().name("RelayedCandidateConnection-ConnectionBindRetry").unstarted(() -> {
             int attempts = 0;
             while (attempts < TCP_CONNECTION_BIND_RETRIES && !tcpConnectionBound && !closed.get()) {
                 try {
@@ -583,8 +583,7 @@ public class RelayedCandidateConnection extends IoHandlerAdapter implements Mess
                     logger.warn("CONNECTION-BIND retry failed", ex);
                 }
             }
-        }, "RelayedCandidateConnection-ConnectionBindRetry");
-        tcpConnectionBindRetryThread.setDaemon(true);
+        });
         tcpConnectionBindRetryThread.start();
     }
 
