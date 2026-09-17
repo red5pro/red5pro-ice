@@ -9,6 +9,7 @@ import java.net.DatagramSocket;
 
 import org.junit.Test;
 
+import com.red5pro.ice.Agent;
 import com.red5pro.ice.Transport;
 import com.red5pro.ice.TransportAddress;
 import com.red5pro.ice.socket.IceSocketWrapper;
@@ -62,5 +63,16 @@ public class IceTransportRetryUnbindTest {
 
         assertTrue(IceTransport.isBound(addr.getPort()));
         socket.close();
+    }
+
+    @Test
+    public void sweeperSurvivesDeadAgentLeftInRegistry() {
+        Agent agent = new Agent();
+        agent.free();
+        // free() unregistered it; put it back so the sweeper sees mustBeDead() on a registered agent
+        IceTransport.getIceHandler().registerAgent(agent);
+        assertTrue(agent.mustBeDead());
+        IceTransport.getIceHandler().run();
+        assertFalse(IceHandler.getAgentIds().contains(agent.getId()));
     }
 }

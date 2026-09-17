@@ -110,6 +110,8 @@ public abstract class IceTransport {
      * This boundAddresses set prevents multiple threads from entering acceptor.unbind(address).
      */
     protected Set<SocketAddress> myBoundAddresses = new ConcurrentHashSet<>();
+
+    private final Map<SocketAddress, Integer> retryAttempts = new ConcurrentHashMap<>();
     /**
      * Prevents thread contention between calls to unbind and the call to stop.
      */
@@ -324,6 +326,8 @@ public abstract class IceTransport {
                         logger.warn("Acceptor will be reset with extreme predudice, due to remove binding failed on {}", addr, t);
                         acceptor.dispose(false);
                         acceptor = null;
+                    } else if (retryAttempts.containsKey(addr)) {
+                        logger.debug("Remove binding failed again on {}", addr, t);
                     } else {
                         logger.warn("Remove binding failed on {}, the sweeper will retry", addr, t);
                     }
@@ -349,7 +353,7 @@ public abstract class IceTransport {
                             logger.debug("Port {} already removed from bound ports listing: {}", port, addr);
                         }
                     } else {
-                        logger.warn("Did not unbind address: {} from handler. transport-id: {}", id);
+                        logger.warn("Did not unbind address: {} from handler. transport-id: {}", addr, id);
                     }
 
                     if (!AcceptorStrategy.Shared.equals(acceptorStrategy) && myBoundAddresses.isEmpty()) {
@@ -371,10 +375,10 @@ public abstract class IceTransport {
      * Re-attempts the unbind of any address this transport still holds whose ICE socket is gone or already closed,
      * i.e. a close whose {@link #removeBinding(Long, SocketAddress)} failed or never ran.
      *
-     * @return number of addresses successfully unbound
+     * @return number of addresses reclaimed (unbound, or stale entries whose reservation was cleared)
      */
     public int retryFailedUnbinds() {
-        int unbound = 0;
+        int reclaimed = 0;
         for (SocketAddress addr : Set.copyOf(myBoundAddresses)) {
             if (!(addr instanceof TransportAddress)) {
                 continue;
@@ -383,16 +387,36 @@ public abstract class IceTransport {
             if (socket != null && !socket.isSocketClosed()) {
                 continue;
             }
-            logger.warn("Retrying unbind of {} left behind by a failed close, socket: {}", addr, socket);
-            try {
-                if (removeBinding(socket != null ? socket.getRsvp() : null, addr)) {
-                    unbound++;
+            Long rsvp = socket != null ? socket.getRsvp() : null;
+            int port = ((InetSocketAddress) addr).getPort();
+            if (acceptorHolds(addr)) {
+                int attempts = retryAttempts.merge(addr, 1, Integer::sum);
+                if (attempts == 1) {
+                    logger.warn("Retrying unbind of {} still held by the acceptor after a failed close", addr);
+                } else {
+                    logger.debug("Retrying unbind of {}, attempt {}", addr, attempts);
                 }
+            } else {
+                logger.debug("Clearing stale binding entry for {}", addr);
+            }
+            try {
+                removeBinding(rsvp, addr);
             } catch (Exception e) {
                 logger.warn("Retry unbind failed on {}", addr, e);
             }
+            if (!myBoundAddresses.contains(addr) && !acceptorHolds(addr)) {
+                // the reservation must not outlive the binding, whichever path released it
+                removeCachedBoundAddressInfo(rsvp, (InetSocketAddress) addr, port);
+                retryAttempts.remove(addr);
+                reclaimed++;
+            }
         }
-        return unbound;
+        return reclaimed;
+    }
+
+    private boolean acceptorHolds(SocketAddress addr) {
+        IoAcceptor current = acceptor;
+        return current != null && current.getLocalAddresses().contains(addr);
     }
 
     /**
@@ -581,7 +605,8 @@ public abstract class IceTransport {
     }
 
     public Set<SocketAddress> getBoundAddresses() {
-        return Set.copyOf(acceptor.getLocalAddresses());
+        IoAcceptor current = acceptor;
+        return current != null ? Set.copyOf(current.getLocalAddresses()) : Set.of();
     }
 
     public int getEstimatedBoundAddressCount() {
