@@ -720,6 +720,11 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
                     doCheckups(t, iceSocket);
                 }
             });
+
+            int reclaimed = t.retryFailedUnbinds();
+            if (reclaimed > 0) {
+                sweeperLogger.warn("Transport {} reclaimed {} address(es) from failed unbinds", id, reclaimed);
+            }
         });
 
         if (sweeperLogger.isTraceEnabled() && !stunStacks.isEmpty()) {

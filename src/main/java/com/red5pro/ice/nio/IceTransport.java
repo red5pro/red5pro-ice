@@ -324,9 +324,8 @@ public abstract class IceTransport {
                         logger.warn("Acceptor will be reset with extreme predudice, due to remove binding failed on {}", addr, t);
                         acceptor.dispose(false);
                         acceptor = null;
-                    } else if (isDebug) {
-                        // putting on the debug guard to prevent flooding the log
-                        logger.warn("Remove binding failed on {}", addr, t);
+                    } else {
+                        logger.warn("Remove binding failed on {}, the sweeper will retry", addr, t);
                     }
                 } finally {
 
@@ -366,6 +365,34 @@ public abstract class IceTransport {
             logger.debug("address was already unbound {}  id: {}", addr, id);
         }
         return false;
+    }
+
+    /**
+     * Re-attempts the unbind of any address this transport still holds whose ICE socket is gone or already closed,
+     * i.e. a close whose {@link #removeBinding(Long, SocketAddress)} failed or never ran.
+     *
+     * @return number of addresses successfully unbound
+     */
+    public int retryFailedUnbinds() {
+        int unbound = 0;
+        for (SocketAddress addr : Set.copyOf(myBoundAddresses)) {
+            if (!(addr instanceof TransportAddress)) {
+                continue;
+            }
+            IceSocketWrapper socket = iceHandler.lookupBinding((TransportAddress) addr);
+            if (socket != null && !socket.isSocketClosed()) {
+                continue;
+            }
+            logger.warn("Retrying unbind of {} left behind by a failed close, socket: {}", addr, socket);
+            try {
+                if (removeBinding(socket != null ? socket.getRsvp() : null, addr)) {
+                    unbound++;
+                }
+            } catch (Exception e) {
+                logger.warn("Retry unbind failed on {}", addr, e);
+            }
+        }
+        return unbound;
     }
 
     /**
