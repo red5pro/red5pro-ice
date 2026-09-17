@@ -753,7 +753,7 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
             });
         }
 
-        if (sweeperLogger.isTraceEnabled() && !agents.isEmpty()) {
+        if (!agents.isEmpty()) {
             sweeperLogger.trace("--- Agents ---");
 
             List<Agent> toRemove = new ArrayList<>();
