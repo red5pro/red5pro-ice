@@ -8,8 +8,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,9 +40,25 @@ import com.red5pro.ice.stack.StunStack;
  */
 public abstract class IceTransport {
 
-    /** CachedThreadPool shared by both udp and tcp transports. */
     // MINA selector loops are long-running and pin on synchronized, keep them on platform threads
+    /** CachedThreadPool shared by both udp and tcp transports. */
     protected static ExecutorService ioExecutor = Executors.newCachedThreadPool();
+
+    /**
+     * Runs a MINA acceptor call on a platform thread: the acceptor parks inside its own monitors, which would pin a virtual
+     * thread's carrier. The caller blocks on the future, which unmounts a virtual thread cleanly.
+     */
+    protected static void onPlatformThread(Callable<Void> call) throws Exception {
+        try {
+            ioExecutor.submit(call).get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception ex) {
+                throw ex;
+            }
+            throw e;
+        }
+    }
 
     protected static Logger pluginLogger = LoggerFactory.getLogger(IceTransport.class);
 
@@ -312,7 +330,11 @@ public abstract class IceTransport {
                     // perform the un-binding, if bound
                     if (acceptor.getLocalAddresses().contains(addr)) {
 
-                        acceptor.unbind(addr); // do this only once, especially for TCP since it can block
+                        IoAcceptor current = acceptor;
+                        onPlatformThread(() -> {
+                            current.unbind(addr); // do this only once, especially for TCP since it can block
+                            return null;
+                        });
 
                         logger.debug("Binding removed: {}", addr);
                         didUnbind = true;
@@ -448,13 +470,17 @@ public abstract class IceTransport {
             try {
                 if (acceptor != null) {
                     //Normal closure. Check for bound ports.
-                    if (!acceptor.getLocalAddresses().isEmpty()) {
+                    IoAcceptor current = acceptor;
+                    if (!current.getLocalAddresses().isEmpty()) {
                         logger.debug("Acceptor has addresses at 'stop' event. Unbind.");
-                        copy.addAll(acceptor.getLocalAddresses());
-                        acceptor.unbind();
+                        copy.addAll(current.getLocalAddresses());
                     }
-                    //Forced closure. Dont wait.
-                    acceptor.dispose(true);
+                    onPlatformThread(() -> {
+                        current.unbind();
+                        //Forced closure. Dont wait.
+                        current.dispose(true);
+                        return null;
+                    });
                     disposed = true;
                     logger.debug("Disposed acceptor: {} {}", id);
                 }

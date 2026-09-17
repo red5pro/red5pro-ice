@@ -255,7 +255,10 @@ public class IceUdpTransport extends IceTransport {
             acceptorUtilized = true;
             if (myBoundAddresses.add(addr)) {
                 logger.debug("Adding UDP binding: {}", addr);
-                acceptor.bind(addr);
+                onPlatformThread(() -> {
+                    acceptor.bind(addr);
+                    return null;
+                });
                 logger.debug("UDP Bound: {}", addr);
                 // add the port to the bound list
                 Long rsvp = cacheBoundAddressInfo(socketUUID, addr, addr.getPort());

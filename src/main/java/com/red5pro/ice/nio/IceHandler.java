@@ -89,16 +89,24 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
 
     private long sweepJob = 0;
 
+    private int skippedSweeps;
+
     protected IceHandler() {
         sweeperLogger.info("Waking up");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             sweepScheduler.shutdown();
             closer.shutdown();
+            try {
+                closer.awaitTermination(2, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }));
         // Sweeper Job looks for orphaned Acceptors and Sockets.
         // Fixed delay between iterations. Not a fixed interval.
         sweepScheduler.scheduleWithFixedDelay(() -> {
             if (sweeping.compareAndSet(false, true)) {
+                skippedSweeps = 0;
                 Thread.ofVirtual().name("ice-sweeper-" + sweepJob++).start(() -> {
                     try {
                         run();
@@ -107,7 +115,11 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
                     }
                 });
             } else {
-                sweeperLogger.debug("Previous sweep still running, skipping this tick");
+                if (++skippedSweeps >= 3) {
+                    sweeperLogger.warn("Previous sweep still running after {} ticks", skippedSweeps);
+                } else {
+                    sweeperLogger.debug("Previous sweep still running, skipping this tick");
+                }
             }
         }, 60, cleanSweepingInterval, TimeUnit.SECONDS);
     }

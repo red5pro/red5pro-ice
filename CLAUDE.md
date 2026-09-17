@@ -36,4 +36,4 @@ Key log patterns: `setControlling:`, `Pair succeeded:`, `CheckList...COMPLETED`,
 
 ## Code Style
 
-Red5Pro-formatter.xml, 4-space indent, 140 char width, LF endings, Java 11
+Red5Pro-formatter.xml, 4-space indent, 140 char width, LF endings, Java 21
