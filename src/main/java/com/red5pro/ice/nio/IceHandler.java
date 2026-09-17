@@ -76,23 +76,52 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     // temporary holding area for ice sockets awaiting session creation
     private static ConcurrentMap<TransportAddress, IceSocketWrapper> iceSockets = new ConcurrentHashMap<>();
 
-    private ExecutorService closer = Executors.newCachedThreadPool();
-    /**
-     * Periodic check for abandoned transports. ThreadFactory used to create daemon threads.
-     */
-    private ScheduledExecutorService cleanSweeper = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+    private final ExecutorService closer = Executors.newVirtualThreadPerTaskExecutor();
+
+    // the scheduler only ticks; every sweep runs on its own virtual thread
+    private final ScheduledExecutorService sweepScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "ice-sweep-scheduler");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private final AtomicBoolean sweeping = new AtomicBoolean();
 
     private long sweepJob = 0;
+
+    private int skippedSweeps;
 
     protected IceHandler() {
         sweeperLogger.info("Waking up");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            cleanSweeper.shutdown();
+            sweepScheduler.shutdown();
             closer.shutdown();
+            try {
+                closer.awaitTermination(2, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }));
         // Sweeper Job looks for orphaned Acceptors and Sockets.
         // Fixed delay between iterations. Not a fixed interval.
-        cleanSweeper.scheduleWithFixedDelay(this, 60, cleanSweepingInterval, TimeUnit.SECONDS);
+        sweepScheduler.scheduleWithFixedDelay(() -> {
+            if (sweeping.compareAndSet(false, true)) {
+                skippedSweeps = 0;
+                Thread.ofVirtual().name("ice-sweeper-" + sweepJob++).start(() -> {
+                    try {
+                        run();
+                    } finally {
+                        sweeping.set(false);
+                    }
+                });
+            } else {
+                if (++skippedSweeps >= 3) {
+                    sweeperLogger.warn("Previous sweep still running after {} ticks", skippedSweeps);
+                } else {
+                    sweeperLogger.debug("Previous sweep still running, skipping this tick");
+                }
+            }
+        }, 60, cleanSweepingInterval, TimeUnit.SECONDS);
     }
 
     /**
@@ -681,121 +710,134 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
      */
     @Override
     public void run() {
-        Thread.currentThread().setName("sweeper job-" + sweepJob++);
-        sweeperLogger.trace("Starting");
-        if (sweeperLogger.isDebugEnabled()) {
-            Set<Thread> threads = Thread.getAllStackTraces().keySet();
+        try {
+            sweeperLogger.trace("Starting");
+            if (sweeperLogger.isDebugEnabled()) {
+                Set<Thread> threads = Thread.getAllStackTraces().keySet();
 
-            sweeperLogger.debug("JVM thread count {}", threads.size());
+                sweeperLogger.debug("JVM thread count {}", threads.size());
 
-            ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
-            long[] deadlockedThreads = threadMXBean.findDeadlockedThreads();
-            if (deadlockedThreads != null) {
-                sweeperLogger.warn("Number of deadlocked threads: " + deadlockedThreads.length);
-            } else {
-                sweeperLogger.debug("No deadlocks detected.");
+                ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+                long[] deadlockedThreads = threadMXBean.findDeadlockedThreads();
+                if (deadlockedThreads != null) {
+                    sweeperLogger.warn("Number of deadlocked threads: " + deadlockedThreads.length);
+                } else {
+                    sweeperLogger.debug("No deadlocks detected.");
+                }
             }
-        }
 
-        sweeperLogger.debug("ICE Transport count: {}", IceTransport.transportCount());
+            sweeperLogger.debug("ICE Transport count: {}", IceTransport.transportCount());
 
 
-        IceTransport.transports.forEach((id, t) -> {
+            IceTransport.transports.forEach((id, t) -> {
+                try {
+
+                    if (sweeperLogger.isTraceEnabled()) {
+                        sweeperLogger.trace("IceTransport: {}  shared: {}, stopped: {}", id, t.isShared(), t.getStoppedAndAddresses());
+                    }
+
+                    //Iterate on known addresses.
+                    t.getBoundAddresses().forEach((SocketAddress sockAddy) -> {
+                        IceSocketWrapper iceSocket = iceSockets.get(sockAddy);
+                        if (iceSocket != null && iceSocket.getTransportId() == id) {
+                            doCheckups(t, iceSocket);
+                        }
+                    });
+
+                    //Iterate on lost/unknown addresses.
+                    iceSockets.forEach((addy, iceSocket) -> {
+                        if (iceSocket != null && iceSocket.getTransportId() == id) {
+                            doCheckups(t, iceSocket);
+                        }
+                    });
+
+                    int reclaimed = t.retryFailedUnbinds();
+                    if (reclaimed > 0) {
+                        sweeperLogger.warn("Transport {} reclaimed {} address(es) from failed unbinds", id, reclaimed);
+                    }
+                } catch (Throwable e) {
+                    sweeperLogger.warn("Sweep of transport {} failed", id, e);
+                }
+            });
+
+            if (sweeperLogger.isTraceEnabled() && !stunStacks.isEmpty()) {
+                sweeperLogger.trace("---Stun Stacks---");
+                stunStacks.forEach((hood, stunna) -> {
+                    if (stunna != null) {
+                        sweeperLogger.trace("Stack age: {}, reg-count: {}, agent id: {}", stunna.getAge(), stunna.getRegistrationCount(),
+                                stunna.getAgentId());
+                        sweeperLogger.trace(hood.toString());
+                    } else {
+                        sweeperLogger.trace("No stack for {}", hood);
+                    }
+                });
+            }
+
+            if (sweeperLogger.isTraceEnabled() && !iceSockets.isEmpty()) {
+                sweeperLogger.info("---ICE Sockets---");
+                iceSockets.forEach((addy, socket) -> {
+                    if (socket != null) {
+                        sweeperLogger.info(socket.toSweeperInfo());
+                        sweeperLogger.info("Socket age: {}, has-transport: {}", socket.getAge(),
+                                IceTransport.transportExists(socket.getTransportId()));
+                    } else {
+                        sweeperLogger.info("No socket for {}", addy);
+                    }
+                });
+            }
+
+            if (!agents.isEmpty()) {
+                sweeperLogger.trace("--- Agents ---");
+
+                List<Agent> toRemove = new ArrayList<>();
+                agents.forEach((id, agent) -> {
+
+                    if (agent.mustBeDead()) {
+                        toRemove.add(agent);
+                    }
+
+                    if (sweeperLogger.isTraceEnabled()) {
+                        if (agent.getState() == IceProcessingState.WAITING) {
+                            sweeperLogger.info("Wating agent {}, age: {}, allocated ports: {}", agent.getLocalUfrag(), agent.getAge(),
+                                    agent.getPreAllocatedPorts());
+                        } else if (agent.getState() == IceProcessingState.RUNNING && !agent.isClosing()) {
+                            sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-age: {}, allocated ports: {}",
+                                    agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getIceAge(),
+                                    agent.getPreAllocatedPorts());
+                        } else if (!agent.isClosing()) {
+                            sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                                    agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                                    agent.getPreAllocatedPorts());
+                        } else if (!agent.isActive()) {
+                            sweeperLogger.info("Agent is closed {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                                    agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                                    agent.getPreAllocatedPorts());
+                        } else if (agent.isClosing()) {
+                            sweeperLogger.info("Agent is closing {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
+                                    agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
+                                    agent.getPreAllocatedPorts());
+                        }
+                    }
+                });
+
+                toRemove.forEach(agent -> {
+                    unorderlyClosure(agent.getId());
+
+                });
+            }
 
             if (sweeperLogger.isTraceEnabled()) {
-                sweeperLogger.trace("IceTransport: {}  shared: {}, stopped: {}", id, t.isShared(), t.getStoppedAndAddresses());
+                Iterator<ABPEntry> iter = IceTransport.getGlobalListing().iterator();
+                while (iter.hasNext()) {
+                    ABPEntry entry = iter.next();
+                    sweeperLogger.warn(entry.toString());
+                }
             }
 
-            //Iterate on known addresses.
-            t.getBoundAddresses().forEach((SocketAddress sockAddy) -> {
-                IceSocketWrapper iceSocket = iceSockets.get(sockAddy);
-                if (iceSocket != null && iceSocket.getTransportId() == id) {
-                    doCheckups(t, iceSocket);
-                }
-            });
-
-            //Iterate on lost/unknown addresses.
-            iceSockets.forEach((addy, iceSocket) -> {
-                if (iceSocket != null && iceSocket.getTransportId() == id) {
-                    doCheckups(t, iceSocket);
-                }
-            });
-        });
-
-        if (sweeperLogger.isTraceEnabled() && !stunStacks.isEmpty()) {
-            sweeperLogger.trace("---Stun Stacks---");
-            stunStacks.forEach((hood, stunna) -> {
-                if (stunna != null) {
-                    sweeperLogger.trace("Stack age: {}, reg-count: {}, agent id: {}", stunna.getAge(), stunna.getRegistrationCount(),
-                            stunna.getAgentId());
-                    sweeperLogger.trace(hood.toString());
-                } else {
-                    sweeperLogger.trace("No stack for {}", hood);
-                }
-            });
+            sweeperLogger.trace("Exiting");
+        } catch (Throwable t) {
+            sweeperLogger.warn("Sweep failed", t);
         }
-
-        if (sweeperLogger.isTraceEnabled() && !iceSockets.isEmpty()) {
-            sweeperLogger.info("---ICE Sockets---");
-            iceSockets.forEach((addy, socket) -> {
-                if (socket != null) {
-                    sweeperLogger.info(socket.toSweeperInfo());
-                    sweeperLogger.info("Socket age: {}, has-transport: {}", socket.getAge(),
-                            IceTransport.transportExists(socket.getTransportId()));
-                } else {
-                    sweeperLogger.info("No socket for {}", addy);
-                }
-            });
-        }
-
-        if (sweeperLogger.isTraceEnabled() && !agents.isEmpty()) {
-            sweeperLogger.trace("--- Agents ---");
-
-            List<Agent> toRemove = new ArrayList<>();
-            agents.forEach((id, agent) -> {
-
-                if (agent.mustBeDead()) {
-                    toRemove.add(agent);
-                }
-
-                if (sweeperLogger.isTraceEnabled()) {
-                    if (agent.getState() == IceProcessingState.WAITING) {
-                        sweeperLogger.info("Wating agent {}, age: {}, allocated ports: {}", agent.getLocalUfrag(), agent.getAge(),
-                                agent.getPreAllocatedPorts());
-                    } else if (agent.getState() == IceProcessingState.RUNNING && !agent.isClosing()) {
-                        sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-age: {}, allocated ports: {}",
-                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getIceAge(), agent.getPreAllocatedPorts());
-                    } else if (!agent.isClosing()) {
-                        sweeperLogger.info("Active agent {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
-                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
-                                agent.getPreAllocatedPorts());
-                    } else if (!agent.isActive()) {
-                        sweeperLogger.info("Agent is closed {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
-                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
-                                agent.getPreAllocatedPorts());
-                    } else if (agent.isClosing()) {
-                        sweeperLogger.info("Agent is closing {} ice-state: {}, age: {}, ice-duration: {}, allocated ports: {}",
-                                agent.getLocalUfrag(), agent.getState(), agent.getAge(), agent.getTotalHarvestingTime(),
-                                agent.getPreAllocatedPorts());
-                    }
-                }
-            });
-
-            toRemove.forEach(agent -> {
-                unorderlyClosure(agent.getId());
-
-            });
-        }
-
-        if (sweeperLogger.isTraceEnabled()) {
-            Iterator<ABPEntry> iter = IceTransport.getGlobalListing().iterator();
-            while (iter.hasNext()) {
-                ABPEntry entry = iter.next();
-                sweeperLogger.warn(entry.toString());
-            }
-        }
-
-        sweeperLogger.trace("Exiting");
     }
 
     private void doCheckups(IceTransport transport, IceSocketWrapper sock) {
@@ -923,6 +965,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     }
 
     private void unorderlyClosure(String id) {
+        if (report.get() == null) {
+            report.set(new HashMap<>());
+        }
         Agent agent = agents.remove(id);
         if (agent != null) {
             report.get().put("agent.removed", true);
@@ -933,12 +978,9 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
     }
 
     public void callEolHandlerFor(Agent agent) {
-
         Agent.EndOfLifeStateHandler handler = agent.getEolHandler();
         if (handler != null) {
-            cleanSweeper.schedule(() -> {
-                handler.agentEndOfLife(agent);
-            }, 200, TimeUnit.MILLISECONDS);
+            sweepScheduler.schedule(() -> closer.execute(() -> handler.agentEndOfLife(agent)), 200, TimeUnit.MILLISECONDS);
         }
     }
 

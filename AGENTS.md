@@ -32,7 +32,7 @@ mvn net.revelc.code.formatter:formatter-maven-plugin:format
 Formats source using `Red5Pro-formatter.xml`.
 
 ## Coding Style & Naming Conventions
-Java 11, 4-space indentation, LF line endings, and 140-character line width. Follow existing package naming under `com.red5pro.ice`. Use descriptive class names (`*Harvester`, `*Attribute`, `*Test`). Formatting is handled by the Maven formatter plugin; prefer running it before committing.
+Java 21, 4-space indentation, LF line endings, and 140-character line width. Follow existing package naming under `com.red5pro.ice`. Use descriptive class names (`*Harvester`, `*Attribute`, `*Test`). Formatting is handled by the Maven formatter plugin; prefer running it before committing.
 
 ## Testing Guidelines
 Unit tests are JUnit 4 (see `pom.xml` and `src/test/java`). Test classes use the `*Test` or `*Tests` suffix (e.g., `NetworkUtilsTest`, `TransactionSupportTests`). Integration tests live under `com.red5pro.ice.integration` and can skip automatically if Docker is unavailable.

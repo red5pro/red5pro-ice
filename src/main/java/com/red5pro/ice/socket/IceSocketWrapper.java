@@ -270,7 +270,7 @@ public abstract class IceSocketWrapper implements Comparable<IceSocketWrapper> {
             try {
                 return IceTransport.getIceHandler().runSocketCloseJob(closeMe).get(5000, TimeUnit.MILLISECONDS);
             } catch (Exception e) {
-                logger.debug("", e);
+                logger.warn("Close hand-off for {} did not complete: {}", transportAddress, e.toString());
             }
             return false;
         } else {

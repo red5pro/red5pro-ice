@@ -4,7 +4,7 @@
     <groupId>com.red5pro</groupId>
     <artifactId>red5pro-ice</artifactId>
     <!-- When the version changes, update Agent.VERSION as well -->
-    <version>1.2.15</version>
+    <version>1.2.16</version>
     <packaging>jar</packaging>
     <name>red5pro-ice</name>
     <url>https://github.com/red5pro/red5pro-ice</url>
@@ -29,7 +29,7 @@
         <!-- prevents built tests from running -->
         <skipTests>true</skipTests>
         <maven.compiler.verbose>false</maven.compiler.verbose>
-        <maven.compiler.release>11</maven.compiler.release>
+        <maven.compiler.release>21</maven.compiler.release>
         <maven.build.timestamp.format>MM.dd.yyyy HH:mm</maven.build.timestamp.format>
         <timestamp>${maven.build.timestamp}</timestamp>
         <mina.version>2.0.27</mina.version>

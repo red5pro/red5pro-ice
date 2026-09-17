@@ -45,7 +45,7 @@ public class CandidateHarvesterSet extends AbstractSet<CandidateHarvester> {
     /**
      * A pool of thread used for gathering process.
      */
-    private static ExecutorService threadPool = Executors.newCachedThreadPool();
+    private static ExecutorService threadPool = Executors.newVirtualThreadPerTaskExecutor();
 
     /**
      * Initializes a new CandidateHarvesterSet instance.

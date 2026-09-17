@@ -2,7 +2,6 @@
 package com.red5pro.ice.stack;
 
 import java.io.IOException;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.security.NoSuchAlgorithmException;
@@ -14,8 +13,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.crypto.Mac;
 
@@ -118,22 +117,8 @@ public class StunStack implements MessageEventHandler {
     /**
      * Executor for all threads and tasks needed in this stacks agent.
      */
-    private static ExecutorService executor = Executors.newCachedThreadPool(new ThreadFactory() {
-        public Thread newThread(Runnable r) {
-            Thread t = new Thread(r);
-            t.setName(String.format("StunStack@%d", System.currentTimeMillis()));
-            t.setDaemon(true);
-            t.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
-
-                @Override
-                public void uncaughtException(Thread t, Throwable e) {
-                    logger.warn("Uncaught exception on {}", t.getName(), e);
-                }
-
-            });
-            return t;
-        }
-    });
+    private static ExecutorService executor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("StunStack-", 0)
+            .uncaughtExceptionHandler((t, e) -> logger.warn("Uncaught exception on {}", t.getName(), e)).factory());
 
     private long creationTime;
 
@@ -148,6 +133,9 @@ public class StunStack implements MessageEventHandler {
      * This allows StunStack to look up the same IceTransport for each of the user's candidates
      */
     private String tcpTransportSessionId;
+
+    // guards the per-session transport ids without pinning a virtual thread the way synchronized would
+    private final ReentrantLock addSocketLock = new ReentrantLock();
 
     /**
      * Owning agent.
@@ -212,66 +200,71 @@ public class StunStack implements MessageEventHandler {
 
     /**
      * Creates and starts a Network Access Point (Connector) based on the specified socket and the specified remote address.
-     * Synchronized to prevent racing when using {@code AcceptorStrategy.DiscretePerSession} where we need to store the transport id for subsequent sockets added.
+     * Locked to prevent racing when using {@code AcceptorStrategy.DiscretePerSession} where we need to store the transport id for subsequent sockets added; a lock rather than synchronized so a virtual thread waiting on the bind does not pin its carrier.
      *
      * @param iceSocket the socket wrapper that the new access point should represent
      * @param remoteAddress of the Connector to be created if it is a TCP socket or null if it is UDP
      * @param doBind perform bind on the wrappers local address if true and not if false
      */
-    synchronized public boolean addSocket(IceSocketWrapper iceSocket, TransportAddress remoteAddress, boolean doBind) {
-        logger.debug("addSocket: {} remote address: {} bind? {}", iceSocket, remoteAddress, doBind);
-        boolean added = false;
-        InetAddress addr = iceSocket.getLocalAddress();
-        boolean isIPv6Address = addr.getHostAddress().contains(":");
-        logger.info("Use IPv6: {} Use all binding: {} Is IPv6 address: {}", useIPv6, useAllBinding, isIPv6Address);
-        if (!useAllBinding && (useIPv6 && !isIPv6Address)) {
-            logger.debug("Skipping IPv4 address: {}", addr);
-        } else if (!useAllBinding && (!useIPv6 && isIPv6Address)) {
-            logger.debug("Skipping IPv6 address: {}", addr);
-        } else {
-            // add the wrapper for binding
-            if (doBind) {
-                Transport type = iceSocket.getTransport();
-                IceTransport transport = null;
-                if (Transport.UDP.equals(type)) {
-                    //If discrete per session, we create one transport for all UDP sockets for this user.
-                    if (sessionAcceptorStrategy == AcceptorStrategy.DiscretePerSession) {
-                        if (udpTransportSessionId == null) {//Save the first transport ID to use for subsequent udp sockets.
-                            transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
-                            udpTransportSessionId = transport.getId();
-                        } else {
-                            transport = IceTransport.getInstance(type, udpTransportSessionId);
-                        }
-                    } else {
-                        transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
-                    }
-                } else if (Transport.TCP.equals(type)) {
-                    //If discrete per session, we create one transport for all TCP sockets for this user.
-                    if (sessionAcceptorStrategy == AcceptorStrategy.DiscretePerSession) {
-                        if (tcpTransportSessionId == null) {//Save the first transport ID to use for susequent tcp sockets.
-                            transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
-                            tcpTransportSessionId = transport.getId();
-                        } else {
-                            transport = IceTransport.getInstance(type, tcpTransportSessionId);
-                        }
-                    } else {
-                        transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
-                    }
-                }
-                if (transport != null) {
-                    iceSocket.setIceTransportRef(transport);
-                    transport.registerStackAndSocket(this, iceSocket);
-                }
+    public boolean addSocket(IceSocketWrapper iceSocket, TransportAddress remoteAddress, boolean doBind) {
+        addSocketLock.lock();
+        try {
+            logger.debug("addSocket: {} remote address: {} bind? {}", iceSocket, remoteAddress, doBind);
+            boolean added = false;
+            InetAddress addr = iceSocket.getLocalAddress();
+            boolean isIPv6Address = addr.getHostAddress().contains(":");
+            logger.info("Use IPv6: {} Use all binding: {} Is IPv6 address: {}", useIPv6, useAllBinding, isIPv6Address);
+            if (!useAllBinding && (useIPv6 && !isIPv6Address)) {
+                logger.debug("Skipping IPv4 address: {}", addr);
+            } else if (!useAllBinding && (!useIPv6 && isIPv6Address)) {
+                logger.debug("Skipping IPv6 address: {}", addr);
             } else {
-                // add directly to the ice handler to prevent any unwanted binding
-                IceTransport.getIceHandler().registerStackAndSocket(this, iceSocket);
+                // add the wrapper for binding
+                if (doBind) {
+                    Transport type = iceSocket.getTransport();
+                    IceTransport transport = null;
+                    if (Transport.UDP.equals(type)) {
+                        //If discrete per session, we create one transport for all UDP sockets for this user.
+                        if (sessionAcceptorStrategy == AcceptorStrategy.DiscretePerSession) {
+                            if (udpTransportSessionId == null) {//Save the first transport ID to use for subsequent udp sockets.
+                                transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                                udpTransportSessionId = transport.getId();
+                            } else {
+                                transport = IceTransport.getInstance(type, udpTransportSessionId);
+                            }
+                        } else {
+                            transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                        }
+                    } else if (Transport.TCP.equals(type)) {
+                        //If discrete per session, we create one transport for all TCP sockets for this user.
+                        if (sessionAcceptorStrategy == AcceptorStrategy.DiscretePerSession) {
+                            if (tcpTransportSessionId == null) {//Save the first transport ID to use for susequent tcp sockets.
+                                transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                                tcpTransportSessionId = transport.getId();
+                            } else {
+                                transport = IceTransport.getInstance(type, tcpTransportSessionId);
+                            }
+                        } else {
+                            transport = IceTransport.getInstance(type, sessionAcceptorStrategy.toString());
+                        }
+                    }
+                    if (transport != null) {
+                        iceSocket.setIceTransportRef(transport);
+                        transport.registerStackAndSocket(this, iceSocket);
+                    }
+                } else {
+                    // add directly to the ice handler to prevent any unwanted binding
+                    IceTransport.getIceHandler().registerStackAndSocket(this, iceSocket);
+                }
+                // add the socket to the net access manager
+                netAccessManager.buildConnectorLink(iceSocket, remoteAddress);
+                added = true;
+                registeredWith(iceSocket.getTransportAddress());
             }
-            // add the socket to the net access manager
-            netAccessManager.buildConnectorLink(iceSocket, remoteAddress);
-            added = true;
-            registeredWith(iceSocket.getTransportAddress());
+            return added;
+        } finally {
+            addSocketLock.unlock();
         }
-        return added;
     }
 
     /**
