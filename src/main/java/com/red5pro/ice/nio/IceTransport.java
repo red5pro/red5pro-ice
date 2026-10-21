@@ -14,6 +14,9 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -46,11 +49,17 @@ public abstract class IceTransport {
 
     /**
      * Runs a MINA acceptor call on a platform thread: the acceptor parks inside its own monitors, which would pin a virtual
-     * thread's carrier. The caller blocks on the future, which unmounts a virtual thread cleanly.
+     * thread's carrier. The caller blocks on the future, which unmounts a virtual thread cleanly. The wait is bounded by the
+     * acceptor timeout; on expiry the task is cancelled and a {@link TimeoutException} is thrown.
      */
     protected static void onPlatformThread(Callable<Void> call) throws Exception {
+        Future<Void> future = ioExecutor.submit(call);
         try {
-            ioExecutor.submit(call).get();
+            // bounded: an unbind issued from the acceptor's own I/O thread can never complete, and must not park the caller forever
+            future.get(acceptorTimeout, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw e;
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof Exception ex) {

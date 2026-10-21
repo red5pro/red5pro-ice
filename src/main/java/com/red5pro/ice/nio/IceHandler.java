@@ -439,9 +439,16 @@ public class IceHandler extends IoHandlerAdapter implements Runnable {
         String id = (String) session.getAttribute(IceTransport.Ice.UUID);
         // get transport by type
         IceTransport transport = IceTransport.getInstance(transportType, id);
-        // remove binding
+        // remove binding; this callback runs on the acceptor's own I/O thread, which an unbind waits on, so hand it off
         if (transport != null) {
-            transport.removeBinding(iceSocket.getRsvp(), addr);
+            Long rsvp = iceSocket != null ? iceSocket.getRsvp() : null;
+            closer.execute(() -> {
+                try {
+                    transport.removeBinding(rsvp, addr);
+                } catch (Exception e) {
+                    logger.warn("Remove binding failed on {}", addr, e);
+                }
+            });
         }
         // remove any map entries
         stunStacks.remove(addr);
