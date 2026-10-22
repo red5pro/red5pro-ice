@@ -237,6 +237,8 @@ public class IceUdpTransport extends IceTransport {
             acceptor.setCloseOnDeactivation(true);
             // get the filter chain and add our codec factory
             acceptor.getFilterChain().addLast("protocol", iceCodecFilter);
+            // mark outgoing buffers so a deferred flush can reset them
+            acceptor.getFilterChain().addLast("writeMark", new WriteMarkFilter());
             // add our handler
             acceptor.setHandler(iceHandler);
             logger.info("Started socket transport id: {}", id);
