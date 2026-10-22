@@ -1,7 +1,7 @@
 #!/bin/bash
 
-VERSION=1.2.18
-PREVIOUS_VERSION=1.2.17
+VERSION=1.2.19
+PREVIOUS_VERSION=1.2.18
 
 # update version numbers
 echo "Updating version numbers to $VERSION"
